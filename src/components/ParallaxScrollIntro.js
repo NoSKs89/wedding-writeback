@@ -33,9 +33,9 @@ const ParallaxScrollIntro = ({
     // translateY: 0 is center. Positive is down, negative is up.
     // 50vh is bottom edge of screen, -50vh is top edge.
     coupleInitialY: { value: 50, min: -50, max: 100, step: 1, label: 'Start Y (vh from center)' }, // Starts at bottom edge
-    coupleFinalY: { value: 15, min: -50, max: 50, step: 1, label: 'End Y (vh from center)' }, // Ends slightly below center
+    coupleFinalY: { value: 28, min: -50, max: 50, step: 1, label: 'End Y (vh from center)' }, // Updated to 28
     coupleInitialScale: { value: 0.5, min: 0.1, max: 2, step: 0.01 },
-    coupleFinalScale: { value: 1.0, min: 0.1, max: 2, step: 0.01 }, // Adjust to fit mobile well
+    coupleFinalScale: { value: 1.59, min: 0.1, max: 2, step: 0.01 }, // Updated to 1.59
     coupleImageHeightVh: { value: 65, min: 20, max: 100, step: 1, label: 'Image Height (vh)'},
     coupleInitialOpacity: { value: 0, min: 0, max: 1, step: 0.01 },
     coupleFinalOpacity: { value: 1, min: 0, max: 1, step: 0.01 },
@@ -127,12 +127,10 @@ const ParallaxScrollIntro = ({
       shouldAlwaysCompleteAnimation: true,
     },
     {
-      translateY: [`${coupleControls.coupleInitialY}vh`, `${coupleControls.coupleFinalY}vh`],
-      scale: [coupleControls.coupleInitialScale, coupleControls.coupleFinalScale, coupleControls.coupleEasing],
-      opacity: [coupleControls.coupleInitialOpacity, coupleControls.coupleFinalOpacity],
+      translateY: [`${coupleControls.coupleInitialY}vh`, `${coupleControls.coupleFinalY}vh`, coupleControls.coupleEasing, coupleControls.coupleAnimationStartScroll, coupleControls.coupleAnimationEndScroll],
+      scale: [coupleControls.coupleInitialScale, coupleControls.coupleFinalScale, coupleControls.coupleEasing, coupleControls.coupleAnimationStartScroll, coupleControls.coupleAnimationEndScroll],
+      opacity: [coupleControls.coupleInitialOpacity, coupleControls.coupleFinalOpacity, coupleControls.coupleEasing, coupleControls.coupleAnimationStartScroll, coupleControls.coupleAnimationEndScroll],
       shouldAlwaysCompleteAnimation: true,
-      startScroll: coupleControls.coupleAnimationStartScroll,
-      endScroll: coupleControls.coupleAnimationEndScroll,
       children: (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%' }}>
           <img
@@ -150,12 +148,10 @@ const ParallaxScrollIntro = ({
       ),
     },
     {
-      translateY: [`${namesControls.namesInitialY}vh`, `${namesControls.namesFinalY}vh`],
-      scale: [namesControls.namesInitialScale, namesControls.namesFinalScale, namesControls.namesEasing],
-      opacity: [namesControls.namesInitialOpacity, namesControls.namesFinalOpacity],
+      translateY: [`${namesControls.namesInitialY}vh`, `${namesControls.namesFinalY}vh`, namesControls.namesEasing, namesControls.namesAnimationStartScroll, namesControls.namesAnimationEndScroll],
+      scale: [namesControls.namesInitialScale, namesControls.namesFinalScale, namesControls.namesEasing, namesControls.namesAnimationStartScroll, namesControls.namesAnimationEndScroll],
+      opacity: [namesControls.namesInitialOpacity, namesControls.namesFinalOpacity, namesControls.namesEasing, namesControls.namesAnimationStartScroll, namesControls.namesAnimationEndScroll],
       shouldAlwaysCompleteAnimation: true,
-      startScroll: namesControls.namesAnimationStartScroll,
-      endScroll: namesControls.namesAnimationEndScroll,
       children: (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%', textAlign: 'center', color: 'white', pointerEvents: 'none' }}>
           <div>
@@ -173,12 +169,10 @@ const ParallaxScrollIntro = ({
       ),
     },
     {
-      translateY: [`${dateControls.dateInitialY}vh`, `${dateControls.dateFinalY}vh`],
-      scale: [dateControls.dateInitialScale, dateControls.dateFinalScale, dateControls.dateEasing],
-      opacity: [dateControls.dateInitialOpacity, dateControls.dateFinalOpacity],
+      translateY: [`${dateControls.dateInitialY}vh`, `${dateControls.dateFinalY}vh`, dateControls.dateEasing, dateControls.dateAnimationStartScroll, dateControls.dateAnimationEndScroll],
+      scale: [dateControls.dateInitialScale, dateControls.dateFinalScale, dateControls.dateEasing, dateControls.dateAnimationStartScroll, dateControls.dateAnimationEndScroll],
+      opacity: [dateControls.dateInitialOpacity, dateControls.dateFinalOpacity, dateControls.dateEasing, dateControls.dateAnimationStartScroll, dateControls.dateAnimationEndScroll],
       shouldAlwaysCompleteAnimation: true,
-      startScroll: dateControls.dateAnimationStartScroll,
-      endScroll: dateControls.dateAnimationEndScroll,
       children: (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', width: '100%', textAlign: 'center', color: 'white', pointerEvents: 'none' }}>
           <p style={{ fontSize: 'clamp(1.0rem, 3.5vw, 1.6rem)', fontWeight: 300, textShadow: '1px 1px 5px rgba(0,0,0,0.6)' }}>
