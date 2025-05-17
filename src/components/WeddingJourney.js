@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Parallax } from 'react-scroll-parallax';
 import { useControls, folder } from 'leva';
 import RSVPForm from './RSVPForm';
+import ParallaxLogging from './ParallaxLogging';
 
 const easingPresets = [
   'linear', 'ease', 'easeIn', 'easeOut', 'easeInOut', 'easeInQuad', 'easeInCubic',
@@ -62,9 +63,9 @@ const WeddingJourney = ({ weddingData, resolvedScrapbookImages }) => {
   const bgControls = useControls('Background Layer', {
     bgInitialScale: { value: 1.0, min: 0.5, max: 2, step: 0.01 },
     bgFinalScale: { value: 1.2, min: 0.5, max: 2, step: 0.01 },
-    bgInitialOpacity: { value: 0.5, min: 0, max: 1, step: 0.01 },
-    bgFinalOpacity: { value: 0.8, min: 0, max: 1, step: 0.01 },
-    bgSpeed: { value: -20, min: -100, max: 30, step: 1 }, // Speed is relative to scroll
+    bgInitialOpacity: { value: 1.0, min: 0, max: 1, step: 0.01 },
+    bgFinalOpacity: { value: 1.0, min: 0, max: 1, step: 0.01 },
+    bgSpeed: { value: -20, min: -100, max: 30, step: 1 },
     bgEasing: { value: 'easeOutCubic', options: easingPresets },
   });
 
@@ -136,68 +137,143 @@ const WeddingJourney = ({ weddingData, resolvedScrapbookImages }) => {
   const scrapbookActiveActualVh = elementsAnimLenActualVh * journeyPhasesCtrl.scrapbookDurationFactor;
   const mainContentActualVh = journeyPhasesCtrl.mainContentScrollFactor;
 
-  const totalJourneyVh = elementsAnimLenActualVh * 4;
-  console.log(`[WeddingJourney] totalJourneyVh (DIAGNOSTIC): ${totalJourneyVh}, elementsAnimLenActualVh: ${elementsAnimLenActualVh}`);
+  const totalJourneyVh = elementsAnimLenActualVh + composedHoldActualVh + groupFadeOutActualVh + scrapbookActiveActualVh + mainContentActualVh;
 
   const elementsAnimEndProgress = totalJourneyVh > 0 ? elementsAnimLenActualVh / totalJourneyVh : 0;
-  console.log(`[WeddingJourney] elementsAnimEndProgress: ${elementsAnimEndProgress}`);
-  
-  const composedHoldEndProgress = elementsAnimEndProgress + (elementsAnimLenActualVh * journeyPhasesCtrl.composedHoldFactor) / totalJourneyVh;
-  const groupFadeOutEndProgress = composedHoldEndProgress + (elementsAnimLenActualVh * journeyPhasesCtrl.groupFadeOutFactor) / totalJourneyVh;
+  const composedHoldEndProgress = elementsAnimEndProgress + (composedHoldActualVh / totalJourneyVh);
+  const groupFadeOutEndProgress = composedHoldEndProgress + (groupFadeOutActualVh / totalJourneyVh);
+  const scrapbookStartActualProgress = groupFadeOutEndProgress - (groupFadeOutActualVh * (1 - journeyPhasesCtrl.scrapbookRevealStartFactor) / totalJourneyVh) ; //Scrapbook starts during fade out of intro
+  const scrapbookEndProgress = groupFadeOutEndProgress + (scrapbookActiveActualVh / totalJourneyVh);
+  const rsvpAppearStartProgress = scrapbookStartActualProgress + ( (scrapbookEndProgress - scrapbookStartActualProgress) * journeyPhasesCtrl.rsvpAppearanceStartFactor );
+
+  // Log key progress markers once
+  useEffect(() => {
+    console.log('[WeddingJourney] Key Scroll Progress Markers Initialized:');
+    console.log(`  - Elements Animation End: ${elementsAnimEndProgress.toFixed(3)}`);
+    console.log(`  - Composed Scene Hold End: ${composedHoldEndProgress.toFixed(3)}`);
+    console.log(`  - Group Fade Out End (Intro Vanishes): ${groupFadeOutEndProgress.toFixed(3)}`);
+    console.log(`  - Scrapbook Reveal Start: ${scrapbookStartActualProgress.toFixed(3)}`);
+    console.log(`  - Scrapbook End: ${scrapbookEndProgress.toFixed(3)}`);
+    console.log(`  - RSVP Appearance Start: ${rsvpAppearStartProgress.toFixed(3)}`);
+    console.log(`  - Total Journey Scroll Height (x Window Height): ${totalJourneyVh.toFixed(2)}VH`);
+  }, [elementsAnimEndProgress, composedHoldEndProgress, groupFadeOutEndProgress, scrapbookStartActualProgress, scrapbookEndProgress, rsvpAppearStartProgress, totalJourneyVh]);
 
   useEffect(() => {
     const wrapper = journeyWrapperRef.current;
     if (!wrapper) return;
     const handleScroll = () => {
-      const rect = wrapper.getBoundingClientRect();
-      const scrollTop = window.scrollY - wrapper.offsetTop; // Relative to wrapper top
+      const scrollTop = window.scrollY - (wrapper.offsetTop || 0); 
       const scrollHeight = wrapper.scrollHeight - window.innerHeight;
       let progress = 0;
       if (scrollHeight > 0) {
         progress = Math.min(1, Math.max(0, scrollTop / scrollHeight));
       } else {
-        progress = rect.top >= 0 ? 0 : 1; // Fallback for non-scrollable or fully visible
+        progress = (wrapper.getBoundingClientRect().top >= 0) ? 0 : 1;
       }
       setCurrentScrollProgress(progress);
-      console.log(`[WeddingJourney] currentScrollProgress: ${progress.toFixed(3)}`);
+      // console.log(`[WeddingJourney] currentScrollProgress: ${progress.toFixed(3)}`); // Logged by ParallaxLogger now
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll(); // Initial calculation
+    handleScroll();
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [totalJourneyVh]); // Recalculate if totalJourneyVh changes
+  }, [totalJourneyVh]);
 
-  // --- DIAGNOSTIC: SIMPLIFIED OPACITY/VISIBILITY --- 
-  // For now, let's keep the complex logic for scrapbook and RSVP opacity commented out or simplified
-  // to ensure the initial elements can be seen.
+  // --- COMPOSED INTRO SCENE OPACITY AND TRANSLATE ---
+  let composedIntroSceneOpacity;
+  let composedIntroSceneTranslateY;
 
-  let introElementsGroupOpacity = 1; // DIAGNOSTIC: Force intro elements group to be visible
-  let introElementsGroupTranslateY = 0; // DIAGNOSTIC: No initial transform
+  if (currentScrollProgress <= composedHoldEndProgress) {
+    composedIntroSceneOpacity = 1;
+    composedIntroSceneTranslateY = 0;
+  } else if (currentScrollProgress > composedHoldEndProgress && currentScrollProgress <= groupFadeOutEndProgress) {
+    const phaseProgress = Math.max(0, Math.min(1, (currentScrollProgress - composedHoldEndProgress) / (groupFadeOutEndProgress - composedHoldEndProgress || 0.001)));
+    composedIntroSceneOpacity = 1 - phaseProgress; // Fade out
+    composedIntroSceneTranslateY = phaseProgress * groupFadeOutAnimCtrl.translateYEndVh;
+  } else {
+    composedIntroSceneOpacity = 0; // Fully faded out and potentially moved
+    composedIntroSceneTranslateY = groupFadeOutAnimCtrl.translateYEndVh;
+  }
   
-  // If you want to test the fade later, uncomment and refine this:
-  // if (currentScrollProgress <= composedHoldEndProgress) {
-  //   introElementsGroupOpacity = 1;
-  //   introElementsGroupTranslateY = 0;
-  // } else if (currentScrollProgress > composedHoldEndProgress && currentScrollProgress <= groupFadeOutEndProgress) {
-  //   const phaseProgress = (currentScrollProgress - composedHoldEndProgress) / (groupFadeOutEndProgress - composedHoldEndProgress || 0.001);
-  //   introElementsGroupOpacity = 1 - phaseProgress;
-  //   introElementsGroupTranslateY = phaseProgress * groupFadeOutAnimCtrl.translateYEndVh;
-  // } else {
-  //   introElementsGroupOpacity = 0;
-  //   introElementsGroupTranslateY = groupFadeOutAnimCtrl.translateYEndVh;
-  // }
-
-  let scrapbookOverallOpacity = 0; // DIAGNOSTIC: Keep scrapbook hidden for now
-  // ... (scrapbook opacity logic commented out for diagnosis)
-
-  let rsvpOpacity = 0; // DIAGNOSTIC: Keep RSVP hidden for now
+  // --- SCRAPBOOK OPACITY ---
+  let scrapbookOverallOpacity = 0;
+  if (currentScrollProgress >= scrapbookStartActualProgress && currentScrollProgress <= scrapbookEndProgress) {
+    // Fade in scrapbook fully once it starts, then it stays until its end point
+    // For a more gradual fade-in, you could use phaseProgress within this range
+    scrapbookOverallOpacity = scrapbookParallaxCtrl.baseOpacity;
+  } else if (currentScrollProgress > scrapbookEndProgress) {
+    scrapbookOverallOpacity = 0; // Or fade out if desired
+  }
+  
+  // --- RSVP OPACITY ---
+  let rsvpOpacity = 0;
   let rsvpPointerEvents = 'none';
-  // ... (RSVP opacity logic commented out for diagnosis, but we need to see it eventually)
-   // Minimal RSVP visibility for testing its presence
-   if (currentScrollProgress > 0.8 && currentScrollProgress < 0.95) { // Arbitrary range for testing
+  if (currentScrollProgress >= rsvpAppearStartProgress && currentScrollProgress < 0.98 ) { // Keep RSVP visible until almost end of scroll
        rsvpOpacity = 1;
        rsvpPointerEvents = 'auto';
-   }
-  // --- END DIAGNOSTIC --- 
+  } else if (currentScrollProgress >= 0.98) {
+      rsvpOpacity = 0; // Fade out RSVP at the very end
+      rsvpPointerEvents = 'none';
+  }
+
+  // --- Tracked Animations for ParallaxLogger ---
+  const trackedAnimations = [
+    {
+      label: 'Background Appearance',
+      startProgressMarker: 0,
+      endProgressMarker: elementsAnimEndProgress, // BG animates alongside other elements
+      initialOpacity: bgControls.bgInitialOpacity,
+      finalOpacity: bgControls.bgFinalOpacity
+    },
+    {
+      label: 'Couple Image Fade In',
+      startProgressMarker: elementsAnimEndProgress * coupleControls.animationStartScroll,
+      endProgressMarker: elementsAnimEndProgress * coupleControls.animationEndScroll,
+      initialOpacity: coupleControls.coupleInitialOpacity, // Use Leva value
+      finalOpacity: coupleControls.coupleFinalOpacity
+    },
+    {
+      label: 'Bride Name Fade In',
+      startProgressMarker: elementsAnimEndProgress * brideNameControls.animationStartScroll,
+      endProgressMarker: elementsAnimEndProgress * brideNameControls.animationEndScroll,
+      initialOpacity: brideNameControls.initialOpacity, // Use Leva value
+      finalOpacity: brideNameControls.finalOpacity
+    },
+    {
+      label: 'Groom Name Fade In',
+      startProgressMarker: elementsAnimEndProgress * groomNameControls.animationStartScroll,
+      endProgressMarker: elementsAnimEndProgress * groomNameControls.animationEndScroll,
+      initialOpacity: groomNameControls.initialOpacity, // Use Leva value
+      finalOpacity: groomNameControls.finalOpacity
+    },
+    {
+      label: 'Date Text Fade In',
+      startProgressMarker: elementsAnimEndProgress * dateControls.animationStartScroll,
+      endProgressMarker: elementsAnimEndProgress * dateControls.animationEndScroll,
+      initialOpacity: dateControls.dateInitialOpacity, // Use Leva value
+      finalOpacity: dateControls.dateFinalOpacity
+    },
+    {
+      label: 'Composed Intro Scene Fade Out',
+      startProgressMarker: composedHoldEndProgress,
+      endProgressMarker: groupFadeOutEndProgress,
+      initialOpacity: 1,
+      finalOpacity: 0
+    },
+    {
+      label: 'Scrapbook Appears',
+      startProgressMarker: scrapbookStartActualProgress,
+      endProgressMarker: scrapbookStartActualProgress + 0.001, // Appears quickly
+      initialOpacity: 0,
+      finalOpacity: scrapbookParallaxCtrl.baseOpacity
+    },
+    {
+      label: 'RSVP Form Appears',
+      startProgressMarker: rsvpAppearStartProgress,
+      endProgressMarker: rsvpAppearStartProgress + 0.001, // Appears quickly
+      initialOpacity: 0,
+      finalOpacity: 1
+    }
+  ];
 
   return (
     <div
@@ -205,14 +281,111 @@ const WeddingJourney = ({ weddingData, resolvedScrapbookImages }) => {
       className="wedding-journey-wrapper"
       style={{ height: `${totalJourneyVh * 100}vh`, position: 'relative', background: '#fff' }}
     >
-      {/* --- Scrapbook Layer (z-index 1) --- */}
+      <ParallaxLogging currentScrollProgress={currentScrollProgress} trackedAnimations={trackedAnimations} />
+
+      {/* --- Composed Intro Scene Wrapper (handles collective fade-out) --- */}
+      <div 
+        className="composed-intro-scene-wrapper"
+        style={{
+          position: 'sticky',
+          top: 0,
+          height: '100vh',
+          width: '100%',
+          zIndex: 10, // Above scrapbook initially
+          opacity: composedIntroSceneOpacity,
+          transform: `translateY(${composedIntroSceneTranslateY}vh)`,
+          transition: 'opacity 0.3s ease-out, transform 0.3s ease-out', // Smooth transition for fade
+          pointerEvents: composedIntroSceneOpacity < 0.1 ? 'none' : 'auto',
+        }}
+      >
+        {/* Background Layer (Child of Composed Scene) */}
+        <Parallax
+          speed={bgControls.bgSpeed / 5} 
+          scale={[bgControls.bgInitialScale, bgControls.bgFinalScale, bgControls.bgEasing]}
+          opacity={[bgControls.bgInitialOpacity, bgControls.bgFinalOpacity, bgControls.bgEasing]}
+          startScroll={0} 
+          endScroll={elementsAnimEndProgress} 
+          style={{
+            position: 'absolute', top: 0, left: 0, zIndex: 1, height: '100%', width: '100%',
+          }}
+        >
+          <div style={{ backgroundImage: `url(${introBackground})`, backgroundSize: 'cover', backgroundPosition: 'center', height: '100%', width: '100%' }} />
+        </Parallax>
+
+        {/* Intro Elements Group (Child of Composed Scene) */}
+        <div
+          className="intro-elements-group"
+          style={{
+            position: 'absolute', top: 0, left: 0, height: '100%', width: '100%',
+            zIndex: 2,
+            // Opacity and transform are now handled by 'composed-intro-scene-wrapper'
+          }}
+        >
+          <Parallax
+            translateY={[`${coupleControls.coupleInitialY}vh`, `${coupleControls.coupleFinalY}vh`]}
+            scale={[coupleControls.coupleInitialScale, coupleControls.coupleFinalScale]}
+            opacity={[1, 1]}
+            easing={coupleControls.coupleEasing}
+            startScroll={elementsAnimEndProgress * coupleControls.animationStartScroll}
+            endScroll={elementsAnimEndProgress * coupleControls.animationEndScroll}
+            style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
+          >
+            <img src={introCouple} alt="Couple" style={{ height: `${coupleControls.coupleImageHeightVh}vh`, width: 'auto', maxWidth: '90%', objectFit: 'contain', filter: 'drop-shadow(0px 8px 20px rgba(0,0,0,0.35))' }} />
+          </Parallax>
+
+          <Parallax
+            translateY={[`${brideNameControls.initialY}vh`, `${brideNameControls.finalY}vh`]}
+            scale={[brideNameControls.initialScale, brideNameControls.finalScale]}
+            opacity={[brideNameControls.initialOpacity, brideNameControls.finalOpacity]} // Reverted
+            easing={brideNameControls.easing}
+            startScroll={elementsAnimEndProgress * brideNameControls.animationStartScroll}
+            endScroll={elementsAnimEndProgress * brideNameControls.animationEndScroll}
+            style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
+          >
+            <div>
+              <h1 style={{ fontSize: 'clamp(2.0rem, 7vw, 4.0rem)', margin: 0, fontWeight: 300, lineHeight: 1.2, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>{brideName}</h1>
+            </div>
+          </Parallax>
+          
+          <Parallax
+            translateY={[`${groomNameControls.initialY}vh`, `${groomNameControls.finalY}vh`]}
+            scale={[groomNameControls.initialScale, groomNameControls.finalScale]}
+            opacity={[groomNameControls.initialOpacity, groomNameControls.finalOpacity]} // Reverted
+            easing={groomNameControls.easing}
+            startScroll={elementsAnimEndProgress * groomNameControls.animationStartScroll}
+            endScroll={elementsAnimEndProgress * groomNameControls.animationEndScroll}
+            style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
+          >
+            <div>
+              <h1 style={{ fontSize: 'clamp(1.2rem, 4vw, 2.0rem)', margin: '0.1em 0 0.25em 0', fontWeight: 400, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>&</h1>
+              <h1 style={{ fontSize: 'clamp(2.0rem, 7vw, 4.0rem)', margin: 0, fontWeight: 300, lineHeight: 1.2, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>{groomName}</h1>
+            </div>
+          </Parallax>
+
+          <Parallax
+            translateY={[`${dateControls.dateInitialY}vh`, `${dateControls.dateFinalY}vh`]}
+            scale={[dateControls.dateInitialScale, dateControls.dateFinalScale]}
+            opacity={[dateControls.dateInitialOpacity, dateControls.dateFinalOpacity]} // Reverted
+            easing={dateControls.dateEasing}
+            startScroll={elementsAnimEndProgress * dateControls.animationStartScroll}
+            endScroll={elementsAnimEndProgress * dateControls.animationEndScroll}
+            style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
+          >
+            <p style={{ fontSize: 'clamp(1.0rem, 3.5vw, 1.6rem)', fontWeight: 300, textShadow: '1px 1px 5px rgba(0,0,0,0.6)' }}>{weddingDate}</p>
+          </Parallax>
+        </div>
+      </div>
+      
+      {/* --- Scrapbook Layer (z-index 1, appears under fading intro) --- */}
       {resolvedScrapbookImages && resolvedScrapbookImages.length > 0 && (
          <div
             className="scrapbook-layer-sticky-container"
             style={{
             position: 'sticky', top: 0, height: '100vh', width: '100%',
-            zIndex: 1, overflow: 'hidden',
-            opacity: scrapbookOverallOpacity, // Will be 0 for now
+            zIndex: 1, // Lower z-index than composed intro, revealed as intro fades
+            overflow: 'hidden',
+            opacity: scrapbookOverallOpacity, 
+            transition: 'opacity 0.5s ease-in-out',
             }}
         >
             {resolvedScrapbookImages.map((src, index) => (
@@ -227,95 +400,13 @@ const WeddingJourney = ({ weddingData, resolvedScrapbookImages }) => {
         </div>
       )}
 
-
-      {/* --- Background Layer (z-index 2) --- */}
-      <Parallax
-        speed={bgControls.bgSpeed / 5} // Adjust speed factor as it's now relative to a shorter animation phase
-        scale={[bgControls.bgInitialScale, bgControls.bgFinalScale, bgControls.bgEasing]}
-        opacity={[bgControls.bgInitialOpacity, bgControls.bgFinalOpacity, bgControls.bgEasing]} // Let Parallax handle its own opacity for now
-        startScroll={0} // Animates from the very beginning
-        endScroll={elementsAnimEndProgress} // Completes its animation by end of element anim phase
-        style={{
-          position: 'sticky', top: 0, zIndex: 2, height: '100vh', width: '100vw',
-          // DIAGNOSTIC: backgroundOpacityOverride removed for now
-        }}
-      >
-        <div style={{ backgroundImage: `url(${introBackground})`, backgroundSize: 'cover', backgroundPosition: 'center', height: '100%', width: '100%' }} />
-      </Parallax>
-
-      {/* --- Intro Elements Group (z-index 3) --- */}
-      <div
-        className="intro-elements-group"
-        style={{
-          position: 'sticky', top: 0, height: '100vh', width: '100%',
-          zIndex: 3,
-          opacity: introElementsGroupOpacity, // DIAGNOSTIC: Forced to 1 initially
-          transform: `translateY(${introElementsGroupTranslateY}vh)`,
-          pointerEvents: introElementsGroupOpacity < 0.1 ? 'none' : 'auto',
-          transition: 'none', // DIAGNOSTIC: CSS transitions removed for now
-        }}
-      >
-        <Parallax
-          translateY={[`${coupleControls.coupleInitialY}vh`, `${coupleControls.coupleFinalY}vh`]}
-          scale={[coupleControls.coupleInitialScale, coupleControls.coupleFinalScale]}
-          opacity={[1, coupleControls.coupleFinalOpacity]}
-          easing={coupleControls.coupleEasing}
-          startScroll={elementsAnimEndProgress * coupleControls.animationStartScroll}
-          endScroll={elementsAnimEndProgress * coupleControls.animationEndScroll}
-          style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center' }}
-        >
-          <img src={introCouple} alt="Couple" style={{ height: `${coupleControls.coupleImageHeightVh}vh`, width: 'auto', maxWidth: '90%', objectFit: 'contain', filter: 'drop-shadow(0px 8px 20px rgba(0,0,0,0.35))' }} />
-        </Parallax>
-
-        <Parallax
-          translateY={[`${brideNameControls.initialY}vh`, `${brideNameControls.finalY}vh`]}
-          scale={[brideNameControls.initialScale, brideNameControls.finalScale]}
-          opacity={[1, brideNameControls.finalOpacity]}
-          easing={brideNameControls.easing}
-          startScroll={elementsAnimEndProgress * brideNameControls.animationStartScroll}
-          endScroll={elementsAnimEndProgress * brideNameControls.animationEndScroll}
-          style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
-        >
-          <div>
-            <h1 style={{ fontSize: 'clamp(2.0rem, 7vw, 4.0rem)', margin: 0, fontWeight: 300, lineHeight: 1.2, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>{brideName}</h1>
-          </div>
-        </Parallax>
-        
-        <Parallax
-          translateY={[`${groomNameControls.initialY}vh`, `${groomNameControls.finalY}vh`]}
-          scale={[groomNameControls.initialScale, groomNameControls.finalScale]}
-          opacity={[1, groomNameControls.finalOpacity]}
-          easing={groomNameControls.easing}
-          startScroll={elementsAnimEndProgress * groomNameControls.animationStartScroll}
-          endScroll={elementsAnimEndProgress * groomNameControls.animationEndScroll}
-          style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
-        >
-          <div>
-            <h1 style={{ fontSize: 'clamp(1.2rem, 4vw, 2.0rem)', margin: '0.1em 0 0.25em 0', fontWeight: 400, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>&</h1>
-            <h1 style={{ fontSize: 'clamp(2.0rem, 7vw, 4.0rem)', margin: 0, fontWeight: 300, lineHeight: 1.2, textShadow: '2px 2px 8px rgba(0,0,0,0.6)' }}>{groomName}</h1>
-          </div>
-        </Parallax>
-
-        <Parallax
-          translateY={[`${dateControls.dateInitialY}vh`, `${dateControls.dateFinalY}vh`]}
-          scale={[dateControls.dateInitialScale, dateControls.dateFinalScale]}
-          opacity={[1, dateControls.dateFinalOpacity]}
-          easing={dateControls.dateEasing}
-          startScroll={elementsAnimEndProgress * dateControls.animationStartScroll}
-          endScroll={elementsAnimEndProgress * dateControls.animationEndScroll}
-          style={{ height: '100%', width: '100%', position: 'absolute', display: 'flex', justifyContent: 'center', alignItems: 'center', textAlign: 'center', color: 'white' }}
-        >
-          <p style={{ fontSize: 'clamp(1.0rem, 3.5vw, 1.6rem)', fontWeight: 300, textShadow: '1px 1px 5px rgba(0,0,0,0.6)' }}>{weddingDate}</p>
-        </Parallax>
-      </div>
-
       {/* --- RSVP Form (z-index 100) --- */}
       <div
         style={{
           position: 'fixed', top: '50%', left: '50%',
           transform: 'translate(-50%, -50%)',
-          zIndex: 100,
-          opacity: rsvpOpacity, // Will be 0 or 1 based on arbitrary scroll for now
+          zIndex: 100, // High z-index for modal-like appearance
+          opacity: rsvpOpacity, 
           pointerEvents: rsvpPointerEvents,
           transition: 'opacity 0.4s ease-in-out',
         }}
