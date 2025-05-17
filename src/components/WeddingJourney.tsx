@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated } from 'react-spring';
-import { Leva, useControls } from 'leva';
+import { Leva, useControls as useLevaControls } from 'leva';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
@@ -34,6 +34,56 @@ const levaTheme = {
     rootWidth: '400px', // Increase panel width
   },
   // You can add other theme customizations here if needed
+};
+
+// Custom hook to track changed Leva controls
+function useTrackedControls(folderName: string, schema: any) {
+  // Using Leva's useControls, aliased to useLevaControls
+  const [values, set] = useLevaControls(folderName, () => schema, [schema])
+  const initialValues = useRef(values);
+  const [changedKeys, setChangedKeys] = useState(new Set<string>());
+
+  useEffect(() => {
+    const newChanged = new Set<string>();
+    // Check if initialValues.current has been populated
+    if (Object.keys(initialValues.current).length === 0 && Object.keys(values).length > 0) {
+        // This case can happen on the very first render if Leva initializes values slightly after initial ref capture.
+        // We re-capture initialValues if it was empty and values now has keys.
+        initialValues.current = values;
+    }
+
+    for (const key in values) {
+      // Ensure the key exists in initialValues to avoid errors if schema changes (though less likely here)
+      if (initialValues.current.hasOwnProperty(key)) {
+        if (values[key] !== initialValues.current[key]) {
+          newChanged.add(key);
+        }
+      }
+    }
+    setChangedKeys(newChanged);
+  }, [values]); // Rerun when Leva values change
+
+  // Effect to initialize initialValues.current properly after Leva has initialized.
+  // This is crucial because Leva might not provide the actual values on the very first call.
+  useEffect(() => {
+    initialValues.current = values;
+  }, [Object.keys(values).join(',')]); // Re-capture if the set of keys in values changes (e.g. Leva loaded)
+
+  return { values, changedKeys, set }; // Exposing set might be useful for programmatic changes
+}
+
+// Define the schema for Leva controls
+const backgroundAnimationSchema = {
+  opacityGentleEnd: { value: 500, min: 0, max: 5000, step: 10, label: 'Opacity Gentle End (px)' },
+  opacityTargetAtGentleEnd: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Opacity at Gentle End' },
+  opacityDrasticStartPixels: { value: 700, min: 0, max: 5000, step: 10, label: 'Opacity Drastic Start (px)' },
+  opacityTargetAtDrasticStart: { value: 0.3, min: 0, max: 1, step: 0.01, label: 'Opacity at Drastic Start' },
+  opacityFullTransparent: { value: 900, min: 0, max: 5000, step: 10, label: 'Opacity Full Transparent (px)' },
+  translateYThreshold: { value: 200, min: 0, max: 5000, step: 10, label: 'Translate Y Start (px)' },
+  translateYMultiplier: { value: 650, min: 0, max: 1000, step: 10, label: 'Translate Y Multiplier (%)' },
+  scaleInitialRate: { value: 4, min: 0, max: 50, step: 0.1, label: 'Initial Scale Rate' },
+  scaleDrasticStartPx: { value: 494, min: 0, max: 5000, step: 1, label: 'Drastic Scale Start (px)' },
+  scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' }
 };
 
 // Helper to generate scrapbook image styles (remains largely the same, but ensure CSS works)
@@ -83,7 +133,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [updateScrollPosition]);
 
-  // --- Leva Controls for Background Animation --- 
+  // Use the custom tracked controls hook
+  const { values: controls, changedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema);
   const {
     opacityGentleEnd,
     opacityTargetAtGentleEnd,
@@ -95,18 +146,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scaleInitialRate,
     scaleDrasticStartPx,
     scaleDrasticRate
-  } = useControls('Background Animation', {
-    opacityGentleEnd: { value: 500, min: 0, max: 5000, step: 10, label: 'Opacity Gentle End (px)' },
-    opacityTargetAtGentleEnd: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Opacity at Gentle End' },
-    opacityDrasticStartPixels: { value: 700, min: 0, max: 5000, step: 10, label: 'Opacity Drastic Start (px)' },
-    opacityTargetAtDrasticStart: { value: 0.3, min: 0, max: 1, step: 0.01, label: 'Opacity at Drastic Start' },
-    opacityFullTransparent: { value: 900, min: 0, max: 5000, step: 10, label: 'Opacity Full Transparent (px)' },
-    translateYThreshold: { value: 200, min: 0, max: 5000, step: 10, label: 'Translate Y Start (px)' },
-    translateYMultiplier: { value: 650, min: 0, max: 1000, step: 10, label: 'Translate Y Multiplier (%)' },
-    scaleInitialRate: { value: 4, min: 0, max: 50, step: 0.1, label: 'Initial Scale Rate' },
-    scaleDrasticStartPx: { value: 494, min: 0, max: 5000, step: 1, label: 'Drastic Scale Start (px)' },
-    scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' }
-  });
+  } = controls; // Destructure values from the 'values' object returned by the hook
 
   // --- Animation Calculations (using values from Leva controls) ---
   const FADE_OUT_SCROLL_RANGE_PIXELS = opacityFullTransparent; 
@@ -222,7 +262,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         >
           {`ScrollY: ${scrollY.toFixed(0)}
 Opacity: ${backgroundOpacity.toFixed(3)}
-Transform: ${backgroundSpring.transform.get()}`}
+Transform: ${backgroundSpring.transform.get()}
+Changed: ${Array.from(changedKeys).join(', ')}`}
         </div>
 
         {/* <ParallaxLogging currentScrollProgress={0} trackedAnimations={[]} /> // Placeholder if re-added */}
