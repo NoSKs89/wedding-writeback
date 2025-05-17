@@ -1,0 +1,43 @@
+/* styles.module.css for WeddingJourney component */
+
+/* Example: Define styles for cards or specific parallax elements if needed */
+.card {
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  text-align: center;
+}
+
+.stickyCard {
+  /* Styles for a sticky card, if we use the card class for stickies */
+  background: rgba(230, 230, 250, 0.9); /* Light lavender */
+}
+
+.parallaxCard {
+  /* Styles for non-sticky parallax cards */
+  background: rgba(200, 230, 255, 0.9); /* Light blue */
+}
+
+.text {
+  font-size: 1.2rem;
+  color: #333;
+}
+
+/* Specific styles for layers if needed */
+.background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  /* background-size: cover; */ /* Covered by img tag now */
+  /* background-position: center; */
+}
+
+.introLayer {
+  /* For layers that need common alignment or properties */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+} 

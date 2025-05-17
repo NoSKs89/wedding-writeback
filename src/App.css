@@ -7,6 +7,9 @@ body {
 .wedding-journey-wrapper {
   /* This is the main scroll container */
   /* background-color: #f8f4ef; */ /* Example subtle page background */
+  width: 100%;
+  height: 100%;
+  background: #000; /* Will be covered by parallax layers */
 }
 
 .scrapbook-layer-sticky-container {
@@ -107,4 +110,55 @@ body {
   /* opacity: 0; */
   /* transform: translateY(-50vh) rotate(15deg); */
   /* transition: opacity 0.8s ease-out, transform 0.8s ease-out; */
+}
+
+/* Styles for @react-spring/parallax example */
+.alignCenter {
+  display: 'flex';
+  alignItems: 'center';
+}
+.textLayerContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  color: white;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.6);
+}
+
+.textLayerContent h1 {
+  font-size: clamp(2.0rem, 7vw, 4.0rem);
+  margin: 0.1em 0;
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+.textLayerContent p {
+  font-size: clamp(1.0rem, 3.5vw, 1.6rem);
+  font-weight: 300;
+  margin-top: 0.5em;
+}
+
+.textLayerContent .ampersand {
+    font-size: clamp(1.2rem, 4vw, 2.0rem);
+    margin: 0.1em 0 0.25em 0;
+    font-weight: 400;
+}
+
+.introCoupleImage {
+  height: 60vh;
+  max-width: 90%;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0px 8px 20px rgba(0,0,0,0.35));
+}
+
+.scrapbookImage {
+  position: 'absolute'; /* style will be merged with generated */
+  width: auto; /* initial, will be overridden by generateScrapbookImageStyle */
+  height: auto; /* initial, will be overridden by generateScrapbookImageStyle */
+  box-shadow: '4px 4px 12px rgba(0,0,0,0.25)';
+  border: '6px solid white';
 }

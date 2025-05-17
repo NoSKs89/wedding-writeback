@@ -1,42 +1,75 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
 
-const RSVPForm = ({ weddingData, backendUrl }) => {
-  const { id: weddingId, isPlated, platedOptions = [] } = weddingData;
+// Interface for individual meal options
+interface MealOption {
+  name: string;
+  description?: string;
+  dietaryTags?: string[];
+  // Add other properties if meal objects have them
+}
 
-  // States for the initial form part (always visible before decision)
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [message, setMessage] = useState('');
+// Interface for the weddingData prop
+interface WeddingData {
+  id: string | number; // Assuming id is present and is a string or number
+  isPlated?: boolean;
+  platedOptions?: MealOption[];
+  brideName?: string; // Optional, as not directly used in RSVPForm logic but good practice
+  groomName?: string; // Optional
+  weddingDate?: string; // Optional
+  // Add any other properties from your actual weddingData structure
+}
+
+// Interface for the component's props
+interface RSVPFormProps {
+  weddingData: WeddingData;
+  backendUrl: string;
+}
+
+// Type for the selectedMeals state (mapping meal names to quantities)
+interface SelectedMeals {
+  [mealName: string]: number;
+}
+
+const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
+  const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
+
+  // States for the initial form part
+  const [firstName, setFirstName] = useState<string>('');
+  const [lastName, setLastName] = useState<string>('');
+  const [message, setMessage] = useState<string>('');
 
   // States for the "attending" details part
-  const [guestCount, setGuestCount] = useState(1);
-  const [selectedMeals, setSelectedMeals] = useState({});
-  const [singleSelectedMeal, setSingleSelectedMeal] = useState('');
-  const [expandedMeal, setExpandedMeal] = useState(null);
+  const [guestCount, setGuestCount] = useState<number>(1);
+  const [selectedMeals, setSelectedMeals] = useState<SelectedMeals>({});
+  const [singleSelectedMeal, setSingleSelectedMeal] = useState<string>('');
+  const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
   
-  const [formError, setFormError] = useState('');
-  const [isAttending, setIsAttending] = useState(null); // null, true (attending), false (momentary for not attending)
+  const [formError, setFormError] = useState<string>('');
+  const [isAttending, setIsAttending] = useState<boolean | null>(null);
+  // const [showDetailsForm, setShowDetailsForm] = useState<boolean>(false); // This state was in a previous version, but not in the JS provided
+  // const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle'); // Likewise
+  // const [finalResponse, setFinalResponse] = useState<any>(null); // Likewise
 
-  // Effect to reset attending-specific details when navigating back or if isPlated/platedOptions change
   useEffect(() => {
     if (isAttending === null || !isAttending) {
-        setGuestCount(1); // Reset to default if going back or not attending path
+        setGuestCount(1);
         setSelectedMeals({});
         setSingleSelectedMeal('');
         setExpandedMeal(null);
     }
-  }, [isAttending, isPlated]); // isPlated change might affect meal options visibility
+  }, [isAttending]); // Removed isPlated from deps as it doesn't directly reset these fields here
 
-  // Effect to reset meal choices if guestCount changes while in the attending view
   useEffect(() => {
+    // Reset meal choices if guestCount changes while in the attending view and meals are plated
     if (isAttending && isPlated) {
         setSelectedMeals({});
         setSingleSelectedMeal('');
+        // setExpandedMeal(null); // Optionally reset expanded view too
     }
   }, [guestCount, isAttending, isPlated]);
 
-  const handleAttendanceChoice = (attendingValue) => {
+  const handleAttendanceChoice = (attendingValue: boolean) => {
     setFormError('');
     if (!firstName || !lastName) {
       setFormError('Please enter your first and last name before making a choice.');
@@ -44,29 +77,29 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     }
     setIsAttending(attendingValue);
 
-    if (!attendingValue) { // Directly submit if not attending
-      handleSubmit(null, false); // Pass event as null, explicitly pass attending status
+    if (!attendingValue) {
+      // Type assertion for event as null, since handleSubmit expects FormEvent or null
+      handleSubmit(null as unknown as FormEvent<HTMLFormElement>, false);
     }
   };
 
   const handleGoBack = () => {
     setIsAttending(null);
-    setFormError(''); // Clear any errors from the attending details view
-    // Names and message remain as they were
+    setFormError('');
   };
 
-  const handleGuestCountChange = (e) => {
+  const handleGuestCountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(e.target.value, 10);
     setGuestCount(count >= 1 ? count : 1);
     setFormError('');
   };
 
-  const handleSingleMealChange = (mealName) => {
+  const handleSingleMealChange = (mealName: string) => {
     setSingleSelectedMeal(mealName);
     setFormError('');
   };
 
-  const handleMultipleMealQuantityChange = (mealName, quantityStr) => {
+  const handleMultipleMealQuantityChange = (mealName: string, quantityStr: string) => {
     const newQuantity = Math.max(0, parseInt(quantityStr, 10) || 0);
     const otherMealsTotal = Object.entries(selectedMeals).reduce((sum, [key, qty]) => {
         return key === mealName ? sum : sum + (qty || 0);
@@ -80,31 +113,31 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     setFormError('');
   };
 
-  const getTotalSelectedMealQuantity = () => {
+  const getTotalSelectedMealQuantity = (): number => {
     if (!isPlated || !isAttending || guestCount <= 0) return 0;
     if (guestCount === 1) return singleSelectedMeal ? 1 : 0;
     return Object.values(selectedMeals).reduce((sum, qty) => sum + (qty || 0), 0);
   };
 
-  const handleSubmit = (e, explicitAttendingStatus) => {
-    if (e) e.preventDefault(); // Prevent default if called by form submission event
+  const handleSubmit = async (event: FormEvent<HTMLFormElement> | null, explicitAttendingStatus?: boolean) => {
+    if (event) event.preventDefault();
     setFormError('');
 
     const currentAttendance = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
 
-    if (!firstName || !lastName) { // This should be caught by handleAttendanceChoice for initial step
+    if (!firstName || !lastName) {
       setFormError('Please enter your first and last name.');
       return;
     }
 
-    let rsvpPayload;
+    let rsvpPayload: any; // Define a more specific type for this if possible
 
-    if (currentAttendance) { // Attending path
+    if (currentAttendance) {
         if (guestCount < 1) {
             setFormError('Guest count must be at least 1 if you are attending.');
             return;
         }
-        if (isPlated && platedOptions.length > 0) {
+        if (isPlated && platedOptions && platedOptions.length > 0) {
           if (guestCount > 1) {
               const totalSelected = getTotalSelectedMealQuantity();
               if (totalSelected !== guestCount) {
@@ -117,25 +150,39 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
           }
         }
         rsvpPayload = {
-            weddingId, firstName, lastName, guestCount, attending: true, message,
-            mealChoices: isPlated && platedOptions.length > 0 && guestCount > 0
-            ? (guestCount === 1 ? singleSelectedMeal : selectedMeals) : 'N/A',
+            weddingId,
+            firstName,
+            lastName,
+            guestCount,
+            attending: true,
+            message,
+            mealChoices: isPlated && platedOptions && platedOptions.length > 0 && guestCount > 0
+                         ? (guestCount === 1 ? singleSelectedMeal : selectedMeals)
+                         : 'N/A',
         };
-    } else { // Not attending path (called directly from handleAttendanceChoice or if isAttending became false)
+    } else {
         rsvpPayload = { weddingId, firstName, lastName, attending: false, guestCount: 0, message };
     }
 
     console.log('RSVP Data to be sent to:', backendUrl, rsvpPayload);
-    alert('RSVP Submitted (check console for data)!');
-    // Reset to the very initial state after any submission
-    setFirstName('');
-    setLastName('');
-    setMessage('');
-    setIsAttending(null); // Go back to the initial choice screen
-    // Attending specific states are reset by useEffect based on isAttending
+    try {
+      // Example: await axios.post(backendUrl, rsvpPayload);
+      alert('RSVP Submitted (Simulated - check console for data)!');
+      // Reset to the very initial state after any submission
+      setFirstName('');
+      setLastName('');
+      setMessage('');
+      setIsAttending(null);
+      // Attending specific states are reset by useEffect based on isAttending changing to null
+    } catch (error) {
+      console.error('RSVP Submission Error:', error);
+      setFormError('There was an error submitting your RSVP. Please try again.');
+      // Potentially set submissionStatus to 'error' if using that state
+    }
   };
   
-  const formStyle = {
+  // Inline styles (can be moved to CSS Modules or a separate CSS file if preferred)
+  const formStyle: React.CSSProperties = {
     background: 'white',
     padding: '30px',
     borderRadius: '10px',
@@ -145,11 +192,11 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     textAlign: 'left',
   };
 
-  const inputGroupStyle = {
+  const inputGroupStyle: React.CSSProperties = {
     marginBottom: '20px',
   };
 
-  const inputStyle = {
+  const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '10px',
     border: '1px solid #ddd',
@@ -158,12 +205,12 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     fontSize: '1rem',
   };
   
-  const nameInputContainerStyle = {
+  const nameInputContainerStyle: React.CSSProperties = {
     display: 'flex',
     gap: '10px',
   };
 
-  const mealOptionStyle = {
+  const mealOptionStyle: React.CSSProperties = {
     padding: '10px',
     border: '1px solid #eee',
     borderRadius: '5px',
@@ -171,7 +218,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     background: '#f9f9f9'
   };
 
-  const mealNameStyle = {
+  const mealNameStyle: React.CSSProperties = {
     fontWeight: 'bold',
     display: 'flex',
     justifyContent: 'space-between',
@@ -179,7 +226,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     cursor: 'pointer'
   };
   
-  const mealDescriptionStyle = {
+  const mealDescriptionStyle: React.CSSProperties = {
       background: '#fff',
       border: '1px solid #eee',
       padding: '10px',
@@ -188,7 +235,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
       fontSize: '0.9em'
   };
 
-  const dietaryTagStyle = {
+  const dietaryTagStyle: React.CSSProperties = {
     display: 'inline-block',
     background: '#e0e0e0',
     color: '#333',
@@ -199,14 +246,14 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     marginTop: '5px'
   };
   
-  const initialButtonContainerStyle = {
+  const initialButtonContainerStyle: React.CSSProperties = {
       display: 'flex',
       justifyContent: 'space-around',
       marginTop: '25px',
       gap: '10px'
   };
 
-  const buttonStyle = {
+  const buttonStyle: React.CSSProperties = {
     padding: '12px 20px',
     border: 'none',
     borderRadius: '5px',
@@ -216,24 +263,23 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
     flex: 1
   };
 
-  const backButtonStyle = { background: '#777', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem', marginBottom:'15px' };
-  const finalSubmitButtonStyle = {...buttonStyle, width: 'auto', flex:'none', paddingLeft: '30px', paddingRight: '30px'};
+  const backButtonStyle: React.CSSProperties = { background: '#777', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem', marginBottom:'15px' };
+  const finalSubmitButtonStyle: React.CSSProperties = {...buttonStyle, width: 'auto', flex:'none' as 'none', paddingLeft: '30px', paddingRight: '30px'};
 
   if (isAttending === null) {
-    // Step 1: Initial form with name, message, and attendance choice
     return (
       <div style={formStyle}>
         <h2 style={{ textAlign: 'center', marginBottom: '25px', color: '#333' }}>RSVP</h2>
         <div style={inputGroupStyle}>
           <label htmlFor="firstName" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Your Name</label>
           <div style={nameInputContainerStyle}>
-            <input type="text" id="firstName" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={{...inputStyle, flex: 1}} />
-            <input type="text" id="lastName" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} style={{...inputStyle, flex: 1}} />
+            <input type="text" id="firstName" placeholder="First Name" value={firstName} onChange={(e: ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)} style={{...inputStyle, flex: 1}} />
+            <input type="text" id="lastName" placeholder="Last Name" value={lastName} onChange={(e: ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)} style={{...inputStyle, flex: 1}} />
           </div>
         </div>
         <div style={inputGroupStyle}>
           <label htmlFor="message" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Message to the Couple (Optional)</label>
-          <textarea id="message" placeholder="Your message..." value={message} onChange={(e) => setMessage(e.target.value)} rows="3" style={inputStyle} />
+          <textarea id="message" placeholder="Your message..." value={message} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} rows={3} style={inputStyle} />
         </div>
         {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px'}}>{formError}</p>}
         <p style={{textAlign:'center', marginBottom:'10px', color:'#555'}}>Can you make it?</p>
@@ -248,7 +294,6 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
       </div>
     );
   } else if (isAttending === true) {
-    // Step 2: Attending details form (guest count, meals)
     return (
       <form onSubmit={handleSubmit} style={formStyle}>
         <button type="button" onClick={handleGoBack} style={backButtonStyle}>&larr; Back</button>
@@ -257,10 +302,10 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
         
         <div style={inputGroupStyle}>
           <label htmlFor="guestCount" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Number of Guests Attending</label>
-          <input type="number" id="guestCount" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
+          <input type="number" id="guestCount" value={guestCount} onChange={handleGuestCountChange} min={1} style={inputStyle} />
         </div>
 
-        {isPlated && platedOptions.length > 0 && guestCount > 0 && (
+        {isPlated && platedOptions && platedOptions.length > 0 && guestCount > 0 && (
           <div style={inputGroupStyle}>
             <h3 style={{ marginTop: '20px', marginBottom: '10px', color: '#444', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>Meal Selection</h3>
             {platedOptions.map((meal) => (
@@ -269,7 +314,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
                   <span>{meal.name}</span>
                   <span style={{ fontSize: '0.8em', color: '#777' }}>{expandedMeal === meal.name ? 'Hide Details [-]' : 'Show Details [+]'}</span>
                 </div>
-                {expandedMeal === meal.name && (
+                {expandedMeal === meal.name && meal.description && (
                   <div style={mealDescriptionStyle}>
                     <p>{meal.description}</p>
                     {meal.dietaryTags && meal.dietaryTags.length > 0 && (
@@ -285,7 +330,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
                 ) : (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <label htmlFor={`meal_${meal.name.replace(/\s+/g, '-')}`} style={{flexShrink: 0}}>Quantity:</label>
-                    <input type="number" id={`meal_${meal.name.replace(/\s+/g, '-')}`} value={selectedMeals[meal.name] || 0} onChange={(e) => handleMultipleMealQuantityChange(meal.name, e.target.value)} min="0" style={{ ...inputStyle, width: '70px', padding: '8px' }} />
+                    <input type="number" id={`meal_${meal.name.replace(/\s+/g, '-')}`} value={selectedMeals[meal.name] || '0'} onChange={(e: ChangeEvent<HTMLInputElement>) => handleMultipleMealQuantityChange(meal.name, e.target.value)} min={0} style={{ ...inputStyle, width: '70px', padding: '8px' }} />
                   </div>
                 )}
               </div>
@@ -302,8 +347,7 @@ const RSVPForm = ({ weddingData, backendUrl }) => {
       </form>
     );
   }
-  // Note: isAttending === false path submits directly, no separate render state needed for it beyond the initial form logic.
-  return null; // Should not be reached if logic is correct
+  return <></>; // Return an empty fragment instead of null as a fallback
 };
 
-export default RSVPForm;
+export default RSVPForm; 
