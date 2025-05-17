@@ -12,7 +12,7 @@ export const allTempImages = [
 export const weddingDetails = {
     erickson2025: {
       id: 'erickson2025',
-      brideName: 'Brooke Christensen',
+      brideName: 'Brooke Christenson',
       groomName: 'Stephen Erickson',
       weddingDate: 'September 5th, 2025',
       introBackground: '/tempImages/mainImages/intro-background.jpg',
