@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated } from 'react-spring';
 import { Leva, useControls as useLevaControls } from 'leva';
@@ -35,6 +35,20 @@ const levaTheme = {
   },
   // You can add other theme customizations here if needed
 };
+
+// Helper functions for color manipulation
+function hexToRgb(hex: string): number[] | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? [
+    parseInt(result[1], 16),
+    parseInt(result[2], 16),
+    parseInt(result[3], 16)
+  ] : null;
+}
+
+function rgbToCss(r: number, g: number, b: number): string {
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
+}
 
 // Custom hook to track changed Leva controls
 function useTrackedControls(folderName: string, schema: any) {
@@ -86,6 +100,21 @@ const backgroundAnimationSchema = {
   scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' }
 };
 
+// NEW: Schema for BackgroundColor Leva controls
+const backgroundColorControlsSchema = {
+  colorStop1_Bottom: { value: '#ff3c00', label: 'Stop 1 Bottom' },
+  colorStop1_Top:    { value: '#ff7e33', label: 'Stop 1 Top' },
+  colorStop2_Bottom: { value: '#ff5a00', label: 'Stop 2 Bottom' },
+  colorStop2_Top:    { value: '#ff9966', label: 'Stop 2 Top' },
+  colorStop3_Bottom: { value: '#ff7043', label: 'Stop 3 Bottom' },
+  colorStop3_Top:    { value: '#ffc107', label: 'Stop 3 Top' },
+  colorStop4_Bottom: { value: '#ff5722', label: 'Stop 4 Bottom' },
+  colorStop4_Top:    { value: '#ffab91', label: 'Stop 4 Top' },
+  colorStop5_Bottom: { value: '#ff3c00', label: 'Stop 5 Bottom (Loop)' },
+  colorStop5_Top:    { value: '#ff7e33', label: 'Stop 5 Top (Loop)' },
+  // gradientAngle: { value: 0, min: 0, max: 360, label: 'Gradient Angle (deg)'} // Example if we add angle later
+};
+
 // Helper to generate scrapbook image styles (remains largely the same, but ensure CSS works)
 const generateScrapbookImageStyle = (index: number, totalImages: number): React.CSSProperties => {
   const size = Math.random() * 80 + 120;
@@ -134,7 +163,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   }, [updateScrollPosition]);
 
   // Use the custom tracked controls hook
-  const { values: controls, changedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema);
+  const { values: animControls, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema);
   const {
     opacityGentleEnd,
     opacityTargetAtGentleEnd,
@@ -146,12 +175,44 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scaleInitialRate,
     scaleDrasticStartPx,
     scaleDrasticRate
-  } = controls; // Destructure values from the 'values' object returned by the hook
+  } = animControls; // Destructure values from the 'values' object returned by the hook
+
+  // NEW: Leva Controls for Background Color
+  const { values: bgControls, changedKeys: bgChangedKeys } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema);
+  // Destructure all color controls
+  const {
+    colorStop1_Bottom, colorStop1_Top,
+    colorStop2_Bottom, colorStop2_Top,
+    colorStop3_Bottom, colorStop3_Top,
+    colorStop4_Bottom, colorStop4_Top,
+    colorStop5_Bottom, colorStop5_Top
+  } = bgControls;
 
   // Untracked control for HUD visibility
   const { showHUD } = useLevaControls('Overall Controls', {
     showHUD: { value: true, label: 'Show Debug HUD' }
   });
+
+  // Dynamically create and memoize gradientColorRGBs based on Leva controls
+  const gradientColorRGBs = useMemo(() => {
+    const currentHexColors = [
+      { bottom: colorStop1_Bottom, top: colorStop1_Top },
+      { bottom: colorStop2_Bottom, top: colorStop2_Top },
+      { bottom: colorStop3_Bottom, top: colorStop3_Top },
+      { bottom: colorStop4_Bottom, top: colorStop4_Top },
+      { bottom: colorStop5_Bottom, top: colorStop5_Top },
+    ];
+    return currentHexColors.map(colors => ({
+      bottom: hexToRgb(colors.bottom),
+      top: hexToRgb(colors.top)
+    })).filter(colors => colors.bottom && colors.top) as { bottom: number[]; top: number[] }[]; // Ensure structure and filter out nulls
+  }, [
+    colorStop1_Bottom, colorStop1_Top,
+    colorStop2_Bottom, colorStop2_Top,
+    colorStop3_Bottom, colorStop3_Top,
+    colorStop4_Bottom, colorStop4_Top,
+    colorStop5_Bottom, colorStop5_Top
+  ]);
 
   // --- Animation Calculations (using values from Leva controls) ---
   const FADE_OUT_SCROLL_RANGE_PIXELS = opacityFullTransparent; 
@@ -226,6 +287,46 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     config: { tension: 80, friction: 26 },
   });
   
+  // --- Scroll-driven gradient calculation ---
+  const GRADIENT_SCROLL_RANGE_PIXELS = opacityFullTransparent; // Tied to Leva control
+  const scrollGradientProgress = GRADIENT_SCROLL_RANGE_PIXELS > 0 ? Math.min(1, Math.max(0, scrollY / GRADIENT_SCROLL_RANGE_PIXELS)) : 0;
+
+  let currentGradientString = 'linear-gradient(to top, #111111, #000000)'; // Fallback
+  const numPoints = gradientColorRGBs.length;
+
+  if (numPoints >= 2 && gradientColorRGBs.every(c => c && c.bottom && c.top)) {
+    const val = scrollGradientProgress;
+    const scaledVal = val * (numPoints - 1); // val is 0-1, scaledVal is 0 to (numPoints-1)
+    let segmentIdx = Math.floor(scaledVal);
+    let segmentProgress = scaledVal - segmentIdx;
+
+    // Clamp segmentIdx to ensure fromColors and toColors are valid
+    if (segmentIdx >= numPoints - 1) {
+      segmentIdx = numPoints - 2;
+      segmentProgress = 1.0;
+    }
+
+    const fromColors = gradientColorRGBs[segmentIdx];
+    const toColors = gradientColorRGBs[segmentIdx + 1];
+
+    if (fromColors && toColors) { // Should always be true due to clamping and array structure
+        const lerp = (start: number, end: number, t_lerp: number) => start + (end - start) * t_lerp;
+
+        const currentBottomRGB = fromColors.bottom.map((startChannel, i) => lerp(startChannel, toColors.bottom[i], segmentProgress));
+        const currentTopRGB = fromColors.top.map((startChannel, i) => lerp(startChannel, toColors.top[i], segmentProgress));
+
+        const bottomCss = rgbToCss(currentBottomRGB[0], currentBottomRGB[1], currentBottomRGB[2]);
+        const topCss = rgbToCss(currentTopRGB[0], currentTopRGB[1], currentTopRGB[2]);
+        currentGradientString = `linear-gradient(to top, ${bottomCss}, ${topCss})`;
+    } else {
+      // This case should ideally not be reached if gradientColorRGBs is structured correctly.
+      console.error("Error calculating gradient: Invalid color segments.");
+    }
+  } else {
+    console.error("Error calculating gradient: gradientColorRGBs is not properly initialized.");
+  }
+  // --- End of scroll-driven gradient calculation ---
+
   const totalPages = 3;
   const backgroundStickyStart = 0;
   const backgroundStickyEnd = 1; // Layer remains sticky for 1 page height
@@ -246,10 +347,23 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     flexDirection: 'column'
   };
 
+  // Merge all changedKeys for the HUD
+  const allChangedKeys = useMemo(() => 
+    new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys)])
+  , [animChangedKeys, bgChangedKeys]);
+
   return (
     <>
       <Leva collapsed theme={levaTheme} />
-      <div className="wedding-journey-wrapper" style={{ width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}>
+      <animated.div
+        className="wedding-journey-wrapper"
+        style={{ 
+          width: '100%', 
+          height: '100vh', 
+          overflow: 'hidden',
+          background: currentGradientString
+        }}
+      >
         {showHUD && ( // Conditional rendering for HUD
           <div 
             style={{
@@ -268,7 +382,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             {`ScrollY: ${scrollY.toFixed(0)}
 Opacity: ${backgroundOpacity.toFixed(3)}
 Transform: ${backgroundSpring.transform.get()}
-Changed: ${Array.from(changedKeys).join(', ')}`}
+Changed: ${Array.from(allChangedKeys).join(', ')}
+Gradient: ${currentGradientString}`}
           </div>
         )}
 
@@ -362,7 +477,7 @@ Changed: ${Array.from(changedKeys).join(', ')}`}
           </ParallaxLayer>
 
         </Parallax>
-      </div>
+      </animated.div>
     </>
   );
 };
