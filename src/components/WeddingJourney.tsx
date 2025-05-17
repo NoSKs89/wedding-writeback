@@ -5,6 +5,7 @@ import { Leva, useControls as useLevaControls } from 'leva';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
+import ScrapbookImageItem from './ScrapbookImageItem';
 
 // Type Definitions
 interface WeddingData {
@@ -27,6 +28,18 @@ interface WeddingData {
 interface WeddingJourneyProps {
   weddingData: WeddingData;
   resolvedScrapbookImages: string[];
+}
+
+// Define a type for the focused image state
+interface FocusedImageState {
+  src: string;
+  altText: string;
+  initialTop: string;
+  initialLeft: string;
+  initialWidth: string;
+  initialRotate: number;
+  description?: string;
+  photographer?: string;
 }
 
 const levaTheme = {
@@ -118,7 +131,10 @@ const backgroundColorControlsSchema = {
 // NEW: Adapted from ScrapbookBackground.js for more detailed image styling
 const generateScrapbookImageStyle = (index: number, totalImages: number, currentWindow?: Window): React.CSSProperties => {
   const size = Math.random() * 100 + 150; // Random size between 150px and 250px
-  const angle = Math.random() * 30 - 15; // Random rotation between -15deg and 15deg
+  let angle = 0;
+  if (Math.random() < 0.8) { // 80% chance of being tilted
+    angle = Math.random() * 30 - 15; // Random rotation between -15deg and 15deg
+  }
 
   const cols = Math.ceil(Math.sqrt(totalImages));
   const rows = Math.ceil(totalImages / cols);
@@ -162,6 +178,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const parallaxRef = React.useRef<IParallax>(null);
   const [scrollY, setScrollY] = useState(0);
   const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
+  const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -383,6 +400,56 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys)])
   , [animChangedKeys, bgChangedKeys]);
 
+  // Animation spring for the focused image backdrop
+  const backdropSpring = useSpring({
+    opacity: focusedImage ? 1 : 0,
+    pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none',
+    config: { tension: 250, friction: 30 },
+  });
+
+  // Animation spring for the focused image container (handles position, scale, rotation)
+  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
+    opacity: 0,
+    top: '50%',
+    left: '50%',
+    width: '0px',
+    transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+    config: { tension: 220, friction: 22 }, // Slightly softer
+  }));
+
+  // Animation spring for the info box content
+  const infoBoxSpring = useSpring({
+    opacity: focusedImage ? 1 : 0,
+    transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
+    config: { tension: 250, friction: 26, delay: focusedImage ? 300 : 0 }, // Delay appearance
+  });
+
+  useEffect(() => {
+    if (focusedImage) {
+      focusedImageApi.start({
+        opacity: 1,
+        top: '50%',
+        left: '50%',
+        width: focusedImage.initialWidth,
+        transform: `translate(-50%, -50%) rotate(0deg) scale(1.5)`,
+        from: {
+          opacity: 0,
+          top: focusedImage.initialTop,
+          left: focusedImage.initialLeft,
+          width: focusedImage.initialWidth,
+          transform: `rotate(${focusedImage.initialRotate}deg) scale(1)`,
+        },
+      });
+    } else {
+      focusedImageApi.start({
+        opacity: 0,
+        // Optional: Animate back to a neutral small spot or just rely on opacity
+        // top: '50%', left: '50%', width: '0px', 
+        // transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+      });
+    }
+  }, [focusedImage, focusedImageApi]);
+
   return (
     <>
       <Leva collapsed theme={levaTheme} />
@@ -482,15 +549,35 @@ Gradient: ${currentGradientString}`}
               height: '100%',
               zIndex: 1 // Lower zIndex for scrapbook images container
             }}>
-              {resolvedScrapbookImages.map((imageSrc, index) => (
-                <img
-                  key={index}
-                  src={imageSrc}
-                  alt={`Scrapbook item ${index + 1}`}
-                  style={generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow)}
-                  className="scrapbook-image-item" // You might want to add base styles in App.css
-                />
-              ))}
+              {resolvedScrapbookImages.map((imageSrc, index) => {
+                const initialStyle = generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow);
+                const altText = `Scrapbook item ${index + 1}`;
+                return (
+                  <ScrapbookImageItem
+                    key={index}
+                    imageSrc={imageSrc}
+                    initialStyle={initialStyle}
+                    altText={altText}
+                    onClick={() => {
+                      // Extract rotation from initialStyle.transform
+                      const rotateMatch = initialStyle.transform?.match(/rotate\(([-\d.]+)deg\)/);
+                      const currentInitialRotate = rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
+
+                      setFocusedImage({
+                        src: imageSrc,
+                        altText,
+                        initialTop: initialStyle.top as string,
+                        initialLeft: initialStyle.left as string,
+                        initialWidth: initialStyle.width as string,
+                        initialRotate: currentInitialRotate,
+                        // Add placeholder data for description and photographer to see the box
+                        description: "This is a beautiful scene captured by a talented artist.",
+                        photographer: "A. Photographer"
+                      });
+                    }}
+                  />
+                );
+              })}
             </div>
             
             {/* RSVP Form - ensure it's on top */}
@@ -500,6 +587,78 @@ Gradient: ${currentGradientString}`}
           </ParallaxLayer>
 
         </Parallax>
+
+        {/* Focused Image Modal */} 
+        {/* Backdrop */} 
+        <animated.div 
+          style={{
+            ...backdropSpring,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(0, 0, 0, 0.8)', 
+            zIndex: 1000, 
+          }}
+          onClick={() => setFocusedImage(null)} 
+        />
+
+        {/* Animated Image Container - This moves and scales */} 
+        {focusedImage && (
+            <animated.div 
+              style={{
+                ...focusedImageContainerSpring, // Applied here
+                position: 'fixed', // Fixed to viewport for centering
+                // display: 'flex', // Removed to let children stack or be positioned absolutely
+                // alignItems: 'center',
+                // justifyContent: 'center',
+                willChange: 'transform, opacity, top, left, width', // Perf hint
+                zIndex: 1001, // Above backdrop
+                pointerEvents: 'none', // Container itself shouldn't catch clicks meant for content/backdrop
+              }}
+            >
+              <div onClick={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto'}}> {/* Inner div to catch clicks and prevent closing modal*/}
+                <img 
+                  src={focusedImage.src}
+                  alt={focusedImage.altText}
+                  style={{
+                    display: 'block',
+                    maxWidth: '80vw',
+                    maxHeight: '80vh', // Changed from 70vh to 80vh
+                    width: 'auto', // Added to ensure image scales correctly with maxHeight
+                    height: 'auto', // Added for consistency
+                    objectFit: 'contain',
+                    boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+                    border: '10px solid white',
+                    borderRadius: '3px',
+                  }}
+                />
+                {/* Info Box */} 
+                {(focusedImage.description || focusedImage.photographer) && (
+                  <animated.div style={{
+                    ...infoBoxSpring,
+                    position: 'absolute',
+                    bottom: '-60px', // Position below the image
+                    left: '50%',
+                    transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
+                    width: 'calc(100% - 20px)', // Slightly narrower than image
+                    maxWidth: '400px',
+                    backgroundColor: 'rgba(0,0,0,0.75)',
+                    color: 'white',
+                    padding: '15px',
+                    borderRadius: '5px',
+                    textAlign: 'left',
+                    boxSizing: 'border-box',
+                    zIndex: 1002, // Above image if overlaps slightly (though positioned below)
+                  }}>
+                    {focusedImage.description && <p style={{margin: '0 0 5px 0'}}><strong>Description:</strong> {focusedImage.description}</p>}
+                    {focusedImage.photographer && <p style={{margin: 0}}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
+                  </animated.div>
+                )}
+              </div>
+            </animated.div>
+        )}
       </animated.div>
     </>
   );
