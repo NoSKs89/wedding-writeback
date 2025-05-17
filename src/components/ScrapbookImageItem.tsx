@@ -11,9 +11,13 @@ interface ScrapbookImageItemProps {
 const ScrapbookImageItem: React.FC<ScrapbookImageItemProps> = ({ imageSrc, initialStyle, onClick, altText }) => {
   const [isHovered, setIsHovered] = useState(false);
 
+  const { transform: initialTransformValue, ...restInitialStyle } = initialStyle;
+
   const hoverSpring = useSpring({
-    transform: isHovered ? 'scale(1.2)' : 'scale(1)',
-    zIndex: isHovered ? 100 : (initialStyle.zIndex || 1), // Ensure hovered item is on top
+    transform: isHovered
+      ? `${initialTransformValue || ''} scale(1.2)`
+      : `${initialTransformValue || ''} scale(1)`,
+    zIndex: isHovered ? 100 : (initialStyle.zIndex || 1),
     boxShadow: isHovered ? '6px 6px 20px rgba(0,0,0,0.4)' : (initialStyle.boxShadow || '3px 3px 10px rgba(0,0,0,0.2)'),
     config: { tension: 300, friction: 20 }
   });
@@ -23,7 +27,7 @@ const ScrapbookImageItem: React.FC<ScrapbookImageItemProps> = ({ imageSrc, initi
       src={imageSrc}
       alt={altText}
       style={{
-        ...initialStyle,
+        ...restInitialStyle,
         ...hoverSpring,
         cursor: 'pointer',
       }}

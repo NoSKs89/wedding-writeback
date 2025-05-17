@@ -571,8 +571,8 @@ Gradient: ${currentGradientString}`}
                         initialWidth: initialStyle.width as string,
                         initialRotate: currentInitialRotate,
                         // Add placeholder data for description and photographer to see the box
-                        description: "This is a beautiful scene captured by a talented artist.",
-                        photographer: "A. Photographer"
+                        description: "We're still this in love!",
+                        photographer: "Probably Kim Christenson"
                       });
                     }}
                   />
