@@ -12,13 +12,39 @@ export const allTempImages = [
 export const weddingDetails = {
     erickson2025: {
       id: 'erickson2025',
-      brideName: 'Jane',
-      groomName: 'John Erickson',
-      weddingDate: 'October 26, 2025',
-      introBackground: '/tempImages/intro-background.jpg',
-      introCouple: '/tempImages/intro-main-image.png',
-      scrapbookImageFolder: '/tempImages/',
+      brideName: 'Brooke Christensen',
+      groomName: 'Stephen Erickson',
+      weddingDate: 'September 5th, 2025',
+      introBackground: '/tempImages/mainImages/intro-background.jpg',
+      introCouple: '/tempImages/mainImages/intro-main-image.png',
+      scrapbookImageFolder: '/tempImages/scrapbookImages',
       rsvpEndpoint: '/api/rsvp/erickson2025',
+      isPlated: true,
+      platedOptions: [
+        {
+          name: 'Filet Mignon',
+          description: '8oz center-cut, served with red wine reduction, potato gratin, and seasonal vegetables.',
+          dietaryTags: ['gluten-free-optional']
+        },
+        {
+          name: 'Pan-Seared Salmon',
+          description: 'Atlantic salmon with a lemon-dill sauce, served with quinoa and asparagus.',
+          dietaryTags: ['gluten-free', 'dairy-free']
+        },
+        {
+          name: 'Mushroom Risotto',
+          description: 'Creamy Arborio rice with a medley of wild mushrooms and parmesan cheese.',
+          dietaryTags: ['vegetarian', 'gluten-free']
+        }
+      ],
+      eventAddress: {
+        venueName: 'The Grand Hall',
+        street: '123 Celebration Ave',
+        city: 'Happytown',
+        state: 'FL',
+        zipCode: '33000',
+        country: 'USA'
+      }
     },
     defaultWedding: {
       id: 'default',
@@ -29,5 +55,15 @@ export const weddingDetails = {
       introCouple: '/tempImages/mainImages/intro-main-image.png',
       scrapbookImageFolder: '/tempImages/scrapbookImages',
       rsvpEndpoint: '/api/rsvp/default',
+      isPlated: false,
+      platedOptions: [],
+      eventAddress: {
+        venueName: 'To Be Announced Venue',
+        street: '456 Future St',
+        city: 'Anticipation City',
+        state: 'NY',
+        zipCode: '10001',
+        country: 'USA'
+      }
     },
   };

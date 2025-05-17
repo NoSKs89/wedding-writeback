@@ -278,7 +278,7 @@ const WeddingJourney = ({ weddingData, resolvedScrapbookImages }) => {
           transition: 'opacity 0.4s ease-in-out',
         }}
       >
-        <RSVPForm weddingId={weddingData.id} backendUrl={rsvpEndpoint} />
+        <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
       </div>
     </div>
   );
