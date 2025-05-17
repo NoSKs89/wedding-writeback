@@ -1,10 +1,9 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated } from 'react-spring';
-import RSVPForm from './RSVPForm'; // Now .tsx
-// import ParallaxLogging from './ParallaxLogging'; // Now .tsx, but commented out for now
-import styles from './styles.module.css'; // Assuming this is for general layer styling if needed
-import '../App.css'; // For global styles like .textLayerContent, .introCoupleImage etc.
+import RSVPForm from './RSVPForm';
+import styles from './styles.module.css';
+import '../App.css';
 
 // Type Definitions
 interface WeddingData {
@@ -14,22 +13,22 @@ interface WeddingData {
   introBackground: string;
   introCouple: string;
   rsvpEndpoint: string;
-  id: string | number; // Changed from optional to required
+  id: string | number;
   isPlated?: boolean;
-  platedOptions?: any[]; // from RSVPForm usage, make more specific if possible
+  platedOptions?: any[];
 }
 
-interface ResolvedScrapbookImage {
-  // Assuming resolvedScrapbookImages is an array of strings (image URLs)
-  // If it's more complex, adjust this interface
-  src: string;
-  // add other properties if they exist for scrapbook items
-}
+// Interface for ResolvedScrapbookImage (if re-enabled)
+// interface ResolvedScrapbookImage {
+//   src: string;
+// }
 
 interface WeddingJourneyProps {
   weddingData: WeddingData;
-  resolvedScrapbookImages: string[]; // Changed from ResolvedScrapbookImage[] assuming it's just URLs
+  resolvedScrapbookImages: string[];
 }
+
+const FADE_OUT_SCROLL_RANGE_PIXELS = 1; // Adjust this value to control fade speed/distance
 
 // Helper to generate scrapbook image styles (remains largely the same, but ensure CSS works)
 const generateScrapbookImageStyle = (index: number, totalImages: number): React.CSSProperties => {
@@ -59,110 +58,95 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   } = weddingData;
 
   const parallaxRef = React.useRef<IParallax>(null);
+  const [scrollY, setScrollY] = useState(0);
 
-  // Opacity animation constants
-  const backgroundFadeStartOffset = 1.5; // Start fading background out
-  const backgroundFadeEndOffset = 2.0;   // Background fully faded out
-  const rsvpFadeStartOffset = 2.0;       // RSVP starts fading in (coincides with bg fully out)
-  const rsvpFadeDuration = 0.5;          // Duration of RSVP fade-in (in pages)
-  const rsvpFadeEndOffset = rsvpFadeStartOffset + rsvpFadeDuration;
-
-  // Springs for opacity
-  const [backgroundSpring, apiBg] = useSpring(() => ({ opacity: 1 }));
-  const [rsvpSpring, apiRsvp] = useSpring(() => ({ opacity: 0 }));
-
-  const handleScroll = useCallback(() => {
-    if (parallaxRef.current) {
-      const currentScrollPages = parallaxRef.current.current;
-
-      // Background opacity calculation
-      let bgOpacity;
-      if (currentScrollPages < backgroundFadeStartOffset) {
-        bgOpacity = 1;
-      } else if (currentScrollPages >= backgroundFadeEndOffset) {
-        bgOpacity = 0;
-      } else {
-        bgOpacity = 1 - (currentScrollPages - backgroundFadeStartOffset) / (backgroundFadeEndOffset - backgroundFadeStartOffset);
-      }
-      apiBg.start({ opacity: Math.max(0, Math.min(1, bgOpacity)) });
-
-      // RSVP opacity calculation
-      let rsvpOpacityVal;
-      if (currentScrollPages < rsvpFadeStartOffset) {
-        rsvpOpacityVal = 0;
-      } else if (currentScrollPages >= rsvpFadeEndOffset) {
-        rsvpOpacityVal = 1;
-      } else {
-        rsvpOpacityVal = (currentScrollPages - rsvpFadeStartOffset) / (rsvpFadeEndOffset - rsvpFadeStartOffset);
-      }
-      apiRsvp.start({ opacity: Math.max(0, Math.min(1, rsvpOpacityVal)), immediate: true });
+  // This function will be called on scroll events from the parallax container
+  const updateScrollPosition = useCallback(() => {
+    if (parallaxRef.current && parallaxRef.current.container.current) {
+      setScrollY(parallaxRef.current.container.current.scrollTop);
     }
-  }, [apiBg, apiRsvp, backgroundFadeStartOffset, backgroundFadeEndOffset, rsvpFadeStartOffset, rsvpFadeEndOffset]);
+  }, []); // parallaxRef is stable, so empty dependency array is fine
 
+  // Effect to attach scroll listener to the parallax container
   useEffect(() => {
-    const currentParallaxRef = parallaxRef.current;
-    const scrollContainer = currentParallaxRef?.container.current; // Access the DOM element
-
+    const scrollContainer = parallaxRef.current?.container.current;
     if (scrollContainer) {
-      scrollContainer.addEventListener('scroll', handleScroll);
-      handleScroll(); // Initial call to set correct opacities
+      scrollContainer.addEventListener('scroll', updateScrollPosition);
+      updateScrollPosition(); // Initial call to set scrollY based on current position
       return () => {
-        scrollContainer.removeEventListener('scroll', handleScroll);
+        scrollContainer.removeEventListener('scroll', updateScrollPosition);
       };
     }
-  }, [handleScroll]); // Effect depends on handleScroll
+  }, [updateScrollPosition]); // Re-run if updateScrollPosition changes (it won't due to useCallback)
 
-  // Define total pages for the parallax container.
-  const totalPages = 3; // Adjusted: page 0-1 for intro, page 2 for RSVP
-
-  // Offsets for layers (0-indexed)
-  const backgroundStickyStart = 0;    // Background appears from the start
-  const backgroundStickyEnd = 4;      // Background sticky until page 2 starts (covers first two pages of scroll, i.e., pages 0 and 1)
+  const backgroundOpacity = Math.max(0, 1 - scrollY / 1000);
+  // Spring for opacity fade based on scrollY (pixels)
+  const backgroundOpacitySpring = useSpring({
+    opacity: backgroundOpacity,
+    config: { tension: 80, friction: 26 },
+  });
   
-  const coupleImageOffset = 0.3;      // Couple image starts appearing on page 0
+  const totalPages = 3;
+  const backgroundStickyStart = 0;
+  const backgroundStickyEnd = 1; // Layer remains sticky for 1 page height
+
+  const coupleImageOffset = 0.3;
   const coupleImageSpeed = 0.4;
 
-  const textStartOffset = 0.6;        // Text starts appearing on page 0
+  const textStartOffset = 0.6;
   const textSpeed = 0.5;
 
-  // const scrapbookOffset = backgroundStickyEnd; // Scrapbook removed for now
-  // const scrapbookSpeed = 0.6;
-
-  const rsvpFormOffset = 2; // Starts appearing at the beginning of page 2
+  const rsvpFormOffset = 2;
   const rsvpFormSpeed = 0.3;
 
-
-  // Common style for centering content in a ParallaxLayer
-  const centerStyle: React.CSSProperties = { 
-    display: 'flex', 
-    alignItems: 'center', 
-    justifyContent: 'center', 
-    flexDirection: 'column' 
+  const centerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column'
   };
 
   return (
     <div className="wedding-journey-wrapper" style={{ width: '100%', height: '100%', background: '#000' }}>
+      {/* Opacity Debug Display */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: '10px',
+          left: '10px',
+          padding: '5px 10px',
+          background: 'rgba(255, 255, 255, 0.8)',
+          color: 'black',
+          zIndex: 200, // Ensure it's on top
+          fontSize: '16px',
+          borderRadius: '4px'
+        }}
+      >
+        ScrollY: {scrollY.toFixed(0)} | Opacity: {backgroundOpacity.toFixed(3)}
+      </div>
+
       {/* <ParallaxLogging currentScrollProgress={0} trackedAnimations={[]} /> // Placeholder if re-added */}
-      <Parallax ref={parallaxRef} pages={totalPages} style={{ top: '0', left: '0' }}>
-        
-        {/* Background Layer - Sticky */}
+      <Parallax 
+        ref={parallaxRef} 
+        pages={totalPages} 
+        style={{ top: '0', left: '0' }}
+      >
+
+        {/* Background Layer - Sticky with Pixel-Based Fade Out */}
         <ParallaxLayer
-          offset={backgroundStickyStart}
-          speed={0.01} // Subtle movement for sticky background if desired
           sticky={{ start: backgroundStickyStart, end: backgroundStickyEnd }}
-          style={{ zIndex: -1 }} // Ensure background is behind other content
+          style={{ zIndex: -1 }}
         >
-          {/* Apply opacity spring to an animated.div that handles the background image */}
-          <animated.div 
+          <animated.div
             style={{
-              ...backgroundSpring, // Contains opacity
-              width: '100%', 
-              height: '100vh', 
+              ...backgroundOpacitySpring, // Apply fade animation
+              width: '100%',
+              height: '100vh',
               backgroundImage: `url(${introBackground})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center center'
-            }} 
-            className={styles.background} // Keep className if it adds other non-conflicting styles
+            }}
+            className={styles.background}
           />
         </ParallaxLayer>
 
@@ -170,17 +154,16 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         <ParallaxLayer
           offset={coupleImageOffset}
           speed={coupleImageSpeed}
-          style={{ ...centerStyle, zIndex: 1 }} // Higher zIndex than background
+          style={{ ...centerStyle, zIndex: 1 }}
         >
           <img src={introCouple} alt="Couple" className="introCoupleImage" />
         </ParallaxLayer>
 
-        {/* Text Layers (Bride, Groom, Date) - could be one layer or multiple */}
-        {/* For simplicity, placing them in one layer group with slight vertical offset in styling */}
+        {/* Text Layers */}
         <ParallaxLayer
           offset={textStartOffset}
           speed={textSpeed}
-          style={{ ...centerStyle, zIndex: 2 }} // Higher zIndex
+          style={{ ...centerStyle, zIndex: 2 }}
         >
           <div className="textLayerContent">
             <h1>{brideName}</h1>
@@ -223,12 +206,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         <ParallaxLayer
           offset={rsvpFormOffset}
           speed={rsvpFormSpeed}
-          style={{ ...centerStyle, zIndex: 100 }} // Highest zIndex for modal-like appearance
+          style={{ ...centerStyle, zIndex: 100 }}
         >
-          {/* Apply opacity spring to the content of the RSVP layer */}
-          <animated.div style={rsvpSpring}>
+          <div>
             <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
-          </animated.div>
+          </div>
         </ParallaxLayer>
 
       </Parallax>
