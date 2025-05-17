@@ -5,7 +5,7 @@ import { Leva, useControls as useLevaControls } from 'leva';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
-import ScrapbookImageItem from './ScrapbookImageItem';
+import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
 
 // Type Definitions
 interface WeddingData {
@@ -30,14 +30,20 @@ interface WeddingJourneyProps {
   resolvedScrapbookImages: string[];
 }
 
-// Define a type for the focused image state
+// Updated FocusedImageState for precise animation control
 interface FocusedImageState {
   src: string;
   altText: string;
-  initialTop: string;
-  initialLeft: string;
-  initialWidth: string;
-  initialRotate: number;
+  // Original scrapbook item's state for return animation
+  initialTopPx: number;
+  initialLeftPx: number;
+  initialWidthPx: number;
+  initialHeightPx: number;
+  initialRotateDeg: number;
+  // Natural dimensions for aspect ratio calculation
+  naturalWidth: number;
+  naturalHeight: number;
+  // Optional details
   description?: string;
   photographer?: string;
 }
@@ -179,6 +185,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const [scrollY, setScrollY] = useState(0);
   const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
+  // NEW: State to hold details for the return animation
+  const [lastFocusedImageDetails, setLastFocusedImageDetails] = useState<FocusedImageState | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -407,14 +415,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     config: { tension: 250, friction: 30 },
   });
 
-  // Animation spring for the focused image container (handles position, scale, rotation)
+  // Animation spring for the focused image container
   const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
     opacity: 0,
-    top: '50%',
+    top: '50%', // Initial dummy values, will be overridden
     left: '50%',
     width: '0px',
+    height: '0px',
     transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
-    config: { tension: 220, friction: 22 }, // Slightly softer
+    config: { tension: 220, friction: 22 },
   }));
 
   // Animation spring for the info box content
@@ -424,31 +433,105 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     config: { tension: 250, friction: 26, delay: focusedImage ? 300 : 0 }, // Delay appearance
   });
 
+  // NEW HELPER FUNCTION: Calculate target dimensions for focused image
+  const calculateFocusTargetDimensions = (
+    naturalW: number,
+    naturalH: number,
+    viewportW: number,
+    viewportH: number
+  ): { targetWidth: number; targetHeight: number } => {
+    const targetViewportWidth = viewportW * 0.8;
+    const targetViewportHeight = viewportH * 0.8;
+    const aspectRatio = naturalW / naturalH;
+
+    let targetWidth = targetViewportWidth;
+    let targetHeight = targetWidth / aspectRatio;
+
+    if (targetHeight > targetViewportHeight) {
+      targetHeight = targetViewportHeight;
+      targetWidth = targetHeight * aspectRatio;
+    }
+    return { targetWidth, targetHeight };
+  };
+
+  // USER PROVIDED HELPER FUNCTION: Calculate centered position with optional offset
+  function getCenteredPosition(targetWidth: number, targetHeight: number, offsetYvh: number = 0) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    
+    const leftPx = (vw - targetWidth) / 2;
+    const topPx = (vh - targetHeight) / 2 - (vh * offsetYvh / 100);
+  
+    return { top: topPx, left: leftPx };
+  }
+
   useEffect(() => {
     if (focusedImage) {
+      // Calculate target dimensions for focused state
+      const { targetWidth, targetHeight } = calculateFocusTargetDimensions(
+        focusedImage.naturalWidth,
+        focusedImage.naturalHeight,
+        window.innerWidth,
+        window.innerHeight
+      );
+
+      // Calculate pixel-based top and left for centered (and offset) position
+      const { top: targetTopPx, left: targetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 15);
+
       focusedImageApi.start({
-        opacity: 1,
-        top: '50%',
-        left: '50%',
-        width: focusedImage.initialWidth,
-        transform: `translate(-50%, -50%) rotate(0deg) scale(1.5)`,
-        from: {
-          opacity: 0,
-          top: focusedImage.initialTop,
-          left: focusedImage.initialLeft,
-          width: focusedImage.initialWidth,
-          transform: `rotate(${focusedImage.initialRotate}deg) scale(1)`,
+        from: { 
+          opacity: 0.5, 
+          top: `${focusedImage.initialTopPx}px`,
+          left: `${focusedImage.initialLeftPx}px`,
+          width: `${focusedImage.initialWidthPx}px`,
+          height: `${focusedImage.initialHeightPx}px`,
+          // User had changed this to 0vw, 0vh. Retaining that idea.
+          transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
         },
+        to: { 
+          opacity: 1,
+          top: `${targetTopPx}px`, // Use calculated pixel value
+          left: `${targetLeftPx}px`, // Use calculated pixel value
+          width: `${targetWidth}px`,
+          height: `${targetHeight}px`,
+          transform: 'rotate(0deg) scale(1)', // Transform only handles rotation/scale now
+        },
+        onRest: () => {
+          if (lastFocusedImageDetails) setLastFocusedImageDetails(null);
+        }
       });
-    } else {
+    } else if (lastFocusedImageDetails) { // Unfocusing: Animate back to where it was
       focusedImageApi.start({
-        opacity: 0,
-        // Optional: Animate back to a neutral small spot or just rely on opacity
-        // top: '50%', left: '50%', width: '0px', 
-        // transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+        to: {
+          opacity: 0,
+          top: `${lastFocusedImageDetails.initialTopPx}px`,
+          left: `${lastFocusedImageDetails.initialLeftPx}px`,
+          width: `${lastFocusedImageDetails.initialWidthPx}px`,
+          height: `${lastFocusedImageDetails.initialHeightPx}px`,
+          // Ensure this matches the 'from' transform for consistency if it matters for arity
+          transform: `translate(0px, 0px) rotate(${lastFocusedImageDetails.initialRotateDeg}deg) scale(1)`,
+        },
+        onRest: () => {
+          setLastFocusedImageDetails(null); 
+        }
       });
+    } else { // Initial state or fully closed, ensure it's hidden
+        focusedImageApi.start({
+            opacity: 0,
+            // Optionally snap to a small, centered, and scaled-down state when not active
+            // top: '50%', left: '50%', width: '0px', height: '0px',
+            // transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+        });
     }
-  }, [focusedImage, focusedImageApi]);
+  }, [focusedImage, focusedImageApi, lastFocusedImageDetails]); // Added lastFocusedImageDetails to dependencies
+
+  // NEW: Handler for closing the focused image
+  const handleCloseFocusedImage = () => {
+    if (focusedImage) {
+      setLastFocusedImageDetails(focusedImage); // Store current details for return animation
+    }
+    setFocusedImage(null); // Trigger the unfocus animation
+  };
 
   return (
     <>
@@ -558,21 +641,31 @@ Gradient: ${currentGradientString}`}
                     imageSrc={imageSrc}
                     initialStyle={initialStyle}
                     altText={altText}
-                    onClick={() => {
+                    onClick={(details: ScrapbookClickDetails) => { // Use ScrapbookClickDetails
+                      const {
+                        imageSrc: clickedSrc,
+                        altText: clickedAlt,
+                        initialStyle: clickedInitialStyle,
+                        currentBoundingClientRect: rect,
+                        imageElement
+                      } = details;
+
                       // Extract rotation from initialStyle.transform
-                      const rotateMatch = initialStyle.transform?.match(/rotate\(([-\d.]+)deg\)/);
+                      const rotateMatch = clickedInitialStyle.transform?.match(/rotate\(([-\d.]+)deg\)/);
                       const currentInitialRotate = rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
 
                       setFocusedImage({
-                        src: imageSrc,
-                        altText,
-                        initialTop: initialStyle.top as string,
-                        initialLeft: initialStyle.left as string,
-                        initialWidth: initialStyle.width as string,
-                        initialRotate: currentInitialRotate,
-                        // Add placeholder data for description and photographer to see the box
-                        description: "We're still this in love!",
-                        photographer: "Probably Kim Christenson"
+                        src: clickedSrc,
+                        altText: clickedAlt,
+                        initialTopPx: rect.top,
+                        initialLeftPx: rect.left,
+                        initialWidthPx: rect.width,
+                        initialHeightPx: rect.height,
+                        initialRotateDeg: currentInitialRotate,
+                        naturalWidth: imageElement.naturalWidth,
+                        naturalHeight: imageElement.naturalHeight,
+                        description: "We're still this much in love!", // Placeholder
+                        photographer: "Probably Kim Christenson" // Placeholder
                       });
                     }}
                   />
@@ -601,62 +694,61 @@ Gradient: ${currentGradientString}`}
             background: 'rgba(0, 0, 0, 0.8)', 
             zIndex: 1000, 
           }}
-          onClick={() => setFocusedImage(null)} 
+          onClick={handleCloseFocusedImage} // Use new handler
         />
 
         {/* Animated Image Container - This moves and scales */} 
-        {focusedImage && (
+        {(focusedImage || lastFocusedImageDetails) && ( // Render if focused or returning
             <animated.div 
               style={{
                 ...focusedImageContainerSpring, // Applied here
-                position: 'fixed', // Fixed to viewport for centering
-                // display: 'flex', // Removed to let children stack or be positioned absolutely
-                // alignItems: 'center',
-                // justifyContent: 'center',
-                willChange: 'transform, opacity, top, left, width', // Perf hint
-                zIndex: 1001, // Above backdrop
-                pointerEvents: 'none', // Container itself shouldn't catch clicks meant for content/backdrop
+                position: 'fixed', 
+                willChange: 'transform, opacity, top, left, width, height', // Added height
+                zIndex: 1001, 
+                pointerEvents: 'none', 
               }}
             >
-              <div onClick={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto'}}> {/* Inner div to catch clicks and prevent closing modal*/}
-                <img 
-                  src={focusedImage.src}
-                  alt={focusedImage.altText}
-                  style={{
-                    display: 'block',
-                    maxWidth: '80vw',
-                    maxHeight: '80vh', // Changed from 70vh to 80vh
-                    width: 'auto', // Added to ensure image scales correctly with maxHeight
-                    height: 'auto', // Added for consistency
-                    objectFit: 'contain',
-                    boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
-                    border: '10px solid white',
-                    borderRadius: '3px',
-                  }}
-                />
-                {/* Info Box */} 
-                {(focusedImage.description || focusedImage.photographer) && (
-                  <animated.div style={{
-                    ...infoBoxSpring,
-                    position: 'absolute',
-                    bottom: '-60px', // Position below the image
-                    left: '50%',
-                    transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
-                    width: 'calc(100% - 20px)', // Slightly narrower than image
-                    maxWidth: '400px',
-                    backgroundColor: 'rgba(0,0,0,0.75)',
-                    color: 'white',
-                    padding: '15px',
-                    borderRadius: '5px',
-                    textAlign: 'left',
-                    boxSizing: 'border-box',
-                    zIndex: 1002, // Above image if overlaps slightly (though positioned below)
-                  }}>
-                    {focusedImage.description && <p style={{margin: '0 0 5px 0'}}><strong>Description:</strong> {focusedImage.description}</p>}
-                    {focusedImage.photographer && <p style={{margin: 0}}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
-                  </animated.div>
-                )}
-              </div>
+              {/* Determine src/alt from focusedImage or lastFocusedImageDetails for smooth transition */}
+              {/* This ensures image doesn't vanish instantly on close click */}
+              {(focusedImage || lastFocusedImageDetails) && (
+                <div onClick={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100%', height: '100%'}}>
+                  <img 
+                    src={focusedImage?.src || lastFocusedImageDetails?.src || ''}
+                    alt={focusedImage?.altText || lastFocusedImageDetails?.altText || 'Focused image'}
+                    style={{
+                      display: 'block',
+                      width: '100%', // Fill the animated container
+                      height: '100%', // Fill the animated container
+                      objectFit: 'contain', // Maintain aspect ratio
+                      boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+                      border: '10px solid white',
+                      borderRadius: '3px',
+                    }}
+                  />
+                  {/* Info Box - only show if image is truly focused, not during return */}
+                  {focusedImage && (focusedImage.description || focusedImage.photographer) && (
+                    <animated.div style={{
+                      ...infoBoxSpring,
+                      position: 'absolute',
+                      bottom: '-60px', // Position below the image
+                      left: '50%',
+                      transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
+                      width: 'calc(100% - 20px)', // Slightly narrower than image
+                      maxWidth: '400px',
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      color: 'white',
+                      padding: '15px',
+                      borderRadius: '5px',
+                      textAlign: 'left',
+                      boxSizing: 'border-box',
+                      zIndex: 1002, // Above image if overlaps slightly (though positioned below)
+                    }}>
+                      {focusedImage.description && <p style={{margin: '0 0 5px 0'}}><strong>Description:</strong> {focusedImage.description}</p>}
+                      {focusedImage.photographer && <p style={{margin: 0}}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
+                    </animated.div>
+                  )}
+                </div>
+              )}
             </animated.div>
         )}
       </animated.div>
