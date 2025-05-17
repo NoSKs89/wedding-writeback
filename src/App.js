@@ -9,7 +9,7 @@ import {
 import { ParallaxProvider } from 'react-scroll-parallax';
 import './App.css';
 import WeddingJourney from './components/WeddingJourney';
-import { weddingDetails, allTempImages } from './components/WeddingData'; // Import from WeddingData.js
+import { weddingDetails } from './components/WeddingData'; // Import from WeddingData.js, allTempImages removed
 
 // Placeholder for where you might fetch wedding-specific data
 // const weddingDetails = { ... }; // Removed local weddingDetails
@@ -24,12 +24,17 @@ const WeddingPageController = () => {
     const data = weddingDetails[weddingId] || weddingDetails.defaultWedding;
     setCurrentWeddingData(data);
 
-    // Resolve scrapbook images based on the folder path
-    if (data.scrapbookImageFolder === '/tempImages/') {
-      setResolvedScrapbookImages(allTempImages);
+    // Resolve scrapbook images dynamically
+    if (data && data.scrapbookImageFolder && data.scrapbookImageFileNames && data.scrapbookImageFileNames.length > 0) {
+      const imagePaths = data.scrapbookImageFileNames.map(fileName => {
+        // Ensure no double slashes if folder already ends with one, or filename starts with one (though unlikely for filename)
+        const folder = data.scrapbookImageFolder.endsWith('/') ? data.scrapbookImageFolder : data.scrapbookImageFolder + '/';
+        const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
+        return folder + name;
+      });
+      setResolvedScrapbookImages(imagePaths);
     } else {
-      // Potentially handle other folders or logic here in the future
-      setResolvedScrapbookImages([]);
+      setResolvedScrapbookImages([]); // Set to empty if no folder or files defined
     }
   }, [weddingId]);
 

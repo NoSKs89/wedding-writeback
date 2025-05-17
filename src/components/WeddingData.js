@@ -18,6 +18,7 @@ export const weddingDetails = {
       introBackground: '/tempImages/mainImages/intro-background.jpg',
       introCouple: '/tempImages/mainImages/intro-main-image.png',
       scrapbookImageFolder: '/tempImages/scrapbookImages',
+      scrapbookImageFileNames: ['1E5A0860.jpg', '1E5A0857-Edit.jpg', '1E5A0847.jpg', '1E5A0839-Edit.jpg', '1E5A0833.jpg', '1E5A0832.jpg', '1E5A0827.jpg', '1E5A0814.jpg', '1E5A0812.jpg', '1E5A0808.jpg', '1E5A0806.jpg', '1E5A0805.jpg', '1E5A0789.jpg', '1E5A0780.jpg', '1E5A0776.jpg', '1E5A0774.jpg', '1E5A0772.jpg', '1E5A0758.jpg', '1E5A0753.jpg', '1E5A0753-2.jpg', '1E5A0749.jpg', '1E5A0742.jpg', '1E5A0735.jpg', '1E5A0717.jpg', '1E5A0715-2.jpg', '1E5A0708.jpg', '1E5A0708-2.jpg'],
       rsvpEndpoint: '/api/rsvp/erickson2025',
       isPlated: true,
       platedOptions: [
@@ -54,6 +55,7 @@ export const weddingDetails = {
       introBackground: '/tempImages/mainImages/intro-background.jpg',
       introCouple: '/tempImages/mainImages/intro-main-image.png',
       scrapbookImageFolder: '/tempImages/scrapbookImages',
+      scrapbookImageFileNames: ['1E5A0860.jpg', '1E5A0857-Edit.jpg', '1E5A0847.jpg', '1E5A0839-Edit.jpg', '1E5A0833.jpg', '1E5A0832.jpg', '1E5A0827.jpg', '1E5A0814.jpg', '1E5A0812.jpg', '1E5A0808.jpg', '1E5A0806.jpg', '1E5A0805.jpg', '1E5A0789.jpg', '1E5A0780.jpg', '1E5A0776.jpg', '1E5A0774.jpg', '1E5A0772.jpg', '1E5A0758.jpg', '1E5A0753.jpg', '1E5A0753-2.jpg', '1E5A0749.jpg', '1E5A0742.jpg', '1E5A0735.jpg', '1E5A0717.jpg', '1E5A0715-2.jpg', '1E5A0708.jpg', '1E5A0708-2.jpg'],
       rsvpEndpoint: '/api/rsvp/default',
       isPlated: false,
       platedOptions: [],

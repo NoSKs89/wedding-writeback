@@ -115,24 +115,41 @@ const backgroundColorControlsSchema = {
   // gradientAngle: { value: 0, min: 0, max: 360, label: 'Gradient Angle (deg)'} // Example if we add angle later
 };
 
-// Helper to generate scrapbook image styles (remains largely the same, but ensure CSS works)
-const generateScrapbookImageStyle = (index: number, totalImages: number): React.CSSProperties => {
-  const size = Math.random() * 80 + 120;
-  const angle = Math.random() * 20 - 10;
-  // Adjust positioning logic if needed for ParallaxLayer context
-  const xBase = (index % Math.max(1, Math.floor(totalImages / 2))) * (100 / Math.max(1, Math.floor(totalImages / 2)));
-  const yBase = Math.floor(index / Math.max(1, Math.floor(totalImages / 2))) * 30;
-  const topPercent = yBase + (Math.random() * 20);
-  const leftPercent = xBase + (Math.random() * 20 - 10);
+// NEW: Adapted from ScrapbookBackground.js for more detailed image styling
+const generateScrapbookImageStyle = (index: number, totalImages: number, currentWindow?: Window): React.CSSProperties => {
+  const size = Math.random() * 100 + 150; // Random size between 150px and 250px
+  const angle = Math.random() * 30 - 15; // Random rotation between -15deg and 15deg
+
+  const cols = Math.ceil(Math.sqrt(totalImages));
+  const rows = Math.ceil(totalImages / cols);
+  const colIndex = index % cols;
+  const rowIndex = Math.floor(index / cols);
+
+  const xJitter = (Math.random() - 0.5) * 10; // % jitter
+  const yJitter = (Math.random() - 0.5) * 10; // % jitter
+
+  let topPercent = (rowIndex / rows) * 80 + 10 + yJitter;
+  let leftPercent = (colIndex / cols) * 80 + 10 + xJitter;
+
+  // Ensure positions are within bounds after considering image size (approx)
+  // Access window properties only if window is available (client-side)
+  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000; // Default if window undefined
+  const effectiveWindowWidth = typeof currentWindow !== 'undefined' ? currentWindow.innerWidth : 1000; // Default if window undefined
+
+  topPercent = Math.max(5, Math.min(topPercent, 95 - (size / effectiveWindowHeight * 100)));
+  leftPercent = Math.max(5, Math.min(leftPercent, 95 - (size / effectiveWindowWidth * 100)));
 
   return {
     position: 'absolute',
     width: `${size}px`,
-    height: 'auto',
+    height: 'auto', // Maintain aspect ratio
+    boxShadow: '3px 3px 10px rgba(0,0,0,0.2)',
+    border: '5px solid white', // Polaroid effect
     transform: `rotate(${angle}deg)`,
-    top: `${Math.min(80, Math.max(5, topPercent))}%`,
-    left: `${Math.min(80, Math.max(5, leftPercent))}%`,
-    // Using className for base styles, specific styles applied inline
+    top: `${topPercent}%`,
+    left: `${leftPercent}%`,
+    opacity: 0.8, // Slight fade for background effect
+    transition: 'transform 0.3s ease-out',
   };
 };
 
@@ -144,6 +161,20 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   const parallaxRef = React.useRef<IParallax>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentWindow(window);
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('WeddingJourney resolvedScrapbookImages:', resolvedScrapbookImages);
+    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) {
+      alert('No scrapbook images found or loaded. Please check the image paths and loading logic.');
+    }
+  }, [resolvedScrapbookImages]);
 
   const updateScrollPosition = useCallback(() => {
     if (parallaxRef.current && parallaxRef.current.container.current) {
@@ -436,42 +467,34 @@ Gradient: ${currentGradientString}`}
             </div>
           </ParallaxLayer>
 
-          {/* Scrapbook Layer */}
-          {/* {resolvedScrapbookImages && resolvedScrapbookImages.length > 0 && (
-            <ParallaxLayer
-              offset={scrapbookOffset}
-              speed={scrapbookSpeed}
-              style={{ ...centerStyle, zIndex: 3 }} // Higher zIndex
-            >
-              <div style={{ position: 'relative', width: '100%', height: '100vh', overflow: 'hidden' }}>
-                {resolvedScrapbookImages.map((src, index) => (
-                  <div
-                    key={`scrap-${index}`}
-                    // Apply base class and dynamic styles
-                    className="scrapbookImage" 
-                    style={{ 
-                      ...generateScrapbookImageStyle(index, resolvedScrapbookImages.length),
-                      zIndex: index + 1 
-                    }}
-                  >
-                    <img 
-                      src={src} 
-                      alt={`Scrapbook ${index + 1}`} 
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                    />
-                  </div>
-                ))}
-              </div>
-            </ParallaxLayer>
-          )} */}
-
           {/* RSVP Form Layer */}
           <ParallaxLayer
             offset={rsvpFormOffset}
             speed={rsvpFormSpeed}
             style={{ ...centerStyle, zIndex: 100 }}
           >
-            <div>
+            {/* Scrapbook Images Container */}
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              zIndex: 1 // Lower zIndex for scrapbook images container
+            }}>
+              {resolvedScrapbookImages.map((imageSrc, index) => (
+                <img
+                  key={index}
+                  src={imageSrc}
+                  alt={`Scrapbook item ${index + 1}`}
+                  style={generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow)}
+                  className="scrapbook-image-item" // You might want to add base styles in App.css
+                />
+              ))}
+            </div>
+            
+            {/* RSVP Form - ensure it's on top */}
+            <div style={{ position: 'relative', zIndex: 10 }}> {/* Higher zIndex for RSVP form container */}
               <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
             </div>
           </ParallaxLayer>
