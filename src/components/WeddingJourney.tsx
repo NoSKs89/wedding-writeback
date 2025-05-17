@@ -148,6 +148,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scaleDrasticRate
   } = controls; // Destructure values from the 'values' object returned by the hook
 
+  // Untracked control for HUD visibility
+  const { showHUD } = useLevaControls('Overall Controls', {
+    showHUD: { value: true, label: 'Show Debug HUD' }
+  });
+
   // --- Animation Calculations (using values from Leva controls) ---
   const FADE_OUT_SCROLL_RANGE_PIXELS = opacityFullTransparent; 
   const overallScrollProgress = FADE_OUT_SCROLL_RANGE_PIXELS > 0 ? Math.min(1, Math.max(0, scrollY / FADE_OUT_SCROLL_RANGE_PIXELS)) : 0;
@@ -244,27 +249,28 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   return (
     <>
       <Leva collapsed theme={levaTheme} />
-      <div className="wedding-journey-wrapper" style={{ width: '100%', height: '100%', background: '#000' }}>
-        {/* Opacity Debug Display - this can be removed if leva panel is sufficient */}
-        <div 
-          style={{
-            position: 'fixed',
-            top: '10px',
-            left: '10px',
-            padding: '5px 10px',
-            background: 'rgba(255, 255, 255, 0.8)',
-            color: 'black',
-            zIndex: 200, 
-            fontSize: '16px',
-            borderRadius: '4px',
-            whiteSpace: 'pre-wrap' 
-          }}
-        >
-          {`ScrollY: ${scrollY.toFixed(0)}
+      <div className="wedding-journey-wrapper" style={{ width: '100%', height: '100vh', background: '#000', overflow: 'hidden' }}>
+        {showHUD && ( // Conditional rendering for HUD
+          <div 
+            style={{
+              position: 'fixed',
+              top: '10px',
+              left: '10px',
+              padding: '5px 10px',
+              background: 'rgba(255, 255, 255, 0.8)',
+              color: 'black',
+              zIndex: 200, 
+              fontSize: '16px',
+              borderRadius: '4px',
+              whiteSpace: 'pre-wrap' 
+            }}
+          >
+            {`ScrollY: ${scrollY.toFixed(0)}
 Opacity: ${backgroundOpacity.toFixed(3)}
 Transform: ${backgroundSpring.transform.get()}
 Changed: ${Array.from(changedKeys).join(', ')}`}
-        </div>
+          </div>
+        )}
 
         {/* <ParallaxLogging currentScrollProgress={0} trackedAnimations={[]} /> // Placeholder if re-added */}
         <Parallax 
@@ -276,7 +282,7 @@ Changed: ${Array.from(changedKeys).join(', ')}`}
           {/* Background Layer - Sticky with Pixel-Based Fade Out */}
           <ParallaxLayer
             sticky={{ start: backgroundStickyStart, end: backgroundStickyEnd }}
-            style={{ zIndex: -1 }}
+            style={{ zIndex: -1, overflow: 'hidden' }}
           >
             <animated.div
               style={{
