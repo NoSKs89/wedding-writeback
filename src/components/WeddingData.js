@@ -12,6 +12,7 @@ export const allTempImages = [
 export const weddingDetails = {
     erickson2025: {
       id: 'erickson2025',
+      eventName: 'Erickson 2025',
       brideName: 'Brooke Christenson',
       groomName: 'Stephen Erickson',
       weddingDate: 'September 5th, 2025',
@@ -49,6 +50,7 @@ export const weddingDetails = {
     },
     defaultWedding: {
       id: 'default',
+      eventName: 'Erickson 2025',
       brideName: 'Bride Name',
       groomName: 'Groom Name',
       weddingDate: 'Upcoming Date',

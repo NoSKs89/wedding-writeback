@@ -11,8 +11,10 @@ import './App.css';
 import WeddingJourney from './components/WeddingJourney';
 import { weddingDetails } from './components/WeddingData'; // Import from WeddingData.js, allTempImages removed
 
-// Placeholder for where you might fetch wedding-specific data
-// const weddingDetails = { ... }; // Removed local weddingDetails
+//todo:
+// -if past wedding date, have the form change to be a comment about the wedding... like a memory
+// -perhaps even allow a user to upload a photo from the wedding?
+
 
 // This component will decide whether to show Intro or Main content for a wedding
 const WeddingPageController = ({ setShowGuideLines }) => {
@@ -37,6 +39,14 @@ const WeddingPageController = ({ setShowGuideLines }) => {
       setResolvedScrapbookImages([]); // Set to empty if no folder or files defined
     }
   }, [weddingId]);
+
+  useEffect(() => {
+    if (currentWeddingData && currentWeddingData.eventName) {
+      document.title = `${currentWeddingData.eventName} - Wedding WriteBack`;
+    } else {
+      document.title = 'Wedding WriteBack'; // Default title if data not loaded
+    }
+  }, [currentWeddingData]); // Add currentWeddingData as a dependency
 
   if (!currentWeddingData) {
     return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details...</div>;
