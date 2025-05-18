@@ -108,7 +108,9 @@ const backgroundAnimationSchema = {
   translateYMultiplier: { value: 650, min: 0, max: 1000, step: 10, label: 'Translate Y Multiplier (%)' },
   scaleInitialRate: { value: 4, min: 0, max: 50, step: 0.1, label: 'Initial Scale Rate' },
   scaleDrasticStartPx: { value: 494, min: 0, max: 5000, step: 1, label: 'Drastic Scale Start (px)' },
-  scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' }
+  scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' },
+  borderRadiusStartScrollY: { value: 500, min: 0, max: 5000, step: 10, label: 'ClipPath Start Shrink (px)' },
+  clipPathVanishScrollY: { value: 750, min: 0, max: 5000, step: 10, label: 'ClipPath Vanish End (px)' },
 };
 
 // NEW: Schema for BackgroundColor Leva controls
@@ -275,7 +277,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     translateYMultiplier,
     scaleInitialRate,
     scaleDrasticStartPx,
-    scaleDrasticRate
+    scaleDrasticRate,
+    borderRadiusStartScrollY,
+    clipPathVanishScrollY,
   } = animControls; // Destructure values from the 'values' object returned by the hook
 
   // NEW: Leva Controls for Background Color
@@ -395,9 +399,42 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     currentTranslateY = 0;
   }
   
+  // NEW: Clip-Path Calculation for circular effect
+  let calculatedClipPathValue = 'circle(70.7107% at 50% 50%)'; // Default: circle covering the farthest corners (effectively no clip for rect content)
+  const localRoundingStart = borderRadiusStartScrollY;
+  const localRoundingEnd = clipPathVanishScrollY; // Use new control for vanish point
+
+  if (currentWindow && localRoundingEnd > localRoundingStart && scrollY > localRoundingStart) {
+    const linearProgress = Math.min(1, Math.max(0, (scrollY - localRoundingStart) / (localRoundingEnd - localRoundingStart)));
+    const easedProgress = Math.pow(linearProgress, 0.5);
+    const w = currentWindow.innerWidth;
+    const h = currentWindow.innerHeight;
+
+    // Radius of circle circumscribing the rectangle (touches farthest corners)
+    const R_start_px = Math.sqrt(Math.pow(w / 2, 2) + Math.pow(h / 2, 2));
+    // R_end_px is effectively 0 for the shrinking animation to vanish
+
+    // Animate radius from R_start_px down to 0
+    const current_R_px = R_start_px * (1 - easedProgress);
+
+    // For circle(), percentage radius is relative to sqrt(width^2 + height^2) / sqrt(2)
+    const referenceLengthForCirclePercentage = Math.sqrt(Math.pow(w, 2) + Math.pow(h, 2)) / Math.sqrt(2);
+    let current_R_percentage = 70.7107;
+    if (referenceLengthForCirclePercentage > 0) {
+        current_R_percentage = (current_R_px / referenceLengthForCirclePercentage) * 100;
+    }
+    calculatedClipPathValue = `circle(${current_R_percentage.toFixed(2)}% at 50% 50%)`;
+  } else if (currentWindow && scrollY >= localRoundingEnd && localRoundingEnd > localRoundingStart) {
+    // Animation is complete, ensure it's a zero-radius circle (vanished)
+    calculatedClipPathValue = 'circle(0% at 50% 50%)';
+  } else if (scrollY <= localRoundingStart) {
+    calculatedClipPathValue = 'circle(70.7107% at 50% 50%)'; 
+  }
+  
   const backgroundSpring = useSpring({
     opacity: backgroundOpacity,
-    transform: `translateY(${currentTranslateY}%) scale(${currentScale})`,
+    transform: `scale(${currentScale})`,
+    clipPath: calculatedClipPathValue, 
     config: { tension: 80, friction: 26 },
   });
   
@@ -651,7 +688,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         style={{ 
           width: '100%', 
           height: '100vh', 
-          overflow: 'hidden',
+          // overflow: 'hidden', // TEMPORARILY REMOVED FOR TESTING
           background: currentGradientString
         }}
       >
@@ -665,13 +702,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
               background: 'rgba(255, 255, 255, 0.8)',
               color: 'black',
               zIndex: 200, 
-              fontSize: '16px',
+              fontSize: '12px', 
               borderRadius: '4px',
               whiteSpace: 'pre-wrap' 
             }}
           >
             {`ScrollY: ${scrollY.toFixed(0)}
 DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
+Opacity: ${backgroundOpacity.toFixed(2)}, Scale: ${currentScale.toFixed(2)}, TranslateY: ${currentTranslateY.toFixed(2)}%
+ClipPath: ${calculatedClipPathValue}
 ${changedKeyDetailsOutput.trim()}`}
           </div>
         )}
@@ -695,8 +734,8 @@ ${changedKeyDetailsOutput.trim()}`}
                 height: '100vh',
                 backgroundImage: `url(${introBackground})`,
                 backgroundSize: 'cover',
-                backgroundPosition: 'center bottom',
-                transformOrigin: 'center bottom'
+                backgroundPosition: 'center center',
+                transformOrigin: 'center center'
               }}
               className={styles.background}
             />
