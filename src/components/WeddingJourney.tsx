@@ -28,6 +28,7 @@ interface WeddingData {
 interface WeddingJourneyProps {
   weddingData: WeddingData;
   resolvedScrapbookImages: string[];
+  setShowGuideLines: (show: boolean) => void;
 }
 
 // Updated FocusedImageState for precise animation control
@@ -208,7 +209,7 @@ const generateScrapbookImageStyle = (
   };
 };
 
-const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages }) => {
+const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages, setShowGuideLines }) => {
   const {
     brideName, groomName, weddingDate,
     introBackground, introCouple, rsvpEndpoint
@@ -218,7 +219,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const [scrollY, setScrollY] = useState(0);
   const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
-  // NEW: State to hold details for the return animation
   const [lastFocusedImageDetails, setLastFocusedImageDetails] = useState<FocusedImageState | null>(null);
 
   useEffect(() => {
@@ -234,19 +234,16 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [resolvedScrapbookImages]);
 
-  // NEW: useEffect to pre-load scrapbook images
   useEffect(() => {
     if (resolvedScrapbookImages && resolvedScrapbookImages.length > 0) {
       resolvedScrapbookImages.forEach(src => {
-        if (src) { // Ensure src is not null or empty
+        if (src) {
           const img = new Image();
           img.src = src;
-          // No need to append img to DOM or do anything else with it;
-          // setting .src is enough to trigger the browser to fetch and cache.
         }
       });
     }
-  }, [resolvedScrapbookImages]); // Re-run if the list of images changes
+  }, [resolvedScrapbookImages]);
 
   const updateScrollPosition = useCallback(() => {
     if (parallaxRef.current && parallaxRef.current.container.current) {
@@ -265,7 +262,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [updateScrollPosition]);
 
-  // Use the custom tracked controls hook
   const { values: animControls, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
   const {
     opacityGentleEnd,
@@ -280,11 +276,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scaleDrasticRate,
     borderRadiusStartScrollY,
     clipPathVanishScrollY,
-  } = animControls; // Destructure values from the 'values' object returned by the hook
+  } = animControls;
 
-  // NEW: Leva Controls for Background Color
   const { values: bgControls, changedKeys: bgChangedKeys } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema, { collapsed: true });
-  // Destructure all color controls
   const {
     colorStop1_Bottom, colorStop1_Top,
     colorStop2_Bottom, colorStop2_Top,
@@ -293,9 +287,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     colorStop5_Bottom, colorStop5_Top
   } = bgControls;
 
-  // NEW: Leva Controls for Scrapbook Layout
   const { values: scrapbookCtrl, changedKeys: scrapbookChangedKeys } = useTrackedControls('Scrapbook Layout', scrapbookControlsSchema, { collapsed: true });
-  // Destructure ALL scrapbook controls, including new ones
   const {
     angleMin,
     angleMax,
@@ -306,12 +298,19 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scrollAngleSensitivityMax
   } = scrapbookCtrl;
 
-  // Untracked control for HUD visibility
-  const { showHUD } = useLevaControls('Overall Controls', {
-    showHUD: { value: true, label: 'Show Debug HUD' }
+  // Leva controls for HUD and Guide Lines visibility
+  const { showHUD, toggleGuideLines } = useLevaControls('Overall Controls', {
+    showHUD: { value: true, label: 'Show Debug HUD' },
+    toggleGuideLines: { value: true, label: 'Toggle Guide Lines' }
   }, { collapsed: true });
 
-  // Dynamically create and memoize gradientColorRGBs based on Leva controls
+  // useEffect to update App.js state when Leva control for guide lines changes
+  useEffect(() => {
+    if (setShowGuideLines) { // Directly use the prop passed from App.js
+      setShowGuideLines(toggleGuideLines); // toggleGuideLines is the boolean value from Leva
+    }
+  }, [toggleGuideLines, setShowGuideLines]);
+
   const gradientColorRGBs = useMemo(() => {
     const currentHexColors = [
       { bottom: colorStop1_Bottom, top: colorStop1_Top },
@@ -489,7 +488,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const textSpeed = 0.5;
 
   const rsvpFormOffset = 2;
-  const rsvpFormSpeed = 0.3;
+  const rsvpFormSpeed = 0.1;
 
   const centerStyle: React.CSSProperties = {
     display: 'flex',
@@ -619,7 +618,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   useEffect(() => {
     if (focusedImage) {
-      // Calculate target dimensions for focused state
       const { targetWidth, targetHeight } = calculateFocusTargetDimensions(
         focusedImage.naturalWidth,
         focusedImage.naturalHeight,
@@ -627,8 +625,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         window.innerHeight
       );
 
-      // Calculate pixel-based top and left for centered (and offset) position
-      const { top: targetTopPx, left: targetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 15);
+      // Ensure targetTopPx and targetLeftPx are declared only once in this scope
+      const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 0); // Changed 15 to 0
 
       focusedImageApi.start({
         from: { 
@@ -641,8 +639,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         },
         to: { 
           opacity: 1,
-          top: `${targetTopPx}px`,
-          left: `${targetLeftPx}px`,
+          top: `${calculatedTargetTopPx}px`, // Use new variable names
+          left: `${calculatedTargetLeftPx}px`, // Use new variable names
           width: `${targetWidth}px`,
           height: `${targetHeight}px`,
           transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
@@ -651,7 +649,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           if (lastFocusedImageDetails) setLastFocusedImageDetails(null);
         }
       });
-    } else if (lastFocusedImageDetails) { // Unfocusing: Animate back to where it was
+    } else if (lastFocusedImageDetails) { 
       focusedImageApi.start({
         to: {
           opacity: 0,
@@ -665,12 +663,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           setLastFocusedImageDetails(null); 
         }
       });
-    } else { // Initial state or fully closed, ensure it's hidden
+    } else { 
         focusedImageApi.start({
             opacity: 0,
         });
     }
-  }, [focusedImage, focusedImageApi, lastFocusedImageDetails]); // Added lastFocusedImageDetails to dependencies
+  }, [focusedImage, focusedImageApi, lastFocusedImageDetails]);
 
   // NEW: Handler for closing the focused image
   const handleCloseFocusedImage = () => {
