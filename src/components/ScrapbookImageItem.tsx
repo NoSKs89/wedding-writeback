@@ -9,6 +9,7 @@ export interface ScrapbookClickDetails {
   currentBoundingClientRect: DOMRect;
   imageElement: HTMLImageElement; // To access naturalWidth/naturalHeight
   index: number;
+  lastPutDownIndex?: number | null; // New prop
 }
 
 interface ScrapbookImageItemProps {
@@ -19,6 +20,7 @@ interface ScrapbookImageItemProps {
   dynamicAngleOffsetDeg?: number;
   index: number;
   isHiddenForFocus?: boolean; // Controls visibility when the item is "focused"
+  lastPutDownIndex?: number | null; // Destructure new prop
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -30,6 +32,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     dynamicAngleOffsetDeg = 0,
     index,
     isHiddenForFocus = false,
+    lastPutDownIndex = null, // Destructure new prop
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
@@ -60,7 +63,25 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     transform: finalTransform,
     // Opacity logic: 0 if hidden, otherwise based on hover or initial style
     opacity: isHiddenForFocus ? 0 : (isHovered ? 1 : (baseOpacityFromStyle ?? 0.8)),
-    zIndex: isHovered && !isHiddenForFocus ? 100 : (initialStyle.zIndex || 1),
+    
+    // Updated zIndex logic
+    zIndex: (() => {
+      const Z_INDEX_BASE = initialStyle.zIndex || 1;
+      const Z_INDEX_HOVER = 100;
+      const Z_INDEX_LAST_PUT_DOWN = 5; // Higher than base, lower than hover
+
+      if (isHiddenForFocus) {
+        return Z_INDEX_BASE; // Or a very low zIndex like 0 if preferred when hidden
+      }
+      if (isHovered) {
+        return Z_INDEX_HOVER;
+      }
+      if (lastPutDownIndex === index) {
+        return Z_INDEX_LAST_PUT_DOWN;
+      }
+      return Z_INDEX_BASE;
+    })(),
+
     boxShadow: isHovered && !isHiddenForFocus
       ? '6px 6px 20px rgba(0,0,0,0.4)'
       : initialStyle.boxShadow || '3px 3px 10px rgba(0,0,0,0.2)',
@@ -91,6 +112,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
         currentBoundingClientRect: rect,
         imageElement: currentImageElement,
         index,
+        lastPutDownIndex, // Pass the new prop
       };
       if (typeof propsOnClick === 'function') {
         propsOnClick(details);

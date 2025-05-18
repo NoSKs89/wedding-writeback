@@ -225,9 +225,22 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
+  const [lastPutDownIndex, setLastPutDownIndex] = useState<number | null>(null); // New state
   // --- End State for Focused Image Logic ---
 
   const [imageNaturalDimensions, setImageNaturalDimensions] = useState<Array<{width: number; height: number; src: string}>>([]);
+
+  // Refs for state values used in timeouts
+  const imageReturningToScrapbookRef = useRef<FocusedImageState | null>(null);
+  const pendingImageToFocusRef = useRef<FocusedImageState | null>(null);
+
+  useEffect(() => {
+    imageReturningToScrapbookRef.current = imageReturningToScrapbook;
+  }, [imageReturningToScrapbook]);
+
+  useEffect(() => {
+    pendingImageToFocusRef.current = pendingImageToFocus;
+  }, [pendingImageToFocus]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -679,6 +692,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     const handleImageClick = (details: ScrapbookClickDetails) => {
       console.log("WJ: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
       console.log("WJ: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
+      setLastPutDownIndex(null); // Clear last put down index on new pick up
       
       const {
         imageSrc: clickedSrc,
@@ -827,11 +841,22 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           console.log(`WJ: Scheduling scrapbook item ${currentIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
           
           returnTimeoutId = setTimeout(() => {
-            console.log(`WJ: Timeout fired for item ${currentIndex}. Making it reappear in grid.`);
-            setImageReturningToScrapbook(null);
-            if (pendingImageToFocus) {
-              setFocusedImage(pendingImageToFocus);
+            const currentReturningImageFromRef = imageReturningToScrapbookRef.current;
+            console.log(`WJ: Timeout fired for item ${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.`);
+            
+            setImageReturningToScrapbook(null); // This triggers reappearance
+
+            if (currentReturningImageFromRef) {
+              setLastPutDownIndex(currentReturningImageFromRef.currentIndex);
+            }
+
+            const currentPendingImageFromRef = pendingImageToFocusRef.current;
+            if (currentPendingImageFromRef) {
+              setFocusedImage(currentPendingImageFromRef);
               setPendingImageToFocus(null);
+              // Note: lastPutDownIndex remains from the item that just landed.
+              // If this newly focused item is later put down, it will become the new lastPutDownIndex.
+              // If another item is *picked up from scratch*, handleImageClick clears lastPutDownIndex.
             }
           }, REAPPEAR_DELAY_MS);
 
@@ -889,6 +914,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         console.warn("Cannot update focused image: invalid index or no images.", newIndex, resolvedScrapbookImages.length);
         return null;
       }
+      setLastPutDownIndex(null); // Clear last put down index on navigation pick up
 
       const targetImageElement = scrapbookImageRefs.current[newIndex];
       const newImageSrc = resolvedScrapbookImages[newIndex];
@@ -1094,6 +1120,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                         dynamicAngleOffsetDeg={dynamicAngle}
                         index={index}
                         isHiddenForFocus={isEffectivelyHidden}
+                        lastPutDownIndex={lastPutDownIndex} // Pass new prop
                         ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[index] = el; }}
                         onClick={handleImageClick}
                     />
