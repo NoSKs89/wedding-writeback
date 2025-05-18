@@ -141,6 +141,15 @@ const scrapbookControlsSchema = {
   scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
 };
 
+// NEW: Schema for Scrapbook Parallax Movement Leva controls
+const scrapbookMovementControlsSchema = {
+  minXMovementSensitivity: { value: -0.08, min: -0.4, max: 0.4, step: 0.01, label: 'Min X Parallax Sens.' },
+  maxXMovementSensitivity: { value: 0.17, min: -0.4, max: 0.4, step: 0.01, label: 'Max X Parallax Sens.' },
+  minYMovementSensitivity: { value: -0.2, min: -0.4, max: 0.4, step: 0.01, label: 'Min Y Parallax Sens.' },
+  maxYMovementSensitivity: { value: 0.19, min: -0.4, max: 0.4, step: 0.01, label: 'Max Y Parallax Sens.' },
+  movementScrollCap: { value: 5000, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
+};
+
 // Updated generateScrapbookImageStyle to use Leva controls
 const generateScrapbookImageStyle = (
   index: number, 
@@ -375,6 +384,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     scrollAngleSensitivityMax
   } = scrapbookCtrl;
 
+  const { values: scrapbookMoveCtrl, changedKeys: scrapbookMoveChangedKeys } = useTrackedControls('Scrapbook Parallax', scrapbookMovementControlsSchema, { collapsed: true });
+  const {
+    minXMovementSensitivity,
+    maxXMovementSensitivity,
+    minYMovementSensitivity,
+    maxYMovementSensitivity,
+    movementScrollCap
+  } = scrapbookMoveCtrl;
+
   // Helper function to parse rotation from transform string
   const parseRotationFromStyle = (transformString?: string | number): number => {
     if (typeof transformString === 'number') return transformString;
@@ -584,8 +602,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
     // Merge all changedKeys for the HUD
     const allChangedKeys = useMemo(() => 
-        new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys), ...Array.from(scrapbookChangedKeys)])
-    , [animChangedKeys, bgChangedKeys, scrapbookChangedKeys]);
+        new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys), ...Array.from(scrapbookChangedKeys), ...Array.from(scrapbookMoveChangedKeys)])
+    , [animChangedKeys, bgChangedKeys, scrapbookChangedKeys, scrapbookMoveChangedKeys]);
 
     // NEW: Generate the detailed string for changed values for the HUD
     const changedKeyDetailsOutput = useMemo(() => {
@@ -602,6 +620,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             value = bgControls[key as keyof typeof bgControls];
         } else if (scrapbookCtrl.hasOwnProperty(key)) {
             value = scrapbookCtrl[key as keyof typeof scrapbookCtrl];
+        } else if (scrapbookMoveCtrl.hasOwnProperty(key)) { // Check new controls
+            value = scrapbookMoveCtrl[key as keyof typeof scrapbookMoveCtrl];
         }
 
         let formattedValue = String(value);
@@ -616,7 +636,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         details += `${key}: ${formattedValue}\n`;
         }
         return details;
-    }, [allChangedKeys, animControls, bgControls, scrapbookCtrl]);
+    }, [allChangedKeys, animControls, bgControls, scrapbookCtrl, scrapbookMoveCtrl]); // Added scrapbookMoveCtrl
 
     // Memoize the scrapbook image styles
     const memoizedScrapbookImageStyles = useMemo(() => {
@@ -647,6 +667,21 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         Math.random() * (maxSens - minSens) + minSens
         );
     }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
+
+    // NEW: Memoize X and Y movement sensitivities for each image
+    const memoizedXMovementSensitivities = useMemo(() => {
+        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+        const minSens = Math.min(scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity);
+        const maxSens = Math.max(scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity);
+        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
+    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity]);
+
+    const memoizedYMovementSensitivities = useMemo(() => {
+        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+        const minSens = Math.min(scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity);
+        const maxSens = Math.max(scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity);
+        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
+    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity]);
 
     // Animation spring for the focused image backdrop
     const backdropSpring = useSpring({
@@ -1118,6 +1153,16 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                     const itemScrollSensitivity = memoizedScrollSensitivities[index] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
                     const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + index * 0.5) * 45;
 
+                    // NEW: Calculate parallax translation for X and Y
+                    const itemXSensitivity = memoizedXMovementSensitivities[index] || 0;
+                    const itemYSensitivity = memoizedYMovementSensitivities[index] || 0;
+                    
+                    // Apply scroll cap to the scrollY used for movement
+                    const cappedScrollYForMovement = Math.min(scrollY, scrapbookMoveCtrl.movementScrollCap);
+
+                    const parallaxTranslateX = cappedScrollYForMovement * itemXSensitivity;
+                    const parallaxTranslateY = cappedScrollYForMovement * itemYSensitivity;
+
                     let isEffectivelyHidden = false;
                     if (focusedImage && focusedImage.currentIndex === index) {
                     isEffectivelyHidden = true;
@@ -1140,6 +1185,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                         lastPutDownIndex={lastPutDownIndex} // Pass new prop
                         ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[index] = el; }}
                         onClick={handleImageClick}
+                        parallaxTranslateX={parallaxTranslateX} // Pass new prop
+                        parallaxTranslateY={parallaxTranslateY} // Pass new prop
                     />
                     );
                 })}

@@ -21,6 +21,8 @@ interface ScrapbookImageItemProps {
   index: number;
   isHiddenForFocus?: boolean; // Controls visibility when the item is "focused"
   lastPutDownIndex?: number | null; // Destructure new prop
+  parallaxTranslateX?: number; // New prop for X parallax movement
+  parallaxTranslateY?: number; // New prop for Y parallax movement
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -33,6 +35,8 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     index,
     isHiddenForFocus = false,
     lastPutDownIndex = null, // Destructure new prop
+    parallaxTranslateX = 0, // Destructure with default
+    parallaxTranslateY = 0, // Destructure with default
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
@@ -50,7 +54,10 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
   
   // Determine hover scale only if the item is not hidden for focus
   const hoverScale = isHovered && !isHiddenForFocus ? 'scale(1.2)' : 'scale(1)';
-  const finalTransform = `${baseRotate} ${dynamicRotate} ${hoverScale}`.trim();
+  // NEW: Add parallax translation
+  const parallaxTranslation = `translate(${parallaxTranslateX}px, ${parallaxTranslateY}px)`;
+  
+  const finalTransform = `${parallaxTranslation} ${baseRotate} ${dynamicRotate} ${hoverScale}`.trim();
 
   // Store the previous state of isHiddenForFocus to correctly apply 'immediate'
   const prevIsHiddenForFocusRef = useRef<boolean>(isHiddenForFocus);
