@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useSpring, animated } from 'react-spring';
 
 // NEW: Define and export a type for the details passed on click
@@ -8,6 +8,7 @@ export interface ScrapbookClickDetails {
   initialStyle: React.CSSProperties; // The original style object from generateScrapbookImageStyle
   currentBoundingClientRect: DOMRect;
   imageElement: HTMLImageElement; // To access naturalWidth/naturalHeight
+  index: number; // Add index
 }
 
 interface ScrapbookImageItemProps {
@@ -16,27 +17,26 @@ interface ScrapbookImageItemProps {
   onClick: (details: ScrapbookClickDetails) => void; // Updated onClick prop type
   altText: string;
   dynamicAngleOffsetDeg?: number; // Prop for scroll-dependent tilt
+  index: number; // Add index prop
 }
 
-const ScrapbookImageItem: React.FC<ScrapbookImageItemProps> = ({
-  imageSrc,
-  initialStyle,
-  onClick,
-  altText,
-  dynamicAngleOffsetDeg = 0, // Default to 0 if not provided
-}) => {
+const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
+  const {
+    imageSrc,
+    initialStyle,
+    onClick: propsOnClick,
+    altText,
+    dynamicAngleOffsetDeg = 0,
+    index,
+  } = props;
+
   const [isHovered, setIsHovered] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null); // Ref for the image element
+  const imgRef = useRef<HTMLImageElement>(null); // Local ref for this component's direct use
 
-  // Destructure the original transform from initialStyle. All other properties are in restInitialStyle.
   const { transform: baseTransformFromStyle, ...restInitialStyle } = initialStyle;
-
-  // Construct the parts of the transform string
-  const baseRotate = baseTransformFromStyle || ''; // Should be like "rotate(Xdeg)"
-  const dynamicRotate = `rotate(${dynamicAngleOffsetDeg}deg)`; // Dynamic scroll-based rotation
+  const baseRotate = baseTransformFromStyle || '';
+  const dynamicRotate = `rotate(${dynamicAngleOffsetDeg}deg)`;
   const hoverScale = isHovered ? 'scale(1.2)' : 'scale(1)';
-
-  // Combine them: base rotation, then dynamic rotation, then scale
   const finalTransform = `${baseRotate} ${dynamicRotate} ${hoverScale}`.trim();
 
   const hoverSpring = useSpring({
@@ -49,34 +49,66 @@ const ScrapbookImageItem: React.FC<ScrapbookImageItemProps> = ({
   });
 
   const handleClick = () => {
+    console.log("ScrapbookImageItem: handleClick triggered. Image src:", imageSrc);
+    console.log("ScrapbookImageItem: Type of propsOnClick:", typeof propsOnClick);
+
+    // Use the local imgRef.current, which should be more reliable here
     if (imgRef.current) {
-      const rect = imgRef.current.getBoundingClientRect();
-      onClick({
+      const currentImageElement = imgRef.current;
+      const rect = currentImageElement.getBoundingClientRect();
+      const details: ScrapbookClickDetails = {
         imageSrc,
         altText,
-        initialStyle, // Pass the original full initialStyle (including its base transform)
+        initialStyle,
         currentBoundingClientRect: rect,
-        imageElement: imgRef.current,
-      });
+        imageElement: currentImageElement,
+        index,
+      };
+      console.log("ScrapbookImageItem: About to call propsOnClick with details (using local imgRef):", details);
+      if (typeof propsOnClick === 'function') {
+        try {
+          propsOnClick(details);
+          console.log("ScrapbookImageItem: propsOnClick was called successfully.");
+        } catch (e) {
+          console.error("ScrapbookImageItem: Error occurred while calling propsOnClick:", e);
+        }
+      } else {
+        console.warn("ScrapbookImageItem: propsOnClick is not a function! Received:", propsOnClick);
+      }
+    } else {
+      console.warn("ScrapbookImageItem: local imgRef.current is null, cannot prepare or call propsOnClick.");
     }
   };
 
+  // Callback ref to set both local and forwarded refs
+  const setRefs = useCallback((node: HTMLImageElement | null) => {
+    // Set our own local ref
+    (imgRef as React.MutableRefObject<HTMLImageElement | null>).current = node;
+    // Handle the forwarded ref
+    if (typeof forwardedRef === 'function') {
+      forwardedRef(node);
+    } else if (forwardedRef) {
+      // If it's a mutable ref object
+      (forwardedRef as React.MutableRefObject<HTMLImageElement | null>).current = node;
+    }
+  }, [forwardedRef]);
+
   return (
     <animated.img
-      ref={imgRef} // Assign ref
+      ref={setRefs} // Use the combined ref setter
       src={imageSrc}
       alt={altText}
       style={{
-        ...restInitialStyle, // Spread styles from initialStyle (excluding transform)
-        ...hoverSpring,      // Spread spring styles (which includes the combined transform)
+        ...restInitialStyle,
+        ...hoverSpring,
         cursor: 'pointer',
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      onClick={handleClick} // Use wrapped handleClick
+      onClick={handleClick}
       className="scrapbook-image-item"
     />
   );
-};
+});
 
 export default ScrapbookImageItem; 
