@@ -408,6 +408,16 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys)])
   , [animChangedKeys, bgChangedKeys]);
 
+  // NEW: Memoize the scrapbook image styles
+  const memoizedScrapbookImageStyles = useMemo(() => {
+    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) {
+      return [];
+    }
+    return resolvedScrapbookImages.map((_, index) => 
+      generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow)
+    );
+  }, [resolvedScrapbookImages, currentWindow]); // Dependencies
+
   // Animation spring for the focused image backdrop
   const backdropSpring = useSpring({
     opacity: focusedImage ? 1 : 0,
@@ -559,7 +569,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 Opacity: ${backgroundOpacity.toFixed(3)}
 Transform: ${backgroundSpring.transform.get()}
 Changed: ${Array.from(allChangedKeys).join(', ')}
-Gradient: ${currentGradientString}`}
+Gradient: ${currentGradientString}
+DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
           </div>
         )}
 
@@ -628,15 +639,23 @@ Gradient: ${currentGradientString}`}
               zIndex: 1 // Lower zIndex for scrapbook images container
             }}>
               {resolvedScrapbookImages.map((imageSrc, index) => {
-                const initialStyle = generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow);
+                const initialStyle = memoizedScrapbookImageStyles[index];
+                if (!initialStyle) return null; 
+
                 const altText = `Scrapbook item ${index + 1}`;
+
+                // Calculate dynamic angle based on scrollY and index for a subtle sway
+                // Adjust multiplier (e.g., 0.0005) for speed, and amplitude (e.g., 45) for max tilt
+                const dynamicAngle = Math.sin(scrollY * 0.0005 + index * 0.5) * 45; // +/- 45 degrees sway
+
                 return (
                   <ScrapbookImageItem
                     key={index}
                     imageSrc={imageSrc}
                     initialStyle={initialStyle}
                     altText={altText}
-                    onClick={(details: ScrapbookClickDetails) => { // Use ScrapbookClickDetails
+                    dynamicAngleOffsetDeg={dynamicAngle} // Pass the dynamic angle
+                    onClick={(details: ScrapbookClickDetails) => { 
                       const {
                         imageSrc: clickedSrc,
                         altText: clickedAlt,
