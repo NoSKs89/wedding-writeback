@@ -485,16 +485,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           left: `${focusedImage.initialLeftPx}px`,
           width: `${focusedImage.initialWidthPx}px`,
           height: `${focusedImage.initialHeightPx}px`,
-          // User had changed this to 0vw, 0vh. Retaining that idea.
           transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
         },
         to: { 
           opacity: 1,
-          top: `${targetTopPx}px`, // Use calculated pixel value
-          left: `${targetLeftPx}px`, // Use calculated pixel value
+          top: `${targetTopPx}px`,
+          left: `${targetLeftPx}px`,
           width: `${targetWidth}px`,
           height: `${targetHeight}px`,
-          transform: 'rotate(0deg) scale(1)', // Transform only handles rotation/scale now
+          transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
         },
         onRest: () => {
           if (lastFocusedImageDetails) setLastFocusedImageDetails(null);
@@ -508,7 +507,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           left: `${lastFocusedImageDetails.initialLeftPx}px`,
           width: `${lastFocusedImageDetails.initialWidthPx}px`,
           height: `${lastFocusedImageDetails.initialHeightPx}px`,
-          // Ensure this matches the 'from' transform for consistency if it matters for arity
           transform: `translate(0px, 0px) rotate(${lastFocusedImageDetails.initialRotateDeg}deg) scale(1)`,
         },
         onRest: () => {
@@ -518,9 +516,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     } else { // Initial state or fully closed, ensure it's hidden
         focusedImageApi.start({
             opacity: 0,
-            // Optionally snap to a small, centered, and scaled-down state when not active
-            // top: '50%', left: '50%', width: '0px', height: '0px',
-            // transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
         });
     }
   }, [focusedImage, focusedImageApi, lastFocusedImageDetails]); // Added lastFocusedImageDetails to dependencies
