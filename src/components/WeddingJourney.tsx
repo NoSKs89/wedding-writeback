@@ -1074,64 +1074,66 @@ ${changedKeyDetailsOutput.trim()}`}
                   )}
                 </div>
               )}
-              {/* Navigation Arrows - Conditionally render only when an image is truly focused */}
-              {focusedImage && resolvedScrapbookImages && resolvedScrapbookImages.length > 1 && (
-                <>
-                  <button
-                    onClick={handlePreviousImage}
-                    aria-label="Previous image"
-                    style={{
-                      position: 'absolute',
-                      left: '20px', 
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      zIndex: 1003, 
-                      background: 'rgba(0,0,0,0.6)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '50px',
-                      height: '50px',
-                      fontSize: '28px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      pointerEvents: 'auto', // Ensure clickable
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                    }}
-                  >
-                    &lt;
-                  </button>
-                  <button
-                    onClick={handleNextImage}
-                    aria-label="Next image"
-                    style={{
-                      position: 'absolute',
-                      right: '20px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      zIndex: 1003,
-                      background: 'rgba(0,0,0,0.6)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '50px',
-                      height: '50px',
-                      fontSize: '28px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      pointerEvents: 'auto', // Ensure clickable
-                      boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                    }}
-                  >
-                    &gt;
-                  </button>
-                </>
-              )}
             </animated.div>
+        )}
+
+        {/* Navigation Arrows - Conditionally render only when an image is truly focused */}
+        {/* Positioned relative to the viewport */}
+        {focusedImage && resolvedScrapbookImages && resolvedScrapbookImages.length > 1 && (
+          <>
+            <button
+              onClick={handlePreviousImage}
+              aria-label="Previous image"
+              style={{
+                position: 'fixed', // Fixed positioning
+                left: '11vw',      // 33% from viewport left
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1003, 
+                background: 'rgba(0,0,0,0.6)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '50px',
+                height: '50px',
+                fontSize: '28px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto', 
+                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+              }}
+            >
+              &lt;
+            </button>
+            <button
+              onClick={handleNextImage}
+              aria-label="Next image"
+              style={{
+                position: 'fixed', // Fixed positioning
+                right: '11vw',     // 33% from viewport right
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1003,
+                background: 'rgba(0,0,0,0.6)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '50px',
+                height: '50px',
+                fontSize: '28px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                pointerEvents: 'auto', 
+                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+              }}
+            >
+              &gt;
+            </button>
+          </>
         )}
       </animated.div>
     </>
