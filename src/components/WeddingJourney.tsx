@@ -132,13 +132,13 @@ const backgroundColorControlsSchema = {
 
 // NEW: Schema for Scrapbook Layout Leva controls
 const scrapbookControlsSchema = {
-  angleMin: { value: -15, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
+  angleMin: { value: -6, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
   angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
-  radiusFactor: { value: 80, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
-  sizeMinPx: { value: 150, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
-  sizeRangePx: { value: 100, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
+  radiusFactor: { value: 95, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
+  sizeMinPx: { value: 90, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
+  sizeRangePx: { value: 160, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
   scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
-  scrollAngleSensitivityMax: { value: 0.001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
+  scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
 };
 
 // Updated generateScrapbookImageStyle to use Leva controls
@@ -147,65 +147,82 @@ const generateScrapbookImageStyle = (
   totalImages: number, 
   currentWindow: Window | undefined,
   controls: {
-    angleMin: number;
-    angleMax: number;
-    radiusFactor: number;
+    angleMin: number; // For individual image tilt
+    angleMax: number; // For individual image tilt
+    radiusFactor: number; // For circular placement radius
     sizeMinPx: number;
     sizeRangePx: number;
   }
 ): React.CSSProperties => {
   const { angleMin, angleMax, radiusFactor, sizeMinPx, sizeRangePx } = controls;
 
-  const size = Math.random() * sizeRangePx + sizeMinPx;
-  let calculatedAngle = 0;
-  // Ensure angleMax is greater than angleMin before calculating angle
-  const minAngle = Math.min(angleMin, angleMax);
-  const maxAngle = Math.max(angleMin, angleMax);
+  const imageWidthPx = Math.random() * sizeRangePx + sizeMinPx;
+  // Assuming aspect ratio is roughly 1 for height, or using auto-height.
+  // For centering adjustment, we'll primarily use imageWidthPx.
 
+  let individualImageTiltDeg = 0;
+  const minTilt = Math.min(angleMin, angleMax);
+  const maxTilt = Math.max(angleMin, angleMax);
   if (Math.random() < 0.8) { // 80% chance of being tilted
-    calculatedAngle = Math.random() * (maxAngle - minAngle) + minAngle;
+    individualImageTiltDeg = Math.random() * (maxTilt - minTilt) + minTilt;
   }
 
-  const cols = Math.ceil(Math.sqrt(totalImages));
-  const rows = Math.ceil(totalImages / cols);
-  const colIndex = index % cols;
-  const rowIndex = Math.floor(index / cols);
-
-  const xJitter = (Math.random() - 0.5) * 10; // % jitter
-  const yJitter = (Math.random() - 0.5) * 10; // % jitter
-
-  const margin = (100 - radiusFactor) / 2;
-  let topPercent = (rowIndex / rows) * radiusFactor + margin + yJitter;
-  let leftPercent = (colIndex / cols) * radiusFactor + margin + xJitter;
-
-  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000;
   const effectiveWindowWidth = typeof currentWindow !== 'undefined' ? currentWindow.innerWidth : 1000;
+  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000;
 
-  // Calculate image size as a percentage of viewport dimensions
-  const imageSizeAsPercentOfHeight = (size / effectiveWindowHeight) * 100;
-  const imageSizeAsPercentOfWidth = (size / effectiveWindowWidth) * 100;
+  // Circular placement logic
+  const centerXPercent = 50;
+  const centerYPercent = 50;
 
-  // Relaxed clamping: allow the top-left of the image to be positioned such that
-  // the image can be mostly off-screen. For example, if topPercent is -40 and image is 50% high,
-  // only 10% of it will be visible at the top.
-  // Max value for topPercent ensures the image doesn't start so low it's entirely below 150% vp height.
-  topPercent = Math.max(-imageSizeAsPercentOfHeight + 10, Math.min(topPercent, 100 - 10)); // Allows most of it to be above or below viewport
-  leftPercent = Math.max(-imageSizeAsPercentOfWidth + 10, Math.min(leftPercent, 100 - 10)); // Allows most of it to be left or right of viewport
+  // radiusFactor (0-100) determines how spread out. 
+  // If 100, images can reach edges. Max radius is 50% of min(viewportWidth, viewportHeight)
+  // To make radiusFactor more intuitive for spread:
+  // Let radiusFactor=100 mean images can spread to 90% of the container radius (45% from center)
+  // Let radiusFactor=0 mean images are very close to center (e.g. 5% radius)
+  const minPlacementRadiusPercent = 5; 
+  const maxPlacementRadiusPercent = 45; // Max distance from center for the *average* image
   
-  // A simpler, very wide clamp for the top-left corner itself:
-  // topPercent = Math.max(-75, Math.min(topPercent, 175));
-  // leftPercent = Math.max(-75, Math.min(leftPercent, 175));
+  const basePlacementRadiusPercent = minPlacementRadiusPercent + (radiusFactor / 100) * (maxPlacementRadiusPercent - minPlacementRadiusPercent);
+
+  // Add some randomness to the radius for each image
+  const radiusJitterPercent = (Math.random() - 0.5) * basePlacementRadiusPercent * 0.4; // +/- 20% of base radius
+  const actualPlacementRadiusPercent = Math.max(0, basePlacementRadiusPercent + radiusJitterPercent);
+
+  const placementAngleRad = (index / totalImages) * 2 * Math.PI + (Math.random() - 0.5) * 0.3; // Add slight angle jitter
+
+  // Calculate position based on a circular distribution.
+  // We need to consider if the container is not square.
+  // For now, use actualPlacementRadiusPercent for both axes, which will look elliptical on non-square viewports.
+  let leftPercent = centerXPercent + actualPlacementRadiusPercent * Math.cos(placementAngleRad);
+  let topPercent = centerYPercent + actualPlacementRadiusPercent * Math.sin(placementAngleRad);
+
+  // Adjust for image size to center the image on the calculated point
+  const imageWidthAsPercentOfContainer = (imageWidthPx / effectiveWindowWidth) * 100;
+  // Assuming roughly square images for height adjustment, or that 'height: auto' will manage aspect ratio.
+  // For a more accurate centering of height, we'd need naturalHeight or assume aspect ratio.
+  // Let's estimate imageHeightAsPercentOfContainer similar to width for centering.
+  // This is an approximation if height is 'auto' and aspect ratios vary wildly.
+  const imageHeightAsPercentOfContainer = (imageWidthPx / effectiveWindowHeight) * 100; 
+
+  leftPercent -= imageWidthAsPercentOfContainer / 2;
+  topPercent -= imageHeightAsPercentOfContainer / 2;
+  
+  // Clamping (slightly adjusted to be relative to image size for better visibility)
+  // Allow up to 90% of the image to be off-screen
+  const visblePortion = 10; // 10% of image must be visible
+  topPercent = Math.max(-imageHeightAsPercentOfContainer + visblePortion, Math.min(topPercent, 100 - visblePortion));
+  leftPercent = Math.max(-imageWidthAsPercentOfContainer + visblePortion, Math.min(leftPercent, 100 - visblePortion));
 
   return {
     position: 'absolute',
-    width: `${size}px`,
-    height: 'auto',
+    width: `${imageWidthPx}px`,
+    height: 'auto', // Keep height auto to respect aspect ratio
     boxShadow: '3px 3px 10px rgba(0,0,0,0.2)',
     border: '5px solid white',
-    transform: `rotate(${calculatedAngle}deg)`,
+    transform: `rotate(${individualImageTiltDeg}deg)`,
     top: `${topPercent}%`,
     left: `${leftPercent}%`,
-    opacity: 0.8,
+    opacity: 0.8, // Base opacity
     transition: 'transform 0.3s ease-out',
   };
 };
@@ -625,7 +642,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
         // Ensure scrapbookCtrl is initialized before accessing its properties
         const minSens = scrapbookCtrl.scrollAngleSensitivityMin || 0.0001;
-        const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.001;
+        const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.002;
         return resolvedScrapbookImages.map(() => 
         Math.random() * (maxSens - minSens) + minSens
         );
