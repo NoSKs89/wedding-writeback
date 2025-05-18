@@ -70,23 +70,17 @@ function rgbToCss(r: number, g: number, b: number): string {
 }
 
 // Custom hook to track changed Leva controls
-function useTrackedControls(folderName: string, schema: any) {
-  // Using Leva's useControls, aliased to useLevaControls
-  const [values, set] = useLevaControls(folderName, () => schema, [schema])
+function useTrackedControls(folderName: string, schema: any, options?: object) {
+  const [values, set] = useLevaControls(folderName, () => schema, options, [schema]);
   const initialValues = useRef(values);
   const [changedKeys, setChangedKeys] = useState(new Set<string>());
 
   useEffect(() => {
     const newChanged = new Set<string>();
-    // Check if initialValues.current has been populated
     if (Object.keys(initialValues.current).length === 0 && Object.keys(values).length > 0) {
-        // This case can happen on the very first render if Leva initializes values slightly after initial ref capture.
-        // We re-capture initialValues if it was empty and values now has keys.
         initialValues.current = values;
     }
-
     for (const key in values) {
-      // Ensure the key exists in initialValues to avoid errors if schema changes (though less likely here)
       if (initialValues.current.hasOwnProperty(key)) {
         if (values[key] !== initialValues.current[key]) {
           newChanged.add(key);
@@ -94,15 +88,13 @@ function useTrackedControls(folderName: string, schema: any) {
       }
     }
     setChangedKeys(newChanged);
-  }, [values]); // Rerun when Leva values change
+  }, [values]);
 
-  // Effect to initialize initialValues.current properly after Leva has initialized.
-  // This is crucial because Leva might not provide the actual values on the very first call.
   useEffect(() => {
     initialValues.current = values;
-  }, [Object.keys(values).join(',')]); // Re-capture if the set of keys in values changes (e.g. Leva loaded)
+  }, [Object.keys(values).join(',')]);
 
-  return { values, changedKeys, set }; // Exposing set might be useful for programmatic changes
+  return { values, changedKeys, set };
 }
 
 // Define the schema for Leva controls
@@ -134,12 +126,40 @@ const backgroundColorControlsSchema = {
   // gradientAngle: { value: 0, min: 0, max: 360, label: 'Gradient Angle (deg)'} // Example if we add angle later
 };
 
-// NEW: Adapted from ScrapbookBackground.js for more detailed image styling
-const generateScrapbookImageStyle = (index: number, totalImages: number, currentWindow?: Window): React.CSSProperties => {
-  const size = Math.random() * 100 + 150; // Random size between 150px and 250px
-  let angle = 0;
+// NEW: Schema for Scrapbook Layout Leva controls
+const scrapbookControlsSchema = {
+  angleMin: { value: -15, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
+  angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
+  radiusFactor: { value: 80, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
+  sizeMinPx: { value: 150, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
+  sizeRangePx: { value: 100, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
+  scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
+  scrollAngleSensitivityMax: { value: 0.001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
+};
+
+// Updated generateScrapbookImageStyle to use Leva controls
+const generateScrapbookImageStyle = (
+  index: number, 
+  totalImages: number, 
+  currentWindow: Window | undefined,
+  controls: {
+    angleMin: number;
+    angleMax: number;
+    radiusFactor: number;
+    sizeMinPx: number;
+    sizeRangePx: number;
+  }
+): React.CSSProperties => {
+  const { angleMin, angleMax, radiusFactor, sizeMinPx, sizeRangePx } = controls;
+
+  const size = Math.random() * sizeRangePx + sizeMinPx;
+  let calculatedAngle = 0;
+  // Ensure angleMax is greater than angleMin before calculating angle
+  const minAngle = Math.min(angleMin, angleMax);
+  const maxAngle = Math.max(angleMin, angleMax);
+
   if (Math.random() < 0.8) { // 80% chance of being tilted
-    angle = Math.random() * 30 - 15; // Random rotation between -15deg and 15deg
+    calculatedAngle = Math.random() * (maxAngle - minAngle) + minAngle;
   }
 
   const cols = Math.ceil(Math.sqrt(totalImages));
@@ -150,27 +170,38 @@ const generateScrapbookImageStyle = (index: number, totalImages: number, current
   const xJitter = (Math.random() - 0.5) * 10; // % jitter
   const yJitter = (Math.random() - 0.5) * 10; // % jitter
 
-  let topPercent = (rowIndex / rows) * 80 + 10 + yJitter;
-  let leftPercent = (colIndex / cols) * 80 + 10 + xJitter;
+  const margin = (100 - radiusFactor) / 2;
+  let topPercent = (rowIndex / rows) * radiusFactor + margin + yJitter;
+  let leftPercent = (colIndex / cols) * radiusFactor + margin + xJitter;
 
-  // Ensure positions are within bounds after considering image size (approx)
-  // Access window properties only if window is available (client-side)
-  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000; // Default if window undefined
-  const effectiveWindowWidth = typeof currentWindow !== 'undefined' ? currentWindow.innerWidth : 1000; // Default if window undefined
+  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000;
+  const effectiveWindowWidth = typeof currentWindow !== 'undefined' ? currentWindow.innerWidth : 1000;
 
-  topPercent = Math.max(5, Math.min(topPercent, 95 - (size / effectiveWindowHeight * 100)));
-  leftPercent = Math.max(5, Math.min(leftPercent, 95 - (size / effectiveWindowWidth * 100)));
+  // Calculate image size as a percentage of viewport dimensions
+  const imageSizeAsPercentOfHeight = (size / effectiveWindowHeight) * 100;
+  const imageSizeAsPercentOfWidth = (size / effectiveWindowWidth) * 100;
+
+  // Relaxed clamping: allow the top-left of the image to be positioned such that
+  // the image can be mostly off-screen. For example, if topPercent is -40 and image is 50% high,
+  // only 10% of it will be visible at the top.
+  // Max value for topPercent ensures the image doesn't start so low it's entirely below 150% vp height.
+  topPercent = Math.max(-imageSizeAsPercentOfHeight + 10, Math.min(topPercent, 100 - 10)); // Allows most of it to be above or below viewport
+  leftPercent = Math.max(-imageSizeAsPercentOfWidth + 10, Math.min(leftPercent, 100 - 10)); // Allows most of it to be left or right of viewport
+  
+  // A simpler, very wide clamp for the top-left corner itself:
+  // topPercent = Math.max(-75, Math.min(topPercent, 175));
+  // leftPercent = Math.max(-75, Math.min(leftPercent, 175));
 
   return {
     position: 'absolute',
     width: `${size}px`,
-    height: 'auto', // Maintain aspect ratio
+    height: 'auto',
     boxShadow: '3px 3px 10px rgba(0,0,0,0.2)',
-    border: '5px solid white', // Polaroid effect
-    transform: `rotate(${angle}deg)`,
+    border: '5px solid white',
+    transform: `rotate(${calculatedAngle}deg)`,
     top: `${topPercent}%`,
     left: `${leftPercent}%`,
-    opacity: 0.8, // Slight fade for background effect
+    opacity: 0.8,
     transition: 'transform 0.3s ease-out',
   };
 };
@@ -201,6 +232,20 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [resolvedScrapbookImages]);
 
+  // NEW: useEffect to pre-load scrapbook images
+  useEffect(() => {
+    if (resolvedScrapbookImages && resolvedScrapbookImages.length > 0) {
+      resolvedScrapbookImages.forEach(src => {
+        if (src) { // Ensure src is not null or empty
+          const img = new Image();
+          img.src = src;
+          // No need to append img to DOM or do anything else with it;
+          // setting .src is enough to trigger the browser to fetch and cache.
+        }
+      });
+    }
+  }, [resolvedScrapbookImages]); // Re-run if the list of images changes
+
   const updateScrollPosition = useCallback(() => {
     if (parallaxRef.current && parallaxRef.current.container.current) {
       setScrollY(parallaxRef.current.container.current.scrollTop);
@@ -219,7 +264,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   }, [updateScrollPosition]);
 
   // Use the custom tracked controls hook
-  const { values: animControls, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema);
+  const { values: animControls, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
   const {
     opacityGentleEnd,
     opacityTargetAtGentleEnd,
@@ -234,7 +279,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   } = animControls; // Destructure values from the 'values' object returned by the hook
 
   // NEW: Leva Controls for Background Color
-  const { values: bgControls, changedKeys: bgChangedKeys } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema);
+  const { values: bgControls, changedKeys: bgChangedKeys } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema, { collapsed: true });
   // Destructure all color controls
   const {
     colorStop1_Bottom, colorStop1_Top,
@@ -244,10 +289,23 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     colorStop5_Bottom, colorStop5_Top
   } = bgControls;
 
+  // NEW: Leva Controls for Scrapbook Layout
+  const { values: scrapbookCtrl, changedKeys: scrapbookChangedKeys } = useTrackedControls('Scrapbook Layout', scrapbookControlsSchema, { collapsed: true });
+  // Destructure ALL scrapbook controls, including new ones
+  const {
+    angleMin,
+    angleMax,
+    radiusFactor,
+    sizeMinPx,
+    sizeRangePx,
+    scrollAngleSensitivityMin,
+    scrollAngleSensitivityMax
+  } = scrapbookCtrl;
+
   // Untracked control for HUD visibility
   const { showHUD } = useLevaControls('Overall Controls', {
     showHUD: { value: true, label: 'Show Debug HUD' }
-  });
+  }, { collapsed: true });
 
   // Dynamically create and memoize gradientColorRGBs based on Leva controls
   const gradientColorRGBs = useMemo(() => {
@@ -405,18 +463,65 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   // Merge all changedKeys for the HUD
   const allChangedKeys = useMemo(() => 
-    new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys)])
-  , [animChangedKeys, bgChangedKeys]);
+    new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys), ...Array.from(scrapbookChangedKeys)])
+  , [animChangedKeys, bgChangedKeys, scrapbookChangedKeys]);
 
-  // NEW: Memoize the scrapbook image styles
-  const memoizedScrapbookImageStyles = useMemo(() => {
-    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) {
-      return [];
+  // NEW: Generate the detailed string for changed values for the HUD
+  const changedKeyDetailsOutput = useMemo(() => {
+    if (allChangedKeys.size === 0) {
+      return ""; // Return empty if no keys changed
     }
+    let details = "Change To:\n";
+    for (const key of Array.from(allChangedKeys)) {
+      let value: any = undefined;
+      // Check each controls object for the key
+      if (animControls.hasOwnProperty(key)) {
+        value = animControls[key as keyof typeof animControls];
+      } else if (bgControls.hasOwnProperty(key)) {
+        value = bgControls[key as keyof typeof bgControls];
+      } else if (scrapbookCtrl.hasOwnProperty(key)) {
+        value = scrapbookCtrl[key as keyof typeof scrapbookCtrl];
+      }
+
+      let formattedValue = String(value);
+      if (typeof value === 'number') {
+        formattedValue = Number(value.toFixed(3)).toString(); // Format numbers nicely
+      } else if (typeof value === 'string' && value.startsWith('#')) {
+        // Hex color string, keep as is
+        formattedValue = value;
+      } 
+      // Add other specific formatting if needed, otherwise String(value) is used
+
+      details += `${key}: ${formattedValue}\n`;
+    }
+    return details;
+  }, [allChangedKeys, animControls, bgControls, scrapbookCtrl]);
+
+  // Memoize the scrapbook image styles
+  const memoizedScrapbookImageStyles = useMemo(() => {
+    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+    const layoutControls = {
+      angleMin: scrapbookCtrl.angleMin,
+      angleMax: scrapbookCtrl.angleMax,
+      radiusFactor: scrapbookCtrl.radiusFactor,
+      sizeMinPx: scrapbookCtrl.sizeMinPx,
+      sizeRangePx: scrapbookCtrl.sizeRangePx,
+    };
     return resolvedScrapbookImages.map((_, index) => 
-      generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow)
+      generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
     );
-  }, [resolvedScrapbookImages, currentWindow]); // Dependencies
+  }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl]);
+
+  // NEW: Memoize scroll sensitivities for each image
+  const memoizedScrollSensitivities = useMemo(() => {
+    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+    // Ensure scrapbookCtrl is initialized before accessing its properties
+    const minSens = scrapbookCtrl.scrollAngleSensitivityMin || 0.0001;
+    const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.001;
+    return resolvedScrapbookImages.map(() => 
+      Math.random() * (maxSens - minSens) + minSens
+    );
+  }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
 
   // Animation spring for the focused image backdrop
   const backdropSpring = useSpring({
@@ -566,11 +671,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             }}
           >
             {`ScrollY: ${scrollY.toFixed(0)}
-Opacity: ${backgroundOpacity.toFixed(3)}
-Transform: ${backgroundSpring.transform.get()}
-Changed: ${Array.from(allChangedKeys).join(', ')}
-Gradient: ${currentGradientString}
-DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
+DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
+${changedKeyDetailsOutput.trim()}`}
           </div>
         )}
 
@@ -643,10 +745,10 @@ DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
                 if (!initialStyle) return null; 
 
                 const altText = `Scrapbook item ${index + 1}`;
-
-                // Calculate dynamic angle based on scrollY and index for a subtle sway
-                // Adjust multiplier (e.g., 0.0005) for speed, and amplitude (e.g., 45) for max tilt
-                const dynamicAngle = Math.sin(scrollY * 0.0005 + index * 0.5) * 45; // +/- 45 degrees sway
+                
+                // Use item-specific scroll sensitivity
+                const itemScrollSensitivity = memoizedScrollSensitivities[index] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2); // Fallback
+                const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + index * 0.5) * 45;
 
                 return (
                   <ScrapbookImageItem
@@ -654,7 +756,7 @@ DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
                     imageSrc={imageSrc}
                     initialStyle={initialStyle}
                     altText={altText}
-                    dynamicAngleOffsetDeg={dynamicAngle} // Pass the dynamic angle
+                    dynamicAngleOffsetDeg={dynamicAngle}
                     onClick={(details: ScrapbookClickDetails) => { 
                       const {
                         imageSrc: clickedSrc,
@@ -663,11 +765,8 @@ DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
                         currentBoundingClientRect: rect,
                         imageElement
                       } = details;
-
-                      // Extract rotation from initialStyle.transform
                       const rotateMatch = clickedInitialStyle.transform?.match(/rotate\(([-\d.]+)deg\)/);
                       const currentInitialRotate = rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
-
                       setFocusedImage({
                         src: clickedSrc,
                         altText: clickedAlt,
@@ -678,8 +777,8 @@ DynamicAngle[0]: ${(Math.sin(scrollY * 0.0005) * 45).toFixed(3)}`}
                         initialRotateDeg: currentInitialRotate,
                         naturalWidth: imageElement.naturalWidth,
                         naturalHeight: imageElement.naturalHeight,
-                        description: "We're still this much in love!", // Placeholder
-                        photographer: "Probably Kim Christenson" // Placeholder
+                        description: "We're still this much in love!",
+                        photographer: "Probably Kim Christenson"
                       });
                     }}
                   />
