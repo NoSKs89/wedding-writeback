@@ -1,23 +1,24 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useSpring, animated } from 'react-spring';
 
-// NEW: Define and export a type for the details passed on click
+// Define and export a type for the details passed on click
 export interface ScrapbookClickDetails {
   imageSrc: string;
   altText: string;
-  initialStyle: React.CSSProperties; // The original style object from generateScrapbookImageStyle
+  initialStyle: React.CSSProperties; // The original style object
   currentBoundingClientRect: DOMRect;
   imageElement: HTMLImageElement; // To access naturalWidth/naturalHeight
-  index: number; // Add index
+  index: number;
 }
 
 interface ScrapbookImageItemProps {
   imageSrc: string;
   initialStyle: React.CSSProperties;
-  onClick: (details: ScrapbookClickDetails) => void; // Updated onClick prop type
+  onClick: (details: ScrapbookClickDetails) => void;
   altText: string;
-  dynamicAngleOffsetDeg?: number; // Prop for scroll-dependent tilt
-  index: number; // Add index prop
+  dynamicAngleOffsetDeg?: number;
+  index: number;
+  isHiddenForFocus?: boolean; // Controls visibility when the item is "focused"
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -28,87 +29,111 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     altText,
     dynamicAngleOffsetDeg = 0,
     index,
+    isHiddenForFocus = false,
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null); // Local ref for this component's direct use
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  const { transform: baseTransformFromStyle, ...restInitialStyle } = initialStyle;
-  const baseRotate = baseTransformFromStyle || '';
-  const dynamicRotate = `rotate(${dynamicAngleOffsetDeg}deg)`;
-  const hoverScale = isHovered ? 'scale(1.2)' : 'scale(1)';
+  // Destructure initial styles, separating transform and opacity
+  const {
+    transform: baseTransformFromStyle,
+    opacity: baseOpacityFromStyle, // This is the scrapbook item's base visible opacity
+    ...restInitialStyle
+  } = initialStyle;
+
+  const baseRotate = baseTransformFromStyle || ''; // e.g., "rotate(10deg)"
+  const dynamicRotate = `rotate(${dynamicAngleOffsetDeg}deg)`; // Scroll-based rotation
+  
+  // Determine hover scale only if the item is not hidden for focus
+  const hoverScale = isHovered && !isHiddenForFocus ? 'scale(1.2)' : 'scale(1)';
   const finalTransform = `${baseRotate} ${dynamicRotate} ${hoverScale}`.trim();
 
-  const hoverSpring = useSpring({
+  // Store the previous state of isHiddenForFocus to correctly apply 'immediate'
+  const prevIsHiddenForFocusRef = useRef<boolean>(isHiddenForFocus);
+  useEffect(() => {
+    prevIsHiddenForFocusRef.current = isHiddenForFocus;
+  }, [isHiddenForFocus]);
+
+
+  const imageSpringStyles = useSpring({
     transform: finalTransform,
-    zIndex: isHovered ? 100 : (initialStyle.zIndex || 1),
-    boxShadow: isHovered
+    // Opacity logic: 0 if hidden, otherwise based on hover or initial style
+    opacity: isHiddenForFocus ? 0 : (isHovered ? 1 : (baseOpacityFromStyle ?? 0.8)),
+    zIndex: isHovered && !isHiddenForFocus ? 100 : (initialStyle.zIndex || 1),
+    boxShadow: isHovered && !isHiddenForFocus
       ? '6px 6px 20px rgba(0,0,0,0.4)'
       : initialStyle.boxShadow || '3px 3px 10px rgba(0,0,0,0.2)',
     config: { tension: 300, friction: 20 },
+    // Make opacity changes immediate ONLY when isHiddenForFocus status changes
+    // This ensures the item vanishes/reappears instantly without affecting hover animations
+    immediate: (key: string) =>
+        key === 'opacity' &&
+        (isHiddenForFocus !== prevIsHiddenForFocusRef.current || // Catches the toggle
+         (isHiddenForFocus && prevIsHiddenForFocusRef.current === undefined) // Initial hide
+        ),
+    onRest: () => {
+        // Update ref after spring settles if needed, esp. for immediate changes
+        prevIsHiddenForFocusRef.current = isHiddenForFocus;
+    }
   });
 
   const handleClick = () => {
-    console.log("ScrapbookImageItem: handleClick triggered. Image src:", imageSrc);
-    console.log("ScrapbookImageItem: Type of propsOnClick:", typeof propsOnClick);
+    if (isHiddenForFocus) return; // Don't process click if hidden
 
-    // Use the local imgRef.current, which should be more reliable here
     if (imgRef.current) {
       const currentImageElement = imgRef.current;
       const rect = currentImageElement.getBoundingClientRect();
       const details: ScrapbookClickDetails = {
         imageSrc,
         altText,
-        initialStyle,
+        initialStyle, // Pass the original, unmodified initialStyle
         currentBoundingClientRect: rect,
         imageElement: currentImageElement,
         index,
       };
-      console.log("ScrapbookImageItem: About to call propsOnClick with details (using local imgRef):", details);
       if (typeof propsOnClick === 'function') {
-        try {
-          propsOnClick(details);
-          console.log("ScrapbookImageItem: propsOnClick was called successfully.");
-        } catch (e) {
-          console.error("ScrapbookImageItem: Error occurred while calling propsOnClick:", e);
-        }
+        propsOnClick(details);
       } else {
-        console.warn("ScrapbookImageItem: propsOnClick is not a function! Received:", propsOnClick);
+        console.warn("ScrapbookImageItem: propsOnClick is not a function!", propsOnClick);
       }
     } else {
-      console.warn("ScrapbookImageItem: local imgRef.current is null, cannot prepare or call propsOnClick.");
+      console.warn("ScrapbookImageItem: local imgRef.current is null, cannot call propsOnClick.");
     }
   };
 
-  // Callback ref to set both local and forwarded refs
   const setRefs = useCallback((node: HTMLImageElement | null) => {
-    // Set our own local ref
     (imgRef as React.MutableRefObject<HTMLImageElement | null>).current = node;
-    // Handle the forwarded ref
     if (typeof forwardedRef === 'function') {
       forwardedRef(node);
     } else if (forwardedRef) {
-      // If it's a mutable ref object
       (forwardedRef as React.MutableRefObject<HTMLImageElement | null>).current = node;
     }
   }, [forwardedRef]);
 
   return (
     <animated.img
-      ref={setRefs} // Use the combined ref setter
+      ref={setRefs}
       src={imageSrc}
       alt={altText}
       style={{
-        ...restInitialStyle,
-        ...hoverSpring,
-        cursor: 'pointer',
+        ...restInitialStyle, // Apply other initial styles (width, height, position)
+        ...imageSpringStyles, // Apply spring-animated styles (transform, opacity, zIndex, boxShadow)
+        cursor: isHiddenForFocus || !propsOnClick ? 'default' : 'pointer',
+        // Explicitly set pointerEvents based on isHiddenForFocus, not via spring
+        // This ensures the item is not interactive when hidden.
+        pointerEvents: isHiddenForFocus ? 'none' : 'auto',
       }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseEnter={() => {
+        if (!isHiddenForFocus) setIsHovered(true);
+      }}
+      onMouseLeave={() => {
+        if (!isHiddenForFocus) setIsHovered(false);
+      }}
       onClick={handleClick}
-      className="scrapbook-image-item"
+      className="scrapbook-image-item" // Keep any existing class names
     />
   );
 });
 
-export default ScrapbookImageItem; 
+export default ScrapbookImageItem;

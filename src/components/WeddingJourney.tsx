@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
-import { useSpring, animated } from 'react-spring';
+import { useSpring, animated, config as springConfigs } from 'react-spring';
 import { Leva, useControls as useLevaControls } from 'leva';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
@@ -346,7 +346,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   } = scrapbookCtrl;
 
   // Helper function to parse rotation from transform string
-  const parseRotationFromStyle = (transformString?: string): number => {
+  const parseRotationFromStyle = (transformString?: string | number): number => {
+    if (typeof transformString === 'number') return transformString;
     if (!transformString) return 0;
     const rotateMatch = transformString.match(/rotate\(([-\d.]+)deg\)/);
     return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
@@ -531,613 +532,718 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   }
   // --- End of scroll-driven gradient calculation ---
 
-  const totalPages = 3;
-  const backgroundStickyStart = 0;
-  const backgroundStickyEnd = 1; // Layer remains sticky for 1 page height
+    const totalPages = 3;
+    const backgroundStickyStart = 0;
+    const backgroundStickyEnd = 1; // Layer remains sticky for 1 page height
 
-  const coupleImageOffset = 0.3;
-  const coupleImageSpeed = 0.4;
+    const coupleImageOffset = 0.3;
+    const coupleImageSpeed = 0.4;
 
-  const textStartOffset = 0.6;
-  const textSpeed = 0.5;
+    const textStartOffset = 0.6;
+    const textSpeed = 0.5;
 
-  const rsvpFormOffset = 2;
-  const rsvpFormSpeed = 0.1;
+    const rsvpFormOffset = 2;
+    const rsvpFormSpeed = 0.1;
 
-  const centerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'column'
-  };
+    const centerStyle: React.CSSProperties = {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'column'
+    };
 
-  // Merge all changedKeys for the HUD
-  const allChangedKeys = useMemo(() => 
-    new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys), ...Array.from(scrapbookChangedKeys)])
-  , [animChangedKeys, bgChangedKeys, scrapbookChangedKeys]);
+    // Merge all changedKeys for the HUD
+    const allChangedKeys = useMemo(() => 
+        new Set([...Array.from(animChangedKeys), ...Array.from(bgChangedKeys), ...Array.from(scrapbookChangedKeys)])
+    , [animChangedKeys, bgChangedKeys, scrapbookChangedKeys]);
 
-  // NEW: Generate the detailed string for changed values for the HUD
-  const changedKeyDetailsOutput = useMemo(() => {
-    if (allChangedKeys.size === 0) {
-      return ""; // Return empty if no keys changed
+    // NEW: Generate the detailed string for changed values for the HUD
+    const changedKeyDetailsOutput = useMemo(() => {
+        if (allChangedKeys.size === 0) {
+        return ""; // Return empty if no keys changed
+        }
+        let details = "Change To:\n";
+        for (const key of Array.from(allChangedKeys)) {
+        let value: any = undefined;
+        // Check each controls object for the key
+        if (animControls.hasOwnProperty(key)) {
+            value = animControls[key as keyof typeof animControls];
+        } else if (bgControls.hasOwnProperty(key)) {
+            value = bgControls[key as keyof typeof bgControls];
+        } else if (scrapbookCtrl.hasOwnProperty(key)) {
+            value = scrapbookCtrl[key as keyof typeof scrapbookCtrl];
+        }
+
+        let formattedValue = String(value);
+        if (typeof value === 'number') {
+            formattedValue = Number(value.toFixed(3)).toString(); // Format numbers nicely
+        } else if (typeof value === 'string' && value.startsWith('#')) {
+            // Hex color string, keep as is
+            formattedValue = value;
+        } 
+        // Add other specific formatting if needed, otherwise String(value) is used
+
+        details += `${key}: ${formattedValue}\n`;
+        }
+        return details;
+    }, [allChangedKeys, animControls, bgControls, scrapbookCtrl]);
+
+    // Memoize the scrapbook image styles
+    const memoizedScrapbookImageStyles = useMemo(() => {
+        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+        const layoutControls = {
+        angleMin: scrapbookCtrl.angleMin,
+        angleMax: scrapbookCtrl.angleMax,
+        radiusFactor: scrapbookCtrl.radiusFactor,
+        sizeMinPx: scrapbookCtrl.sizeMinPx,
+        sizeRangePx: scrapbookCtrl.sizeRangePx,
+        };
+        // Ensure refs array is ready
+        if (scrapbookImageRefs.current.length !== resolvedScrapbookImages.length) {
+            scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
+        }
+        return resolvedScrapbookImages.map((_, index) => 
+        generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
+        );
+    }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl]);
+
+    // NEW: Memoize scroll sensitivities for each image
+    const memoizedScrollSensitivities = useMemo(() => {
+        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+        // Ensure scrapbookCtrl is initialized before accessing its properties
+        const minSens = scrapbookCtrl.scrollAngleSensitivityMin || 0.0001;
+        const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.001;
+        return resolvedScrapbookImages.map(() => 
+        Math.random() * (maxSens - minSens) + minSens
+        );
+    }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
+
+    // Animation spring for the focused image backdrop
+    const backdropSpring = useSpring({
+        opacity: focusedImage ? 1 : 0,
+        pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none',
+        config: { tension: 250, friction: 30 },
+    });
+
+    // Animation spring for the focused image container
+    const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
+        opacity: 0,
+        top: '50%', 
+        left: '50%',
+        width: '0px',
+        height: '0px',
+        transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+        config: { tension: 220, friction: 22 }, 
+    }));
+
+    // Animation spring for the info box content
+    const infoBoxSpring = useSpring({
+        opacity: focusedImage ? 1 : 0,
+        transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
+        config: { tension: 250, friction: 26, delay: focusedImage ? 300 : 0 }, // Delay appearance
+    });
+
+    // NEW HELPER FUNCTION: Calculate target dimensions for focused image
+    const calculateFocusTargetDimensions = (
+        naturalW: number,
+        naturalH: number,
+        viewportW: number,
+        viewportH: number
+    ): { targetWidth: number; targetHeight: number } => {
+        const targetViewportWidth = viewportW * 0.8;
+        const targetViewportHeight = viewportH * 0.8;
+        const aspectRatio = naturalW / naturalH;
+
+        let targetWidth = targetViewportWidth;
+        let targetHeight = targetWidth / aspectRatio;
+
+        if (targetHeight > targetViewportHeight) {
+        targetHeight = targetViewportHeight;
+        targetWidth = targetHeight * aspectRatio;
+        }
+        return { targetWidth, targetHeight };
+    };
+
+    // USER PROVIDED HELPER FUNCTION: Calculate centered position with optional offset
+    function getCenteredPosition(targetWidth: number, targetHeight: number, offsetYvh: number = 0) {
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1920; // Fallback for vw
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 1080; // Fallback for vh
+        
+        const leftPx = (vw - targetWidth) / 2;
+        const topPx = (vh - targetHeight) / 2 - (vh * offsetYvh / 100);
+    
+        return { top: topPx, left: leftPx };
     }
-    let details = "Change To:\n";
-    for (const key of Array.from(allChangedKeys)) {
-      let value: any = undefined;
-      // Check each controls object for the key
-      if (animControls.hasOwnProperty(key)) {
-        value = animControls[key as keyof typeof animControls];
-      } else if (bgControls.hasOwnProperty(key)) {
-        value = bgControls[key as keyof typeof bgControls];
-      } else if (scrapbookCtrl.hasOwnProperty(key)) {
-        value = scrapbookCtrl[key as keyof typeof scrapbookCtrl];
+
+    // Moved onClick logic to a dedicated handler
+    const handleImageClick = (details: ScrapbookClickDetails) => {
+      console.log("WJ: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
+      console.log("WJ: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
+      
+      const {
+        imageSrc: clickedSrc,
+        altText: clickedAlt,
+        initialStyle: clickedInitialStyle, // This 'initialStyle' is the base style from memoizedScrapbookImageStyles
+        currentBoundingClientRect: rect,
+        imageElement,
+        index: clickedIndex
+      } = details;
+
+      let naturalDims = imageNaturalDimensions.find(dim => dim.src === clickedSrc);
+      if (!naturalDims || naturalDims.width === 0 || naturalDims.height === 0) {
+        console.warn(`Natural dimensions for ${clickedSrc} not found or are zero. Using imageElement.naturalWidth/Height as fallback.`, naturalDims, imageElement?.naturalWidth, imageElement?.naturalHeight);
+        naturalDims = { width: imageElement?.naturalWidth || 0, height: imageElement?.naturalHeight || 0, src: clickedSrc };
       }
 
-      let formattedValue = String(value);
-      if (typeof value === 'number') {
-        formattedValue = Number(value.toFixed(3)).toString(); // Format numbers nicely
-      } else if (typeof value === 'string' && value.startsWith('#')) {
-        // Hex color string, keep as is
-        formattedValue = value;
-      } 
-      // Add other specific formatting if needed, otherwise String(value) is used
+      if (!naturalDims.width || !naturalDims.height) {
+        console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero or missing after fallback.", { src: clickedSrc, naturalDims });
+        return;
+      }
 
-      details += `${key}: ${formattedValue}\n`;
-    }
-    return details;
-  }, [allChangedKeys, animControls, bgControls, scrapbookCtrl]);
+      const baseRotateOnClick = parseRotationFromStyle(clickedInitialStyle.transform);
+      const itemScrollSensitivityOnClick = memoizedScrollSensitivities[clickedIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+      // This is the DYNAMIC part of the angle, matching what's visually rendered
+      const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedIndex * 0.5) * 45;
+      const fullInitialRotateOnClick = baseRotateOnClick + currentDynamicAngleForPickUp;
 
-  // Memoize the scrapbook image styles
-  const memoizedScrapbookImageStyles = useMemo(() => {
-    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-    const layoutControls = {
-      angleMin: scrapbookCtrl.angleMin,
-      angleMax: scrapbookCtrl.angleMax,
-      radiusFactor: scrapbookCtrl.radiusFactor,
-      sizeMinPx: scrapbookCtrl.sizeMinPx,
-      sizeRangePx: scrapbookCtrl.sizeRangePx,
-    };
-    // Ensure refs array is ready
-    if (scrapbookImageRefs.current.length !== resolvedScrapbookImages.length) {
-        scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
-    }
-    return resolvedScrapbookImages.map((_, index) => 
-      generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
-    );
-  }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl]);
-
-  // NEW: Memoize scroll sensitivities for each image
-  const memoizedScrollSensitivities = useMemo(() => {
-    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-    // Ensure scrapbookCtrl is initialized before accessing its properties
-    const minSens = scrapbookCtrl.scrollAngleSensitivityMin || 0.0001;
-    const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.001;
-    return resolvedScrapbookImages.map(() => 
-      Math.random() * (maxSens - minSens) + minSens
-    );
-  }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
-
-  // Animation spring for the focused image backdrop
-  const backdropSpring = useSpring({
-    opacity: focusedImage ? 1 : 0,
-    pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none',
-    config: { tension: 250, friction: 30 },
-  });
-
-  // Animation spring for the focused image container
-  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
-    opacity: 0,
-    top: '50%', 
-    left: '50%',
-    width: '0px',
-    height: '0px',
-    transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
-    config: { tension: 220, friction: 22 }, 
-  }));
-
-  // Animation spring for the info box content
-  const infoBoxSpring = useSpring({
-    opacity: focusedImage ? 1 : 0,
-    transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
-    config: { tension: 250, friction: 26, delay: focusedImage ? 300 : 0 }, // Delay appearance
-  });
-
-  // NEW HELPER FUNCTION: Calculate target dimensions for focused image
-  const calculateFocusTargetDimensions = (
-    naturalW: number,
-    naturalH: number,
-    viewportW: number,
-    viewportH: number
-  ): { targetWidth: number; targetHeight: number } => {
-    const targetViewportWidth = viewportW * 0.8;
-    const targetViewportHeight = viewportH * 0.8;
-    const aspectRatio = naturalW / naturalH;
-
-    let targetWidth = targetViewportWidth;
-    let targetHeight = targetWidth / aspectRatio;
-
-    if (targetHeight > targetViewportHeight) {
-      targetHeight = targetViewportHeight;
-      targetWidth = targetHeight * aspectRatio;
-    }
-    return { targetWidth, targetHeight };
-  };
-
-  // USER PROVIDED HELPER FUNCTION: Calculate centered position with optional offset
-  function getCenteredPosition(targetWidth: number, targetHeight: number, offsetYvh: number = 0) {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 1920; // Fallback for vw
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 1080; // Fallback for vh
-    
-    const leftPx = (vw - targetWidth) / 2;
-    const topPx = (vh - targetHeight) / 2 - (vh * offsetYvh / 100);
-  
-    return { top: topPx, left: leftPx };
-  }
-
-  useEffect(() => {
-    if (focusedImage) {
-      // === ANIMATE TO CENTER ===
-      const { targetWidth, targetHeight } = calculateFocusTargetDimensions(
-        focusedImage.naturalWidth,
-        focusedImage.naturalHeight,
-        typeof window !== 'undefined' ? window.innerWidth : 1920,
-        typeof window !== 'undefined' ? window.innerHeight : 1080
-      );
-      const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 0);
-
-      focusedImageApi.start({
-        from: { 
-          opacity: 0.5, 
-          top: `${focusedImage.initialTopPx}px`,
-          left: `${focusedImage.initialLeftPx}px`,
-          width: `${focusedImage.initialWidthPx}px`,
-          height: `${focusedImage.initialHeightPx}px`,
-          transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
-        },
-        to: { 
-          opacity: 1,
-          top: `${calculatedTargetTopPx}px`,
-          left: `${calculatedTargetLeftPx}px`,
-          width: `${targetWidth}px`,
-          height: `${targetHeight}px`,
-          transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
-        },
-        onRest: () => {
-          // Optionally clear pending states if any race conditions led to this point
-          // However, the primary logic for pending focus is handled when imageReturningToScrapbook rests.
-        }
+      // Logging for pick-up:
+      console.log(`WJ: PICK UP IMAGE - Index: ${clickedIndex} ('${clickedSrc}')`, {
+          topPx: rect.top,
+          leftPx: rect.left,
+          widthPx: rect.width,
+          heightPx: rect.height,
+          calculatedInitialRotateDeg: fullInitialRotateOnClick,
+          baseRotateDeg: baseRotateOnClick,
+          dynamicAngleDeg: currentDynamicAngleForPickUp,
+          rawInitialStyleTransform: clickedInitialStyle.transform
       });
-    } else if (imageReturningToScrapbook) {
-      // === ANIMATE BACK TO SCRAPBOOK ===
-      focusedImageApi.start({
-        // 'from' is implicitly the current spring state (centered)
-        to: {
-          opacity: 0,
-          top: `${imageReturningToScrapbook.initialTopPx}px`,
-          left: `${imageReturningToScrapbook.initialLeftPx}px`,
-          width: `${imageReturningToScrapbook.initialWidthPx}px`,
-          height: `${imageReturningToScrapbook.initialHeightPx}px`,
-          transform: `translate(0px, 0px) rotate(${imageReturningToScrapbook.initialRotateDeg}deg) scale(1)`,
-        },
-        onRest: () => {
-          setImageReturningToScrapbook(null); // Clear the returning image state
-          if (pendingImageToFocus) {
-            setFocusedImage(pendingImageToFocus); // Trigger focus of the next image
-            setPendingImageToFocus(null); // Clear pending
-          }
-        }
-      });
-    } else {
-      // === NO IMAGE FOCUSED OR RETURNING, HIDE CONTAINER ===
-      focusedImageApi.start({ opacity: 0 });
-    }
-  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi]); // Add pendingImageToFocus to deps for onRest logic
+      
+      const description = `Image ${clickedIndex + 1} description.`; // Placeholder
+      const photographer = `Photographer ${clickedIndex + 1}.`; // Placeholder
 
-  // NEW: Handler for closing the focused image
-  const handleCloseFocusedImage = () => {
-    if (focusedImage) {
-      setImageReturningToScrapbook(focusedImage);
-      setFocusedImage(null);
-      setPendingImageToFocus(null); // Ensure no pending focus on manual close
-    } else if (imageReturningToScrapbook) {
-      // If clicked during a return, just ensure everything clears out
-      setImageReturningToScrapbook(null); 
-      setFocusedImage(null);
-      setPendingImageToFocus(null);
-    }
-  };
-
-  // NEW: Navigation Handlers
-  const updateAndFocusNewImage = (newIndex: number) => {
-    if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0 || newIndex < 0 || newIndex >= resolvedScrapbookImages.length) {
-      console.warn("Cannot update focused image: invalid index or no images.", newIndex, resolvedScrapbookImages.length);
-      return null;
-    }
-
-    const targetImageElement = scrapbookImageRefs.current[newIndex];
-    const newImageSrc = resolvedScrapbookImages[newIndex];
-    const naturalDims = imageNaturalDimensions.find(dim => dim.src === newImageSrc);
-
-    if (targetImageElement && newImageSrc && naturalDims && naturalDims.width > 0 && naturalDims.height > 0) {
-      const rect = targetImageElement.getBoundingClientRect();
-      const styleForNewImage = memoizedScrapbookImageStyles[newIndex];
-      const newInitialRotate = parseRotationFromStyle(styleForNewImage?.transform);
-      // Placeholder for description and photographer
-      const newDescription = `Image ${newIndex + 1} description.`;
-      const newPhotographer = `Photographer ${newIndex + 1}.`;
-
-      return {
-        src: newImageSrc,
-        altText: `Scrapbook item ${newIndex + 1}`,
+      const clickedImageDetails: FocusedImageState = {
+        src: clickedSrc,
+        altText: clickedAlt,
         initialTopPx: rect.top,
         initialLeftPx: rect.left,
         initialWidthPx: rect.width,
         initialHeightPx: rect.height,
-        initialRotateDeg: newInitialRotate,
+        initialRotateDeg: fullInitialRotateOnClick, // Use the full current rotation
         naturalWidth: naturalDims.width,
         naturalHeight: naturalDims.height,
-        currentIndex: newIndex,
-        description: newDescription, 
-        photographer: newPhotographer 
+        currentIndex: clickedIndex,
+        description: description,
+        photographer: photographer
       };
-    } else {
-      console.warn(`Could not get details for new focused image at index ${newIndex}. Missing element, src, or dimensions.`, {targetImageElement, newImageSrc, naturalDims});
-      return null;
-    }
-  };
 
-  const handlePreviousImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!focusedImage) return; // Can only navigate if an image is currently fully focused
+      console.log("WJ: Attempting to set focused image with:", clickedImageDetails);
 
-    const newIndex = (focusedImage.currentIndex - 1 + resolvedScrapbookImages.length) % resolvedScrapbookImages.length;
-    const newImageDetails = updateAndFocusNewImage(newIndex);
+      if (focusedImage) { // If an image is already focused, put it down first
+        setImageReturningToScrapbook(focusedImage);
+        setPendingImageToFocus(clickedImageDetails);
+        setFocusedImage(null);
+      } else { // No image focused, just pick this one up
+        setFocusedImage(clickedImageDetails);
+      }
+    };
 
-    if (newImageDetails) {
-      setImageReturningToScrapbook(focusedImage); 
-      setPendingImageToFocus(newImageDetails);
-      setFocusedImage(null); // This will trigger the return animation first
-    }
-  };
+    useEffect(() => {
+      let returnTimeoutId: NodeJS.Timeout | null = null;
 
-  const handleNextImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!focusedImage) return; // Can only navigate if an image is currently fully focused
+      if (focusedImage) {
+        // === ANIMATE TO CENTER (PICK UP) ===
+        const { targetWidth, targetHeight } = calculateFocusTargetDimensions(
+          focusedImage.naturalWidth,
+          focusedImage.naturalHeight,
+          typeof window !== 'undefined' ? window.innerWidth : 1920,
+          typeof window !== 'undefined' ? window.innerHeight : 1080
+        );
+        const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 0);
+        
+        // focusedImage.initial* properties are used here for the "from" state
+        focusedImageApi.start({
+          from: { 
+            opacity: 0.5, 
+            top: `${focusedImage.initialTopPx}px`,
+            left: `${focusedImage.initialLeftPx}px`,
+            width: `${focusedImage.initialWidthPx}px`,
+            height: `${focusedImage.initialHeightPx}px`,
+            transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
+          },
+          to: { 
+            opacity: 1,
+            top: `${calculatedTargetTopPx}px`,
+            left: `${calculatedTargetLeftPx}px`,
+            width: `${targetWidth}px`,
+            height: `${targetHeight}px`,
+            transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
+          },
+          config: springConfigs.gentle, // Explicitly set gentle config for pick-up
+          onRest: () => {
+            // Potentially clear pending states
+          }
+        });
+      } else if (imageReturningToScrapbook) {
+        // === ANIMATE BACK TO SCRAPBOOK (PUT DOWN) ===
+        const { currentIndex, initialWidthPx, initialHeightPx, src: returningSrc } = imageReturningToScrapbook;
+        const targetScrapbookElement = scrapbookImageRefs.current[currentIndex];
+        const currentScrapbookLayoutInfo = memoizedScrapbookImageStyles[currentIndex]; // Base style of the slot
 
-    const newIndex = (focusedImage.currentIndex + 1) % resolvedScrapbookImages.length;
-    const newImageDetails = updateAndFocusNewImage(newIndex);
+        if (targetScrapbookElement && currentScrapbookLayoutInfo) {
+          const currentRect = targetScrapbookElement.getBoundingClientRect(); // Current position of the slot
 
-    if (newImageDetails) {
-      setImageReturningToScrapbook(focusedImage);
-      setPendingImageToFocus(newImageDetails);
-      setFocusedImage(null); // This will trigger the return animation first
-    }
-  };
+          const baseRotationPutDown = parseRotationFromStyle(currentScrapbookLayoutInfo.transform);
+          const itemScrollSensitivityPutDown = memoizedScrollSensitivities[currentIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+          const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + currentIndex * 0.5) * 45;
+          const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
 
-  return (
-    <>
-      <Leva collapsed theme={levaTheme} />
-      <animated.div
-        className="wedding-journey-wrapper"
-        style={{ 
-          width: '100%', 
-          height: '100vh', 
-          // overflow: 'hidden', // TEMPORARILY REMOVED FOR TESTING
-          background: currentGradientString
-        }}
-      >
-        {showHUD && ( // Conditional rendering for HUD
-          <div 
-            style={{
-              position: 'fixed',
-              top: '10px',
-              left: '10px',
-              padding: '5px 10px',
-              background: 'rgba(255, 255, 255, 0.8)',
-              color: 'black',
-              zIndex: 200, 
-              fontSize: '12px', 
-              borderRadius: '4px',
-              whiteSpace: 'pre-wrap' 
+          console.log(`WJ: PUT DOWN IMAGE - Index: ${currentIndex} ('${returningSrc}') - Target State for flying image:`, {
+              targetTopPx: currentRect.top, targetLeftPx: currentRect.left,
+              targetWidthPx: initialWidthPx, targetHeightPx: initialHeightPx,
+              targetRotateDeg: totalCurrentRotationForPutDown
+          });
+
+          // Animate position, size, rotation of the "flying" image
+          focusedImageApi.start({
+            to: {
+              top: `${currentRect.top}px`,
+              left: `${currentRect.left}px`,
+              width: `${initialWidthPx}px`,
+              height: `${initialHeightPx}px`,
+              transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`,
+            },
+            config: springConfigs.gentle, // Slower travel animation for put-down
+          });
+
+          // Animate opacity of the "flying" image separately and faster
+          focusedImageApi.start({
+            to: { opacity: 0 },
+            config: { tension: 300, friction: 20 }, // Faster config for opacity fade out
+            // No onRest here for setting imageReturningToScrapbook to null
+          });
+          
+          // Schedule the scrapbook item in the grid to reappear very quickly
+          const REAPPEAR_DELAY_MS = 50; // ms
+          console.log(`WJ: Scheduling scrapbook item ${currentIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
+          
+          returnTimeoutId = setTimeout(() => {
+            console.log(`WJ: Timeout fired for item ${currentIndex}. Making it reappear in grid.`);
+            setImageReturningToScrapbook(null);
+            if (pendingImageToFocus) {
+              setFocusedImage(pendingImageToFocus);
+              setPendingImageToFocus(null);
+            }
+          }, REAPPEAR_DELAY_MS);
+
+        } else {
+          console.warn(`WJ: PUT DOWN - Target for scrapbook item index ${currentIndex} ('${returningSrc}') not found. Hiding focused image and clearing state immediately.`);
+          focusedImageApi.start({ opacity: 0, immediate: true });
+          setImageReturningToScrapbook(null);
+          if (pendingImageToFocus) {
+            setFocusedImage(pendingImageToFocus);
+            setPendingImageToFocus(null);
+          }
+        }
+      } else {
+        // === NO IMAGE FOCUSED OR RETURNING, HIDE CONTAINER ===
+        focusedImageApi.start({ opacity: 0, immediate: true });
+      }
+
+      // Cleanup function for the timeout
+      return () => {
+        if (returnTimeoutId) {
+          console.log("WJ: Clearing returnTimeoutId in useEffect cleanup.");
+          clearTimeout(returnTimeoutId);
+        }
+      };
+    }, [
+      focusedImage, 
+      imageReturningToScrapbook, 
+      pendingImageToFocus, 
+      focusedImageApi,
+      currentWindow, // Added: affects target dimensions/positions if window resizes
+      memoizedScrapbookImageStyles, // Added: provides target style for return
+      memoizedScrollSensitivities, // Added: for dynamic angle recalculation
+      scrollY, // Added: for dynamic angle recalculation
+      scrapbookCtrl.scrollAngleSensitivityMin, // Added: for dynamic angle recalculation
+      scrapbookCtrl.scrollAngleSensitivityMax  // Added: for dynamic angle recalculation
+    ]);
+
+    // NEW: Handler for closing the focused image
+    const handleCloseFocusedImage = () => {
+        if (focusedImage) {
+        setImageReturningToScrapbook(focusedImage);
+        setFocusedImage(null);
+        setPendingImageToFocus(null); // Ensure no pending focus on manual close
+        } else if (imageReturningToScrapbook) {
+        // If clicked during a return, just ensure everything clears out
+        setImageReturningToScrapbook(null); 
+        setFocusedImage(null);
+        setPendingImageToFocus(null);
+        }
+    };
+
+    // NEW: Navigation Handlers
+    const updateAndFocusNewImage = (newIndex: number) => {
+      if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0 || newIndex < 0 || newIndex >= resolvedScrapbookImages.length) {
+        console.warn("Cannot update focused image: invalid index or no images.", newIndex, resolvedScrapbookImages.length);
+        return null;
+      }
+
+      const targetImageElement = scrapbookImageRefs.current[newIndex];
+      const newImageSrc = resolvedScrapbookImages[newIndex];
+      const naturalDims = imageNaturalDimensions.find(dim => dim.src === newImageSrc);
+      const styleForNewImage = memoizedScrapbookImageStyles[newIndex]; // Get base style for this item
+
+      if (targetImageElement && newImageSrc && naturalDims && naturalDims.width > 0 && naturalDims.height > 0 && styleForNewImage) {
+        const rect = targetImageElement.getBoundingClientRect();
+        
+        const baseRotateNav = parseRotationFromStyle(styleForNewImage.transform);
+        const itemScrollSensitivityNav = memoizedScrollSensitivities[newIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+        // Recalculate dynamic part for the "from" state, consistent with rendering
+        const currentDynamicAngleForNavPickUp = Math.sin(scrollY * itemScrollSensitivityNav + newIndex * 0.5) * 45;
+        const fullInitialRotateNav = baseRotateNav + currentDynamicAngleForNavPickUp;
+        
+        const newDescription = `Image ${newIndex + 1} description.`; // Placeholder
+        const newPhotographer = `Photographer ${newIndex + 1}.`; // Placeholder
+
+        // Logging for pick-up during navigation:
+        console.log(`WJ: NAV PICK UP IMAGE - Index: ${newIndex} ('${newImageSrc}')`, {
+            topPx: rect.top,
+            leftPx: rect.left,
+            widthPx: rect.width,
+            heightPx: rect.height,
+            calculatedInitialRotateDeg: fullInitialRotateNav,
+            baseRotateDeg: baseRotateNav,
+            dynamicAngleDeg: currentDynamicAngleForNavPickUp,
+            rawInitialStyleTransform: styleForNewImage.transform
+        });
+
+        return {
+          src: newImageSrc,
+          altText: `Scrapbook item ${newIndex + 1}`,
+          initialTopPx: rect.top,
+          initialLeftPx: rect.left,
+          initialWidthPx: rect.width,
+          initialHeightPx: rect.height,
+          initialRotateDeg: fullInitialRotateNav, // Use the full current rotation
+          naturalWidth: naturalDims.width,
+          naturalHeight: naturalDims.height,
+          currentIndex: newIndex,
+          description: newDescription, 
+          photographer: newPhotographer 
+        };
+      } else {
+        console.warn(`Could not get details for new focused image at index ${newIndex}. Missing element, src, dimensions, or style.`, {targetImageElement, newImageSrc, naturalDims, styleForNewImage});
+        return null;
+      }
+    };
+
+    const handlePreviousImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!focusedImage) return; // Can only navigate if an image is currently fully focused
+
+      const newIndex = (focusedImage.currentIndex - 1 + resolvedScrapbookImages.length) % resolvedScrapbookImages.length;
+      const newImageDetails = updateAndFocusNewImage(newIndex);
+
+      if (newImageDetails) {
+        setImageReturningToScrapbook(focusedImage); 
+        setPendingImageToFocus(newImageDetails);
+        setFocusedImage(null); // This will trigger the return animation first
+      }
+    };
+
+    const handleNextImage = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (!focusedImage) return; // Can only navigate if an image is currently fully focused
+
+      const newIndex = (focusedImage.currentIndex + 1) % resolvedScrapbookImages.length;
+      const newImageDetails = updateAndFocusNewImage(newIndex);
+
+      if (newImageDetails) {
+        setImageReturningToScrapbook(focusedImage);
+        setPendingImageToFocus(newImageDetails);
+        setFocusedImage(null); // This will trigger the return animation first
+      }
+    };
+
+    return (
+        <>
+        <Leva collapsed theme={levaTheme} />
+        <animated.div
+            className="wedding-journey-wrapper"
+            style={{ 
+            width: '100%', 
+            height: '100vh', 
+            // overflow: 'hidden', // TEMPORARILY REMOVED FOR TESTING
+            background: currentGradientString
             }}
-          >
-            {`ScrollY: ${scrollY.toFixed(0)}
-DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
-Opacity: ${backgroundOpacity.toFixed(2)}, Scale: ${currentScale.toFixed(2)}, TranslateY: ${currentTranslateY.toFixed(2)}%
-ClipPath: ${calculatedClipPathValue}
-${changedKeyDetailsOutput.trim()}`}
-          </div>
-        )}
-
-        {/* <ParallaxLogging currentScrollProgress={0} trackedAnimations={[]} /> // Placeholder if re-added */}
-        <Parallax 
-          ref={parallaxRef} 
-          pages={totalPages} 
-          style={{ top: '0', left: '0' }}
         >
-
-          {/* Background Layer - Sticky with Pixel-Based Fade Out */}
-          <ParallaxLayer
-            sticky={{ start: backgroundStickyStart, end: backgroundStickyEnd }}
-            style={{ zIndex: -1, overflow: 'hidden' }}
-          >
-            <animated.div
-              style={{
-                ...backgroundSpring, // Apply fade animation
-                width: '100%',
-                height: '100vh',
-                backgroundImage: `url(${introBackground})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center center',
-                transformOrigin: 'center center'
-              }}
-              className={styles.background}
-            />
-          </ParallaxLayer>
-
-          {/* Intro Couple Image Layer */}
-          <ParallaxLayer
-            offset={coupleImageOffset}
-            speed={coupleImageSpeed}
-            style={{ ...centerStyle, zIndex: 1 }}
-          >
-            <img src={introCouple} alt="Couple" className="introCoupleImage" />
-          </ParallaxLayer>
-
-          {/* Text Layers */}
-          <ParallaxLayer
-            offset={textStartOffset}
-            speed={textSpeed}
-            style={{ ...centerStyle, zIndex: 2 }}
-          >
-            <div className="textLayerContent">
-              <h1>{brideName}</h1>
-              <h1 className="ampersand">&</h1>
-              <h1>{groomName}</h1>
-              <p>{weddingDate}</p>
-            </div>
-          </ParallaxLayer>
-
-          {/* RSVP Form Layer */}
-          <ParallaxLayer
-            offset={rsvpFormOffset}
-            speed={rsvpFormSpeed}
-            style={{ ...centerStyle, zIndex: 100 }}
-          >
-            {/* Scrapbook Images Container */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              zIndex: 1 // Lower zIndex for scrapbook images container
-            }}>
-              {resolvedScrapbookImages.map((imageSrc, index) => {
-                const initialStyle = memoizedScrapbookImageStyles[index];
-                if (!initialStyle) return null; 
-
-                const altText = `Scrapbook item ${index + 1}`;
-                
-                // Use item-specific scroll sensitivity
-                const itemScrollSensitivity = memoizedScrollSensitivities[index] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2); // Fallback
-                const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + index * 0.5) * 45;
-
-                return (
-                  <ScrapbookImageItem
-                    key={index}
-                    imageSrc={imageSrc}
-                    initialStyle={initialStyle}
-                    altText={altText}
-                    dynamicAngleOffsetDeg={dynamicAngle}
-                    index={index} // Pass index to ScrapbookImageItem
-                    ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[index] = el; }} // Corrected ref assignment
-                    onClick={(details: ScrapbookClickDetails) => { 
-                      // Log details at the very start of the click handler
-                      console.log("WJ: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
-                      console.log("WJ: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
-                      console.log("WJ: Current imageNaturalDimensions state (first 3):", JSON.stringify(imageNaturalDimensions.slice(0,3)));
-
-                      const {
-                        imageSrc: clickedSrc,
-                        altText: clickedAlt,
-                        initialStyle: clickedInitialStyle,
-                        currentBoundingClientRect: rect,
-                        imageElement,
-                        index: clickedIndex // Get index from details
-                      } = details;
-                      const rotateMatch = clickedInitialStyle.transform?.match(/rotate\(([-\d.]+)deg\)/);
-                      const currentInitialRotate = rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
-                      
-                      // Find preloaded dimensions for the clicked image
-                      let naturalDims = imageNaturalDimensions.find(dim => dim.src === clickedSrc);
-
-                      if (!naturalDims || naturalDims.width === 0 || naturalDims.height === 0) {
-                        console.warn(`Natural dimensions for ${clickedSrc} not found or are zero in preloaded state. Using imageElement.naturalWidth/Height as fallback.`, naturalDims, imageElement.naturalWidth, imageElement.naturalHeight);
-                        naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: clickedSrc };
-                      }
-                      
-                      // Placeholder for description and photographer
-                      const description = `Image ${clickedIndex + 1} description.`;
-                      const photographer = `Photographer ${clickedIndex + 1}.`;
-
-                      const clickedImageDetails: FocusedImageState = {
-                        src: clickedSrc,
-                        altText: clickedAlt,
-                        initialTopPx: rect.top,
-                        initialLeftPx: rect.left,
-                        initialWidthPx: rect.width,
-                        initialHeightPx: rect.height,
-                        initialRotateDeg: currentInitialRotate,
-                        naturalWidth: naturalDims.width,
-                        naturalHeight: naturalDims.height,
-                        currentIndex: clickedIndex, // Set currentIndex
-                        description: description, 
-                        photographer: photographer
-                      };
-                      
-                      console.log("Attempting to set focused image with:", clickedImageDetails);
-                      
-                      if (naturalDims.width > 0 && naturalDims.height > 0) {
-                        if (focusedImage) { // If an image is already focused, put it down first
-                          setImageReturningToScrapbook(focusedImage);
-                          setPendingImageToFocus(clickedImageDetails);
-                          setFocusedImage(null);
-                        } else { // No image focused, just pick this one up
-                          setFocusedImage(clickedImageDetails);
-                        }
-                      } else {
-                        console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero.", clickedImageDetails);
-                      }
-                    }}
-                  />
-                );
-              })}
-            </div>
-            
-            {/* RSVP Form - ensure it's on top */}
-            <div style={{ position: 'relative', zIndex: 10 }}> {/* Higher zIndex for RSVP form container */}
-              <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
-            </div>
-          </ParallaxLayer>
-
-        </Parallax>
-
-        {/* Focused Image Modal */} 
-        {/* Backdrop */} 
-        <animated.div 
-          style={{
-            ...backdropSpring,
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            background: 'rgba(0, 0, 0, 0.8)', 
-            zIndex: 1000, 
-          }}
-          onClick={handleCloseFocusedImage} // Use new handler
-        />
-
-        {/* Animated Image Container - This moves and scales */} 
-        {(focusedImage || imageReturningToScrapbook) && ( // Render if focused or returning
-            <animated.div 
-              style={{
-                ...focusedImageContainerSpring, // Applied here
-                position: 'fixed', 
-                willChange: 'transform, opacity, top, left, width, height', 
-                zIndex: 1001, 
-                // pointerEvents: 'none', // Temporarily allow pointer events for buttons
-              }}
+            {showHUD && ( // Conditional rendering for HUD
+            <div 
+                style={{
+                position: 'fixed',
+                top: '10px',
+                left: '10px',
+                padding: '5px 10px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                color: 'black',
+                zIndex: 200, 
+                fontSize: '12px', 
+                borderRadius: '4px',
+                whiteSpace: 'pre-wrap' 
+                }}
             >
-              {/* Determine src/alt from focusedImage or lastFocusedImageDetails for smooth transition */}
-              {/* This ensures image doesn't vanish instantly on close click */}
-              {(focusedImage || imageReturningToScrapbook) && (
-                <div 
-                    onClick={(e) => e.stopPropagation()} // Stop click from bubbling to backdrop
-                    style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }} // position relative for arrows
-                >
-                  <img 
-                    src={focusedImage?.src || imageReturningToScrapbook?.src || ''} // Display returning image if it exists
-                    alt={focusedImage?.altText || imageReturningToScrapbook?.altText || 'Focused image'}
-                    style={{
-                      display: 'block',
-                      width: '100%', // Fill the animated container
-                      height: '100%', // Fill the animated container
-                      objectFit: 'contain', // Maintain aspect ratio
-                      boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
-                      border: '10px solid white',
-                      borderRadius: '3px',
-                    }}
-                  />
-                  {/* Info Box - only show if image is truly focused, not during return */}
-                  {focusedImage && (focusedImage.description || focusedImage.photographer) && (
-                    <animated.div style={{
-                      ...infoBoxSpring,
-                      position: 'absolute',
-                      bottom: '-60px', // Position below the image
-                      left: '50%',
-                      transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
-                      width: 'calc(100% - 20px)', // Slightly narrower than image
-                      maxWidth: '400px',
-                      backgroundColor: 'rgba(0,0,0,0.75)',
-                      color: 'white',
-                      padding: '15px',
-                      borderRadius: '5px',
-                      textAlign: 'left',
-                      boxSizing: 'border-box',
-                      zIndex: 1002, // Above image if overlaps slightly (though positioned below)
-                    }}>
-                      {focusedImage.description && <p style={{margin: '0 0 5px 0'}}><strong>Description:</strong> {focusedImage.description}</p>}
-                      {focusedImage.photographer && <p style={{margin: 0}}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
-                    </animated.div>
-                  )}
+                {`ScrollY: ${scrollY.toFixed(0)}
+    DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
+    Opacity: ${backgroundOpacity.toFixed(2)}, Scale: ${currentScale.toFixed(2)}, TranslateY: ${currentTranslateY.toFixed(2)}%
+    ClipPath: ${calculatedClipPathValue}
+    ${changedKeyDetailsOutput.trim()}`}
+            </div>
+            )}
+
+            {/* <ParallaxLogging currentScrollProgress={0} trackedAnimations={[]} /> // Placeholder if re-added */}
+            <Parallax 
+            ref={parallaxRef} 
+            pages={totalPages} 
+            style={{ top: '0', left: '0' }}
+            >
+
+            {/* Background Layer - Sticky with Pixel-Based Fade Out */}
+            <ParallaxLayer
+                sticky={{ start: backgroundStickyStart, end: backgroundStickyEnd }}
+                style={{ zIndex: -1, overflow: 'hidden' }}
+            >
+                <animated.div
+                style={{
+                    ...backgroundSpring, // Apply fade animation
+                    width: '100%',
+                    height: '100vh',
+                    backgroundImage: `url(${introBackground})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center center',
+                    transformOrigin: 'center center'
+                }}
+                className={styles.background}
+                />
+            </ParallaxLayer>
+
+            {/* Intro Couple Image Layer */}
+            <ParallaxLayer
+                offset={coupleImageOffset}
+                speed={coupleImageSpeed}
+                style={{ ...centerStyle, zIndex: 1 }}
+            >
+                <img src={introCouple} alt="Couple" className="introCoupleImage" />
+            </ParallaxLayer>
+
+            {/* Text Layers */}
+            <ParallaxLayer
+                offset={textStartOffset}
+                speed={textSpeed}
+                style={{ ...centerStyle, zIndex: 2 }}
+            >
+                <div className="textLayerContent">
+                <h1>{brideName}</h1>
+                <h1 className="ampersand">&</h1>
+                <h1>{groomName}</h1>
+                <p>{weddingDate}</p>
                 </div>
-              )}
-            </animated.div>
-        )}
+            </ParallaxLayer>
 
-        {/* Navigation Arrows - Conditionally render only when an image is truly focused */}
-        {/* Positioned relative to the viewport */}
-        {focusedImage && resolvedScrapbookImages && resolvedScrapbookImages.length > 1 && (
-          <>
-            <button
-              onClick={handlePreviousImage}
-              aria-label="Previous image"
-              style={{
-                position: 'fixed', // Fixed positioning
-                left: '11vw',      // 33% from viewport left
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1003, 
-                background: 'rgba(0,0,0,0.6)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '50px',
-                height: '50px',
-                fontSize: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'auto', 
-                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-              }}
+            {/* RSVP Form Layer */}
+            <ParallaxLayer
+                offset={rsvpFormOffset}
+                speed={rsvpFormSpeed}
+                style={{ ...centerStyle, zIndex: 100 }}
             >
-              &lt;
-            </button>
-            <button
-              onClick={handleNextImage}
-              aria-label="Next image"
-              style={{
-                position: 'fixed', // Fixed positioning
-                right: '11vw',     // 33% from viewport right
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1003,
-                background: 'rgba(0,0,0,0.6)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '50px',
-                height: '50px',
-                fontSize: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'auto', 
-                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-              }}
-            >
-              &gt;
-            </button>
-          </>
-        )}
-      </animated.div>
-    </>
-  );
-};
+                {/* Scrapbook Images Container */}
+                <div style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                zIndex: 1 // Lower zIndex for scrapbook images container
+                }}>
+                {resolvedScrapbookImages.map((imageSrc, index) => {
+                    const initialStyle = memoizedScrapbookImageStyles[index];
+                    if (!initialStyle) return null; 
 
-export default WeddingJourney; 
+                    const altText = `Scrapbook item ${index + 1}`;
+                    
+                    const itemScrollSensitivity = memoizedScrollSensitivities[index] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+                    const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + index * 0.5) * 45;
+
+                    let isEffectivelyHidden = false;
+                    if (focusedImage && focusedImage.currentIndex === index) {
+                    isEffectivelyHidden = true;
+                    } else if (imageReturningToScrapbook && imageReturningToScrapbook.currentIndex === index) {
+                    isEffectivelyHidden = true;
+                    }
+                    // We don't explicitly hide for pendingImageToFocus here,
+                    // as the focusedImage or imageReturningToScrapbook should already cover that item.
+                    // The focused image container will represent the pending image once it becomes focused.
+
+                    return (
+                    <ScrapbookImageItem
+                        key={imageSrc || index} // Use imageSrc if unique and available, otherwise index
+                        imageSrc={imageSrc}
+                        initialStyle={initialStyle}
+                        altText={altText}
+                        dynamicAngleOffsetDeg={dynamicAngle}
+                        index={index}
+                        isHiddenForFocus={isEffectivelyHidden}
+                        ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[index] = el; }}
+                        onClick={handleImageClick}
+                    />
+                    );
+                })}
+                </div>
+                
+                {/* RSVP Form - ensure it's on top */}
+                <div style={{ position: 'relative', zIndex: 10 }}> {/* Higher zIndex for RSVP form container */}
+                <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
+                </div>
+            </ParallaxLayer>
+
+            </Parallax>
+
+            {/* Focused Image Modal */} 
+            {/* Backdrop */} 
+            <animated.div 
+            style={{
+                ...backdropSpring,
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                background: 'rgba(0, 0, 0, 0.8)', 
+                zIndex: 1000, 
+            }}
+            onClick={handleCloseFocusedImage} // Use new handler
+            />
+
+            {/* Animated Image Container - This moves and scales */} 
+            {(focusedImage || imageReturningToScrapbook) && ( // Render if focused or returning
+                <animated.div 
+                style={{
+                    ...focusedImageContainerSpring, // Applied here
+                    position: 'fixed', 
+                    willChange: 'transform, opacity, top, left, width, height', 
+                    zIndex: 1001, 
+                    // pointerEvents: 'none', // Temporarily allow pointer events for buttons
+                }}
+                >
+                {/* Determine src/alt from focusedImage or lastFocusedImageDetails for smooth transition */}
+                {/* This ensures image doesn't vanish instantly on close click */}
+                {(focusedImage || imageReturningToScrapbook) && (
+                    <div 
+                        onClick={(e) => e.stopPropagation()} // Stop click from bubbling to backdrop
+                        style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }} // position relative for arrows
+                    >
+                    <img 
+                        src={focusedImage?.src || imageReturningToScrapbook?.src || ''} // Display returning image if it exists
+                        alt={focusedImage?.altText || imageReturningToScrapbook?.altText || 'Focused image'}
+                        style={{
+                        display: 'block',
+                        width: '100%', // Fill the animated container
+                        height: '100%', // Fill the animated container
+                        objectFit: 'contain', // Maintain aspect ratio
+                        boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+                        border: '10px solid white',
+                        borderRadius: '3px',
+                        }}
+                    />
+                    {/* Info Box - only show if image is truly focused, not during return */}
+                    {focusedImage && (focusedImage.description || focusedImage.photographer) && (
+                        <animated.div style={{
+                        ...infoBoxSpring,
+                        position: 'absolute',
+                        bottom: '-60px', // Position below the image
+                        left: '50%',
+                        transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
+                        width: 'calc(100% - 20px)', // Slightly narrower than image
+                        maxWidth: '400px',
+                        backgroundColor: 'rgba(0,0,0,0.75)',
+                        color: 'white',
+                        padding: '15px',
+                        borderRadius: '5px',
+                        textAlign: 'left',
+                        boxSizing: 'border-box',
+                        zIndex: 1002, // Above image if overlaps slightly (though positioned below)
+                        }}>
+                        {focusedImage.description && <p style={{margin: '0 0 5px 0'}}><strong>Description:</strong> {focusedImage.description}</p>}
+                        {focusedImage.photographer && <p style={{margin: 0}}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
+                        </animated.div>
+                    )}
+                    </div>
+                )}
+                </animated.div>
+            )}
+
+            {/* Navigation Arrows - Conditionally render only when an image is truly focused */}
+            {/* Positioned relative to the viewport */}
+            {focusedImage && resolvedScrapbookImages && resolvedScrapbookImages.length > 1 && (
+            <>
+                <button
+                onClick={handlePreviousImage}
+                aria-label="Previous image"
+                style={{
+                    position: 'fixed', // Fixed positioning
+                    left: '11vw',      // 33% from viewport left
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 1003, 
+                    background: 'rgba(0,0,0,0.6)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '28px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'auto', 
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                }}
+                >
+                &lt;
+                </button>
+                <button
+                onClick={handleNextImage}
+                aria-label="Next image"
+                style={{
+                    position: 'fixed', // Fixed positioning
+                    right: '11vw',     // 33% from viewport right
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 1003,
+                    background: 'rgba(0,0,0,0.6)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '28px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'auto', 
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                }}
+                >
+                &gt;
+                </button>
+            </>
+            )}
+        </animated.div>
+        </>
+    );
+    };
+
+    export default WeddingJourney; 
