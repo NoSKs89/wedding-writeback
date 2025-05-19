@@ -6,6 +6,7 @@ import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
 import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
+import ParallaxBackgroundImage from './ParallaxBackgroundImage';
 
 // Type Definitions
 interface WeddingData {
@@ -20,10 +21,21 @@ interface WeddingData {
   platedOptions?: any[];
 }
 
-// Interface for ResolvedScrapbookImage (if re-enabled)
-// interface ResolvedScrapbookImage {
-//   src: string;
-// }
+// This interface should match the AnimControlValues in ParallaxBackgroundImage.tsx
+interface BackgroundAnimControlValues {
+  opacityGentleEnd: number;
+  opacityTargetAtGentleEnd: number;
+  opacityDrasticStartPixels: number;
+  opacityTargetAtDrasticStart: number;
+  opacityFullTransparent: number;
+  translateYThreshold: number;
+  translateYMultiplier: number;
+  scaleInitialRate: number;
+  scaleDrasticStartPx: number;
+  scaleDrasticRate: number;
+  borderRadiusStartScrollY: number;
+  clipPathVanishScrollY: number;
+}
 
 interface WeddingJourneyProps {
   weddingData: WeddingData;
@@ -72,6 +84,7 @@ function rgbToCss(r: number, g: number, b: number): string {
 }
 
 // Custom hook to track changed Leva controls
+// Keeping it simple for now, will cast where needed.
 function useTrackedControls(folderName: string, schema: any, options?: object) {
   const [values, set] = useLevaControls(folderName, () => schema, options, [schema]);
   const initialValues = useRef(values);
@@ -351,7 +364,10 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [updateScrollPosition]);
 
-  const { values: animControls, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
+  const { values: animControlsFromLeva, changedKeys: animChangedKeys } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
+  
+  const animControls = animControlsFromLeva as BackgroundAnimControlValues;
+
   const {
     opacityGentleEnd,
     opacityTargetAtGentleEnd,
@@ -398,6 +414,19 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     baseItemScale,
     movementScrollCap
   } = scrapbookMoveCtrl;
+
+  // HUD Springs - defined at the top level
+  const [{ opacity: hudOpacitySpring }] = useSpring(() => ({
+    opacity: animControls.opacityFullTransparent, 
+    from: { opacity: 1 },
+    config: { duration: 300 } // Optional: Add a subtle config if desired
+  }), [animControls.opacityFullTransparent]);
+
+  const [{ scale: hudScaleSpring }] = useSpring(() => ({
+    scale: 1 + animControls.scaleInitialRate * (scrollY / (animControls.opacityFullTransparent || 1)),
+    from: { scale: 1 },
+    config: { duration: 300 } // Optional: Add a subtle config if desired
+  }), [animControls.scaleInitialRate, animControls.opacityFullTransparent, scrollY]);
 
   // Helper function to parse rotation from transform string
   const parseRotationFromStyle = (transformString?: string | number): number => {
@@ -494,14 +523,14 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   // TranslateY Calculation (remains the same)
   let currentTranslateY = 0;
-  if (scrollY > translateYThreshold) {
-    const effectiveScrollRangeForTranslate = FADE_OUT_SCROLL_RANGE_PIXELS - translateYThreshold;
+  if (scrollY > animControls.translateYThreshold) {
+    const effectiveScrollRangeForTranslate = FADE_OUT_SCROLL_RANGE_PIXELS - animControls.translateYThreshold;
     if (effectiveScrollRangeForTranslate > 0) {
-      const scrollYAfterThreshold = scrollY - translateYThreshold;
+      const scrollYAfterThreshold = scrollY - animControls.translateYThreshold;
       const translateYProgress = Math.min(1, Math.max(0, scrollYAfterThreshold / effectiveScrollRangeForTranslate));
-      currentTranslateY = translateYMultiplier * translateYProgress;
+      currentTranslateY = animControls.translateYMultiplier * translateYProgress;
     } else {
-      currentTranslateY = (scrollY > translateYThreshold) ? translateYMultiplier : 0;
+      currentTranslateY = (scrollY > animControls.translateYThreshold) ? animControls.translateYMultiplier : 0;
     }
   } else {
     currentTranslateY = 0;
@@ -1088,8 +1117,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             >
                 {`ScrollY: ${scrollY.toFixed(0)}
     DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
-    Opacity: ${backgroundOpacity.toFixed(2)}, Scale: ${currentScale.toFixed(2)}, TranslateY: ${currentTranslateY.toFixed(2)}%
-    ClipPath: ${calculatedClipPathValue}
+    Opacity (BG): ${hudOpacitySpring.get().toFixed(2)} 
+    Scale (BG): ${hudScaleSpring.get().toFixed(2)} 
+    TranslateY (Couple): ${currentTranslateY.toFixed(2)}%
     ${changedKeyDetailsOutput.trim()}`}
             </div>
             )}
@@ -1106,17 +1136,13 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                 sticky={{ start: backgroundStickyStart, end: backgroundStickyEnd }}
                 style={{ zIndex: -1, overflow: 'hidden' }}
             >
-                <animated.div
-                style={{
-                    ...backgroundSpring, // Apply fade animation
-                    width: '100%',
-                    height: '100vh',
-                    backgroundImage: `url(${introBackground})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center center',
-                    transformOrigin: 'center center'
-                }}
-                className={styles.background}
+                <ParallaxBackgroundImage 
+                  introBackgroundUrl={introBackground}
+                  scrollY={scrollY}
+                  animControls={animControls} // Pass the correctly typed animControls object
+                  currentWindow={currentWindow}
+                  backgroundStickyStart={backgroundStickyStart}
+                  backgroundStickyEnd={backgroundStickyEnd}
                 />
             </ParallaxLayer>
 
