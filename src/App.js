@@ -9,7 +9,8 @@ import {
 import { ParallaxProvider } from 'react-scroll-parallax';
 import './App.css';
 import WeddingJourney from './components/WeddingJourney';
-import weddingDataJson from './testData.json'; // Import from testData.json
+// import weddingDataJson from './testData.json'; // No longer directly import testData.json
+import axios from 'axios'; // Import axios
 
 //todo:
 // -if past wedding date, have the form change to be a comment about the wedding... like a memory
@@ -47,46 +48,57 @@ const WeddingPageController = ({ setShowGuideLines }) => {
   const { weddingId } = useParams();
   const [currentWeddingData, setCurrentWeddingData] = useState(null);
   const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]);
+  const [error, setError] = useState(null); // State for API errors
+  const [fallbackId, setFallbackId] = useState('erickson2025'); // Default fallback ID
 
   useEffect(() => {
-    const sourceData = weddingDataJson; // Use the imported JSON directly
-    console.log('[App.js] WeddingPageController - useEffect (data loading) triggered.');
-    console.log('[App.js] weddingId from URL params:', weddingId);
-    console.log('[App.js] sourceData (from testData.json):', sourceData);
+    const fetchWeddingData = async () => {
+      if (!weddingId) return;
+      console.log('[App.js] WeddingPageController - useEffect (data loading) triggered for weddingId:', weddingId);
+      try {
+        // Construct the backend API URL. Ensure your backend is running on port 5000.
+        const apiUrl = `http://localhost:5000/api/weddings/${weddingId}`;
+        const response = await axios.get(apiUrl);
+        const sourceData = response.data;
+        console.log('[App.js] Fetched data from backend:', sourceData);
 
-    if (sourceData && sourceData.customId) {
-      console.log('[App.js] sourceData.customId:', sourceData.customId);
-      console.log('[App.js] Comparison (sourceData.customId === weddingId):', sourceData.customId === weddingId);
-    } else {
-      console.log('[App.js] sourceData or sourceData.customId is missing.');
-    }
+        if (sourceData && sourceData.customId) {
+          const transformedData = {
+            id: sourceData.customId,
+            eventName: sourceData.eventName,
+            brideName: sourceData.brideName,
+            groomName: sourceData.groomName,
+            weddingDate: formatDate(sourceData.weddingDate),
+            // Assuming backend schema uses these names (introBackground, introCouple, scrapbookImageFolder)
+            introBackground: sourceData.introBackground || '/tempImages/mainImages/intro-background.jpg', // Fallback if not provided
+            introCouple: sourceData.introCouple || '/tempImages/mainImages/intro-main-image.png', // Fallback if not provided
+            scrapbookImageFolder: sourceData.scrapbookImageFolder || '/tempImages/scrapbookImages/', // Fallback if not provided
+            scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
+            // The RSVP endpoint will be constructed by RSVPForm using this base and weddingId
+            rsvpEndpoint: `http://localhost:5000/api/rsvp/${sourceData.customId}`, 
+            isPlated: sourceData.isPlated,
+            platedOptions: sourceData.platedOptions || [],
+            eventAddress: sourceData.eventAddress
+          };
+          console.log('[App.js] Transformed data for WeddingJourney:', transformedData);
+          setCurrentWeddingData(transformedData);
+          setError(null); // Clear any previous errors
+        } else {
+          console.log('[App.js] No matching wedding data found or data is malformed from API for ID:', weddingId);
+          setCurrentWeddingData(null);
+          setError(`Wedding data for "${weddingId}" not found.`);
+        }
+      } catch (err) {
+        console.error('[App.js] Error fetching wedding data from backend:', err);
+        setCurrentWeddingData(null);
+        setError(`Failed to load wedding data for "${weddingId}". ${err.message}`);
+      }
+    };
 
-    if (sourceData && sourceData.customId === weddingId) {
-      const transformedData = {
-        id: sourceData.customId,
-        eventName: sourceData.eventName,
-        brideName: sourceData.brideName,
-        groomName: sourceData.groomName,
-        weddingDate: formatDate(sourceData.weddingDate),
-        introBackground: '/tempImages/mainImages/intro-background.jpg',
-        introCouple: '/tempImages/mainImages/intro-main-image.png',
-        scrapbookImageFolder: '/tempImages/scrapbookImages/',
-        scrapbookImageFileNames: sourceData.scrapbookImages.map(img => img.fileName),
-        rsvpEndpoint: `/api/rsvp/${sourceData.customId}`,
-        isPlated: sourceData.isPlated,
-        platedOptions: sourceData.platedOptions || [],
-        eventAddress: sourceData.eventAddress
-      };
-      console.log('[App.js] Transformed data for WeddingJourney:', transformedData);
-      setCurrentWeddingData(transformedData);
-    } else {
-      console.log('[App.js] Setting currentWeddingData to null (no match or missing data).');
-      setCurrentWeddingData(null); 
-    }
+    fetchWeddingData();
   }, [weddingId]);
 
   useEffect(() => {
-    // This effect runs AFTER the one above, once currentWeddingData is set (or remains null)
     if (currentWeddingData && currentWeddingData.scrapbookImageFolder && currentWeddingData.scrapbookImageFileNames && currentWeddingData.scrapbookImageFileNames.length > 0) {
       const imagePaths = currentWeddingData.scrapbookImageFileNames.map(fileName => {
         const folder = currentWeddingData.scrapbookImageFolder.endsWith('/') ? currentWeddingData.scrapbookImageFolder : currentWeddingData.scrapbookImageFolder + '/';
@@ -102,13 +114,37 @@ const WeddingPageController = ({ setShowGuideLines }) => {
   useEffect(() => {
     if (currentWeddingData && currentWeddingData.eventName) {
       document.title = `${currentWeddingData.eventName} - Wedding WriteBack`;
+    } else if (weddingId) {
+      document.title = `Wedding ${weddingId} - Wedding WriteBack`;
     } else {
       document.title = 'Wedding WriteBack';
     }
-  }, [currentWeddingData]);
+  }, [currentWeddingData, weddingId]);
+
+  // Fetch a fallback ID from a simple backend endpoint if needed (e.g., for the root path)
+  // This is a placeholder, actual logic might involve fetching a list or a default wedding.
+  useEffect(() => {
+    const fetchFallbackId = async () => {
+        try {
+            // Example: fetch the first wedding or a specifically designated default wedding
+            // For now, we'll assume a way to get a default ID if no weddingId is in URL.
+            // This could be an endpoint like /api/weddings/default or fetching all and picking one.
+            // const response = await axios.get('http://localhost:5000/api/some-default-wedding-id-endpoint');
+            // setFallbackId(response.data.defaultId);
+            // For now, keeping it simple with a hardcoded fallbackId if needed for root navigation.
+        } catch (err) {
+            console.error("Could not fetch fallback wedding ID", err);
+        }
+    };
+    // fetchFallbackId(); // Uncomment and implement if you have a default wedding ID endpoint
+  }, []);
+
+  if (error) {
+    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem', color: 'red' }}>Error: {error}</div>;
+  }
 
   if (!currentWeddingData) {
-    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details or not found...</div>;
+    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details for "{weddingId}"...</div>;
   }
 
   return <WeddingJourney weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} setShowGuideLines={setShowGuideLines} />;
@@ -116,6 +152,20 @@ const WeddingPageController = ({ setShowGuideLines }) => {
 
 function App() {
   const [showGuideLines, setShowGuideLines] = useState(true);
+  // const defaultWeddingId = weddingDataJson.customId; // No longer using weddingDataJson directly here
+  // Use a state for defaultWeddingId if it needs to be fetched or is dynamic
+  const [defaultWeddingIdToUse, setDefaultWeddingIdToUse] = useState('erickson2025'); // Default or fetch later
+
+  // Placeholder: In a real app, you might fetch this default ID from your backend
+  useEffect(() => {
+    // async function fetchAndSetDefaultId() {
+    //   try {
+    //     // const result = await axios.get('http://localhost:5000/api/some-default-wedding-id-endpoint');
+    //     // setDefaultWeddingIdToUse(result.data.id);
+    //   } catch (e) { console.error("Could not fetch default wedding ID", e); }
+    // }
+    // fetchAndSetDefaultId();
+  }, []);
 
   return (
     <ParallaxProvider>
@@ -147,8 +197,13 @@ function App() {
           )}
           <Routes>
             <Route path="/:weddingId" element={<WeddingPageController setShowGuideLines={setShowGuideLines} />} />
-            {/* Fallback route to the wedding defined in testData.json */}
-            <Route path="/" element={<Navigate to={`/${weddingDataJson.customId}`} replace />} />
+            {/* Fallback route to a default wedding ID */}
+            {defaultWeddingIdToUse && (
+              <Route path="/" element={<Navigate to={`/${defaultWeddingIdToUse}`} replace />} />
+            )}
+            {!defaultWeddingIdToUse && (
+                 <Route path="/" element={<div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading default wedding...</div>} />
+            )}
           </Routes>
         </div>
       </Router>
