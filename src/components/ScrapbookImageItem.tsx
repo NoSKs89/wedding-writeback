@@ -23,6 +23,7 @@ interface ScrapbookImageItemProps {
   lastPutDownIndex?: number | null; // Destructure new prop
   parallaxTranslateX?: number; // New prop for X parallax movement
   parallaxTranslateY?: number; // New prop for Y parallax movement
+  parallaxScale?: number; // New prop for Z parallax movement (scale)
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -37,6 +38,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     lastPutDownIndex = null, // Destructure new prop
     parallaxTranslateX = 0, // Destructure with default
     parallaxTranslateY = 0, // Destructure with default
+    parallaxScale = 1, // Destructure with default (1 for no scaling)
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
@@ -52,12 +54,14 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
   const baseRotate = baseTransformFromStyle || ''; // e.g., "rotate(10deg)"
   const dynamicRotate = `rotate(${dynamicAngleOffsetDeg}deg)`; // Scroll-based rotation
   
-  // Determine hover scale only if the item is not hidden for focus
-  const hoverScale = isHovered && !isHiddenForFocus ? 'scale(1.2)' : 'scale(1)';
-  // NEW: Add parallax translation
+  const currentHoverScale = isHovered && !isHiddenForFocus ? 1.2 : 1;
+  // Combine parallax scale and hover scale
+  const combinedScale = parallaxScale * currentHoverScale;
+  const scaleTransform = `scale(${combinedScale})`;
+  
   const parallaxTranslation = `translate(${parallaxTranslateX}px, ${parallaxTranslateY}px)`;
   
-  const finalTransform = `${parallaxTranslation} ${baseRotate} ${dynamicRotate} ${hoverScale}`.trim();
+  const finalTransform = `${parallaxTranslation} ${baseRotate} ${dynamicRotate} ${scaleTransform}`.trim();
 
   // Store the previous state of isHiddenForFocus to correctly apply 'immediate'
   const prevIsHiddenForFocusRef = useRef<boolean>(isHiddenForFocus);

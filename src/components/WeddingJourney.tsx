@@ -112,7 +112,7 @@ const backgroundAnimationSchema = {
   scaleDrasticStartPx: { value: 494, min: 0, max: 5000, step: 1, label: 'Drastic Scale Start (px)' },
   scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' },
   borderRadiusStartScrollY: { value: 500, min: 0, max: 5000, step: 10, label: 'ClipPath Start Shrink (px)' },
-  clipPathVanishScrollY: { value: 750, min: 0, max: 5000, step: 10, label: 'ClipPath Vanish End (px)' },
+  clipPathVanishScrollY: { value: 597, min: 0, max: 5000, step: 10, label: 'ClipPath Vanish End (px)' },
 };
 
 // NEW: Schema for BackgroundColor Leva controls
@@ -135,7 +135,7 @@ const scrapbookControlsSchema = {
   angleMin: { value: -6, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
   angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
   radiusFactor: { value: 95, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
-  sizeMinPx: { value: 90, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
+  sizeMinPx: { value: 110, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
   sizeRangePx: { value: 160, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
   scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
   scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
@@ -146,8 +146,11 @@ const scrapbookMovementControlsSchema = {
   minXMovementSensitivity: { value: -0.08, min: -0.4, max: 0.4, step: 0.01, label: 'Min X Parallax Sens.' },
   maxXMovementSensitivity: { value: 0.17, min: -0.4, max: 0.4, step: 0.01, label: 'Max X Parallax Sens.' },
   minYMovementSensitivity: { value: -0.2, min: -0.4, max: 0.4, step: 0.01, label: 'Min Y Parallax Sens.' },
-  maxYMovementSensitivity: { value: 0.19, min: -0.4, max: 0.4, step: 0.01, label: 'Max Y Parallax Sens.' },
-  movementScrollCap: { value: 5000, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
+  maxYMovementSensitivity: { value: 0.23, min: -0.4, max: 0.4, step: 0.01, label: 'Max Y Parallax Sens.' },
+  minZMovementSensitivity: { value: -0.0001, min: -0.001, max: 0.001, step: 0.000001, label: 'Min Z Parallax Sens.' },
+  maxZMovementSensitivity: { value: 0.0001, min: -0.001, max: 0.001, step: 0.000001, label: 'Max Z Parallax Sens.' },
+  baseItemScale: { value: 1, min: 0.1, max: 2, step: 0.05, label: 'Base Item Scale' },
+  movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
 };
 
 // Updated generateScrapbookImageStyle to use Leva controls
@@ -390,6 +393,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     maxXMovementSensitivity,
     minYMovementSensitivity,
     maxYMovementSensitivity,
+    minZMovementSensitivity,
+    maxZMovementSensitivity,
+    baseItemScale,
     movementScrollCap
   } = scrapbookMoveCtrl;
 
@@ -610,7 +616,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         if (allChangedKeys.size === 0) {
         return ""; // Return empty if no keys changed
         }
-        let details = "Change To:\n";
+        let details = "Change useControl Defaults To:\n";
         for (const key of Array.from(allChangedKeys)) {
         let value: any = undefined;
         // Check each controls object for the key
@@ -682,6 +688,14 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         const maxSens = Math.max(scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity);
         return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
     }, [resolvedScrapbookImages, scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity]);
+
+    // NEW: Memoize Z movement sensitivities for each image
+    const memoizedZMovementSensitivities = useMemo(() => {
+        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
+        const minSens = Math.min(scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity);
+        const maxSens = Math.max(scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity);
+        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
+    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity]);
 
     // Animation spring for the focused image backdrop
     const backdropSpring = useSpring({
@@ -1163,6 +1177,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                     const parallaxTranslateX = cappedScrollYForMovement * itemXSensitivity;
                     const parallaxTranslateY = cappedScrollYForMovement * itemYSensitivity;
 
+                    // NEW: Calculate parallax scale
+                    const itemZSensitivity = memoizedZMovementSensitivities[index] || 0;
+                    let parallaxScale = scrapbookMoveCtrl.baseItemScale + (cappedScrollYForMovement * itemZSensitivity);
+                    parallaxScale = Math.max(0.1, parallaxScale); // Ensure scale doesn't go below 0.1
+
                     let isEffectivelyHidden = false;
                     if (focusedImage && focusedImage.currentIndex === index) {
                     isEffectivelyHidden = true;
@@ -1187,6 +1206,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                         onClick={handleImageClick}
                         parallaxTranslateX={parallaxTranslateX} // Pass new prop
                         parallaxTranslateY={parallaxTranslateY} // Pass new prop
+                        parallaxScale={parallaxScale}         // Pass new prop
                     />
                     );
                 })}
