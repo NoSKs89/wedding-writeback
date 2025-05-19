@@ -9,12 +9,38 @@ import {
 import { ParallaxProvider } from 'react-scroll-parallax';
 import './App.css';
 import WeddingJourney from './components/WeddingJourney';
-import { weddingDetails } from './components/WeddingData'; // Import from WeddingData.js, allTempImages removed
+import weddingDataJson from './testData.json'; // Import from testData.json
 
 //todo:
 // -if past wedding date, have the form change to be a comment about the wedding... like a memory
 // -perhaps even allow a user to upload a photo from the wedding?
 
+// Helper function to format ISO date to a more readable string
+const formatDate = (isoDateString) => {
+  if (!isoDateString) return 'Upcoming Date';
+  try {
+    const date = new Date(isoDateString);
+    const options = { year: 'numeric', month: 'long', day: 'numeric' };
+    // Add 'th', 'st', 'nd', 'rd' to day
+    const day = date.getDate();
+    let dayWithSuffix;
+    if (day > 3 && day < 21) dayWithSuffix = day + 'th';
+    else {
+      switch (day % 10) {
+        case 1:  dayWithSuffix = day + "st"; break;
+        case 2:  dayWithSuffix = day + "nd"; break;
+        case 3:  dayWithSuffix = day + "rd"; break;
+        default: dayWithSuffix = day + "th"; break;
+      }
+    }
+    // getDate() returns day of month, getDay() returns day of week.
+    // Manually construct string to ensure suffix is on the day with full month name.
+    return `${date.toLocaleDateString('en-US', { month: 'long' })} ${dayWithSuffix}, ${date.getFullYear()}`;
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Upcoming Date';
+  }
+};
 
 // This component will decide whether to show Intro or Main content for a wedding
 const WeddingPageController = ({ setShowGuideLines }) => {
@@ -23,49 +49,80 @@ const WeddingPageController = ({ setShowGuideLines }) => {
   const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]);
 
   useEffect(() => {
-    const data = weddingDetails[weddingId] || weddingDetails.defaultWedding;
-    setCurrentWeddingData(data);
+    const sourceData = weddingDataJson; // Use the imported JSON directly
+    console.log('[App.js] WeddingPageController - useEffect (data loading) triggered.');
+    console.log('[App.js] weddingId from URL params:', weddingId);
+    console.log('[App.js] sourceData (from testData.json):', sourceData);
 
-    // Resolve scrapbook images dynamically
-    if (data && data.scrapbookImageFolder && data.scrapbookImageFileNames && data.scrapbookImageFileNames.length > 0) {
-      const imagePaths = data.scrapbookImageFileNames.map(fileName => {
-        // Ensure no double slashes if folder already ends with one, or filename starts with one (though unlikely for filename)
-        const folder = data.scrapbookImageFolder.endsWith('/') ? data.scrapbookImageFolder : data.scrapbookImageFolder + '/';
+    if (sourceData && sourceData.customId) {
+      console.log('[App.js] sourceData.customId:', sourceData.customId);
+      console.log('[App.js] Comparison (sourceData.customId === weddingId):', sourceData.customId === weddingId);
+    } else {
+      console.log('[App.js] sourceData or sourceData.customId is missing.');
+    }
+
+    if (sourceData && sourceData.customId === weddingId) {
+      const transformedData = {
+        id: sourceData.customId,
+        eventName: sourceData.eventName,
+        brideName: sourceData.brideName,
+        groomName: sourceData.groomName,
+        weddingDate: formatDate(sourceData.weddingDate),
+        introBackground: '/tempImages/mainImages/intro-background.jpg',
+        introCouple: '/tempImages/mainImages/intro-main-image.png',
+        scrapbookImageFolder: '/tempImages/scrapbookImages/',
+        scrapbookImageFileNames: sourceData.scrapbookImages.map(img => img.fileName),
+        rsvpEndpoint: `/api/rsvp/${sourceData.customId}`,
+        isPlated: sourceData.isPlated,
+        platedOptions: sourceData.platedOptions || [],
+        eventAddress: sourceData.eventAddress
+      };
+      console.log('[App.js] Transformed data for WeddingJourney:', transformedData);
+      setCurrentWeddingData(transformedData);
+    } else {
+      console.log('[App.js] Setting currentWeddingData to null (no match or missing data).');
+      setCurrentWeddingData(null); 
+    }
+  }, [weddingId]);
+
+  useEffect(() => {
+    // This effect runs AFTER the one above, once currentWeddingData is set (or remains null)
+    if (currentWeddingData && currentWeddingData.scrapbookImageFolder && currentWeddingData.scrapbookImageFileNames && currentWeddingData.scrapbookImageFileNames.length > 0) {
+      const imagePaths = currentWeddingData.scrapbookImageFileNames.map(fileName => {
+        const folder = currentWeddingData.scrapbookImageFolder.endsWith('/') ? currentWeddingData.scrapbookImageFolder : currentWeddingData.scrapbookImageFolder + '/';
         const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
         return folder + name;
       });
       setResolvedScrapbookImages(imagePaths);
     } else {
-      setResolvedScrapbookImages([]); // Set to empty if no folder or files defined
+      setResolvedScrapbookImages([]); 
     }
-  }, [weddingId]);
+  }, [currentWeddingData]); // This effect depends on the processed currentWeddingData
 
   useEffect(() => {
     if (currentWeddingData && currentWeddingData.eventName) {
       document.title = `${currentWeddingData.eventName} - Wedding WriteBack`;
     } else {
-      document.title = 'Wedding WriteBack'; // Default title if data not loaded
+      document.title = 'Wedding WriteBack';
     }
-  }, [currentWeddingData]); // Add currentWeddingData as a dependency
+  }, [currentWeddingData]);
 
   if (!currentWeddingData) {
-    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details...</div>;
+    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details or not found...</div>;
   }
 
-  // Pass resolvedScrapbookImages and setShowGuideLines to WeddingJourney
   return <WeddingJourney weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} setShowGuideLines={setShowGuideLines} />;
 };
 
 function App() {
-  const [showGuideLines, setShowGuideLines] = useState(true); // State for guide lines visibility
+  const [showGuideLines, setShowGuideLines] = useState(true);
 
   return (
-    <ParallaxProvider> { /* ParallaxProvider should wrap the app or relevant part */}
+    <ParallaxProvider>
       <Router>
         <div className="App">
           {showGuideLines && (
             <>
-              {/* Red vertical line for centering debug */}
               <div style={{
                 position: 'fixed',
                 left: '50%',
@@ -73,10 +130,9 @@ function App() {
                 bottom: 0,
                 width: '1px',
                 backgroundColor: 'red',
-                zIndex: 9999, // Ensure it's on top
-                transform: 'translateX(-50%)' // Center the line itself
+                zIndex: 9999,
+                transform: 'translateX(-50%)'
               }} />
-              {/* Blue horizontal line for centering debug */}
               <div style={{
                 position: 'fixed',
                 top: '50%',
@@ -91,9 +147,8 @@ function App() {
           )}
           <Routes>
             <Route path="/:weddingId" element={<WeddingPageController setShowGuideLines={setShowGuideLines} />} />
-            {/* Fallback route to a default wedding or a landing page listing weddings */}
-            <Route path="/" element={<Navigate to="/defaultWedding" replace />} /> 
-            {/* You could have a homepage listing weddings if there are many, e.g. <Route path="/" element={<WeddingList />} /> */}
+            {/* Fallback route to the wedding defined in testData.json */}
+            <Route path="/" element={<Navigate to={`/${weddingDataJson.customId}`} replace />} />
           </Routes>
         </div>
       </Router>
