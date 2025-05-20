@@ -3,6 +3,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const path = require('path'); // Import path module
 
 // AWS SDK v3 imports
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
@@ -17,6 +18,11 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Serve static files from the React frontend build directory
+app.use(express.static(path.join(__dirname, '..', 'build')));
+// For development, if you place the build folder inside backend, it would be:
+// app.use(express.static(path.join(__dirname, 'build')));
 
 // Initialize S3 Client
 // Ensure your .env file has AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and AWS_S3_BUCKET_NAME
@@ -370,6 +376,14 @@ app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
     console.error('Error verifying setup password:', err.message);
     res.status(500).json({ message: 'Error verifying setup password', error: err.message });
   }
+});
+
+// The "catchall" handler: for any request that doesn't match one above,
+// send back React's index.html file.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'build', 'index.html'));
+  // If build folder is inside backend:
+  // res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
 // Basic Error Handling Middleware
