@@ -1,3 +1,4 @@
+console.log("--- SERVER.JS VERSION 3 - S3 ENABLED ---"); 
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
@@ -112,12 +113,25 @@ app.get('/api/weddings/:customId', async (req, res) => {
 // New endpoint to generate a pre-signed URL for S3
 app.post('/api/s3/presigned-url', async (req, res) => {
   try {
-    const { fileName, fileType, weddingId } = req.body;
-    if (!fileName || !fileType || !weddingId) {
-      return res.status(400).json({ message: 'fileName, fileType, and weddingId are required.' });
+    const { fileName, fileType, weddingId, imageType } = req.body;
+    if (!fileName || !fileType || !weddingId || !imageType) {
+      return res.status(400).json({ message: 'fileName, fileType, weddingId, and imageType are required.' });
     }
 
-    const uniqueFileName = `${weddingId}/scrapbook/${uuidv4()}-${fileName.replace(/\s+/g, '_')}`; // Create a unique path/filename
+    let s3KeyPrefix = '';
+    switch (imageType) {
+      case 'introCouple':
+      case 'introBackground':
+        s3KeyPrefix = `${weddingId}/main/`;
+        break;
+      case 'scrapbook':
+        s3KeyPrefix = `${weddingId}/scrapbook/`;
+        break;
+      default:
+        return res.status(400).json({ message: 'Invalid imageType specified.' });
+    }
+
+    const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
     const bucketName = process.env.AWS_S3_BUCKET_NAME;
 
     const command = new PutObjectCommand({
@@ -141,10 +155,10 @@ app.post('/api/s3/presigned-url', async (req, res) => {
 app.post('/api/weddings/:customId/images', async (req, res) => {
   try {
     const { customId } = req.params;
-    const { imageUrl, caption, s3Key } = req.body; // s3Key is the 'key' from presigned-url response
+    const { imageUrl, caption, s3Key, imageType } = req.body;
 
-    if (!imageUrl) {
-      return res.status(400).json({ message: 'imageUrl is required.' });
+    if (!imageUrl || !imageType) {
+      return res.status(400).json({ message: 'imageUrl and imageType are required.' });
     }
 
     const wedding = await WeddingData.findOne({ customId });
@@ -152,21 +166,36 @@ app.post('/api/weddings/:customId/images', async (req, res) => {
       return res.status(404).json({ message: 'Wedding data not found.' });
     }
 
-    const newImage = {
-      // id: uuidv4(), // Mongoose will auto-generate _id for subdocuments if 'id' is not strictly needed
-      fileName: imageUrl, // Storing the full public URL
-      caption: caption || '',
-      uploadedAt: new Date(),
-      // s3Key: s3Key // Optional: store the S3 key if needed for direct S3 operations later
-    };
+    let updatedFields = {};
 
-    wedding.scrapbookImages.push(newImage);
+    if (imageType === 'introCouple') {
+      wedding.introCouple = imageUrl;
+      updatedFields.introCouple = imageUrl;
+    } else if (imageType === 'introBackground') {
+      wedding.introBackground = imageUrl;
+      updatedFields.introBackground = imageUrl;
+    } else if (imageType === 'scrapbook') {
+      const newScrapbookImage = {
+        fileName: imageUrl, // Storing the full public URL
+        caption: caption || '',
+        uploadedAt: new Date(),
+        // s3Key: s3Key // Optional: store the S3 key if needed for direct S3 operations later
+      };
+      wedding.scrapbookImages.push(newScrapbookImage);
+      updatedFields.scrapbookImages = wedding.scrapbookImages; // Send back the whole array or just the new image
+    } else {
+      return res.status(400).json({ message: 'Invalid imageType specified.' });
+    }
+
     await wedding.save();
 
-    res.status(201).json({ message: 'Image added successfully', image: newImage, weddingData: wedding });
+    res.status(200).json({ 
+      message: `Image for ${imageType} updated successfully`, 
+      weddingData: wedding 
+    });
   } catch (error) {
-    console.error('Error adding image to wedding data:', error);
-    res.status(500).json({ message: 'Error adding image to wedding data', error: error.message });
+    console.error(`Error updating image for ${req.body.imageType || 'unknown type'}:`, error);
+    res.status(500).json({ message: 'Error updating image data', error: error.message });
   }
 });
 
