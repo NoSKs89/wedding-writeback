@@ -36,16 +36,20 @@ const s3Client = new S3Client({}); // SDK infers region and credentials in Lambd
 const sesClient = new SESClient({}); // SDK infers region and credentials in Lambda
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true, // Although deprecated, often included in older examples; Mongoose 6+ handles this by default
+  useUnifiedTopology: true, // Also deprecated, Mongoose 6+ handles this by default
+  serverSelectionTimeoutMS: 30000, // Increase server selection timeout to 30 seconds
+  socketTimeoutMS: 45000, // Increase socket timeout to 45 seconds
+  bufferTimeoutMS: 20000, // Explicitly set bufferTimeoutMS to 20 seconds (default is 10s)
+})
   .then(() => console.log('MongoDB connected successfully...'))
   .catch(err => {
-    console.error('MongoDB connection error:', err);
-    // In Lambda, you might want to handle this differently than process.exit(1)
-    // For now, we'll keep it, but it's something to consider.
-    // If the DB connection fails on Lambda cold start, subsequent invocations might also fail.
-    // A better approach might be to attempt connection within the handler or use a connection pool manager.
-    // For simplicity in this step, we leave it as is, but flag for potential improvement.
-    process.exit(1); 
+    console.error('MongoDB connection error during initial connect:', err);
+    // process.exit(1); // REMOVED: Avoid exiting process in Lambda for DB connection errors
+    // Instead of exiting, the Lambda will likely fail on requests trying to use the DB,
+    // or Mongoose might keep retrying depending on its configuration.
+    // Proper error handling within request handlers is needed if DB is unavailable.
   });
 
 // Import Item model
@@ -402,15 +406,50 @@ app.post('/api/rsvp/:customId', async (req, res) => {
 app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
   try {
     const { customId } = req.params;
-    const { password } = req.body;
+    let requestBody = req.body;
+
+    // Enhanced logging to debug request content
+    console.log(`[verify-setup-password] Received request for customId: ${customId}`);
+    console.log('[verify-setup-password] Request Headers:', JSON.stringify(req.headers, null, 2));
+
+    // Check if body is a buffer and content type is JSON, then parse it
+    if (Buffer.isBuffer(req.body) && req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+      try {
+        console.log('[verify-setup-password] req.body is a Buffer with application/json. Attempting to parse.');
+        requestBody = JSON.parse(req.body.toString());
+      } catch (parseError) {
+        console.error('[verify-setup-password] Failed to parse Buffer to JSON:', parseError);
+        return res.status(400).json({ message: 'Invalid JSON format in request body.' });
+      }
+    }
+    
+    console.log('[verify-setup-password] Request Body (after potential buffer parsing):', requestBody);
+
+    const { password } = requestBody; // Use the potentially parsed requestBody
+    console.log(`[verify-setup-password] Password extracted from requestBody: "${password}"`);
 
     if (!password) {
+      console.error('[verify-setup-password] Validation failed: Password is missing or empty in the request body.');
       return res.status(400).json({ message: 'Password is required.' });
     }
 
-    const wedding = await WeddingData.findOne({ customId }); //.select('+setupPassword'); // Use .select if setupPassword has select: false in schema
+    console.log('[verify-setup-password] Attempting to find wedding data...');
+    const startTime = Date.now();
+
+    // Diagnostic query: Count documents matching the customId
+    try {
+      const count = await WeddingData.countDocuments({ customId: customId }); // req.params.customId is 'customId' here
+      console.log(`[verify-setup-password] Diagnostic count for customId '${customId}': ${count}`);
+    } catch (countError) {
+      console.error(`[verify-setup-password] Error during diagnostic countDocuments: ${countError}`);
+    }
+
+    const wedding = await WeddingData.findOne({ customId }); 
+    const duration = Date.now() - startTime;
+    console.log(`[verify-setup-password] WeddingData.findOne took ${duration}ms.`);
 
     if (!wedding) {
+      console.error(`[verify-setup-password] Wedding data not found for customId: ${customId}`);
       return res.status(404).json({ message: 'Wedding data not found.' });
     }
 
