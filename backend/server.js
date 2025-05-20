@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const cors = require('cors');
 
 // AWS SDK v3 imports
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid'); // For generating unique file names
 
@@ -160,6 +160,14 @@ app.post('/api/weddings/:customId/images', async (req, res) => {
     if (!imageUrl || !imageType) {
       return res.status(400).json({ message: 'imageUrl and imageType are required.' });
     }
+    if ((imageType === 'introCouple' || imageType === 'introBackground') && !s3Key) {
+      // s3Key might not be strictly needed if we only store the URL for these and don't offer deletion for them via this generic endpoint yet.
+      // However, if we want to update them (replace), knowing the old s3Key could be useful to delete the old S3 object.
+      // For now, we are just overwriting the URL. If deletion of old main images is needed, this logic would expand.
+    }
+    if (imageType === 'scrapbook' && !s3Key) {
+      return res.status(400).json({ message: 's3Key is required for scrapbook images.' });
+    }
 
     const wedding = await WeddingData.findOne({ customId });
     if (!wedding) {
@@ -176,10 +184,10 @@ app.post('/api/weddings/:customId/images', async (req, res) => {
       updatedFields.introBackground = imageUrl;
     } else if (imageType === 'scrapbook') {
       const newScrapbookImage = {
-        fileName: imageUrl, // Storing the full public URL
+        fileName: imageUrl, // Storing the full public S3 URL
+        s3Key: s3Key,       // Storing the S3 object key
         caption: caption || '',
         uploadedAt: new Date(),
-        // s3Key: s3Key // Optional: store the S3 key if needed for direct S3 operations later
       };
       wedding.scrapbookImages.push(newScrapbookImage);
       updatedFields.scrapbookImages = wedding.scrapbookImages; // Send back the whole array or just the new image
@@ -196,6 +204,100 @@ app.post('/api/weddings/:customId/images', async (req, res) => {
   } catch (error) {
     console.error(`Error updating image for ${req.body.imageType || 'unknown type'}:`, error);
     res.status(500).json({ message: 'Error updating image data', error: error.message });
+  }
+});
+
+// New endpoint to delete an individual scrapbook image
+app.delete('/api/weddings/:customId/images/:imageId', async (req, res) => {
+  try {
+    const { customId, imageId } = req.params;
+
+    const wedding = await WeddingData.findOne({ customId });
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found.' });
+    }
+
+    const imageToDelete = wedding.scrapbookImages.id(imageId);
+    if (!imageToDelete) {
+      return res.status(404).json({ message: 'Scrapbook image not found in this wedding data.' });
+    }
+
+    const s3KeyToDelete = imageToDelete.s3Key;
+
+    // Attempt to delete from S3 if s3Key is present
+    if (s3KeyToDelete) {
+      try {
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: s3KeyToDelete,
+        });
+        await s3Client.send(deleteCommand);
+        console.log(`Successfully deleted ${s3KeyToDelete} from S3.`);
+      } catch (s3Error) {
+        console.error(`Failed to delete ${s3KeyToDelete} from S3. It might have already been deleted or there was a permission issue. Error: ${s3Error.message}`);
+        // Not returning an error to the client, as the primary goal is to remove the DB record.
+      }
+    }
+
+    // Remove image from MongoDB array
+    // imageToDelete.remove(); // .remove() on subdocument instance
+    // Mongoose changed this, using pull is more explicit for arrays by _id
+    wedding.scrapbookImages.pull({ _id: imageId });
+
+    await wedding.save();
+
+    res.status(200).json({
+      message: 'Scrapbook image deleted successfully',
+      weddingData: wedding,
+    });
+
+  } catch (error) {
+    console.error('Error deleting scrapbook image:', error);
+    res.status(500).json({ message: 'Error deleting scrapbook image', error: error.message });
+  }
+});
+
+// New endpoint to clear all scrapbook images for a wedding
+app.delete('/api/weddings/:customId/scrapbook-images', async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const wedding = await WeddingData.findOne({ customId });
+
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found.' });
+    }
+
+    // Collect S3 keys and attempt deletion
+    if (wedding.scrapbookImages && wedding.scrapbookImages.length > 0) {
+      const s3KeysToDelete = wedding.scrapbookImages
+        .map(img => img.s3Key)
+        .filter(key => key); // Filter out any undefined/null keys
+
+      for (const s3Key of s3KeysToDelete) {
+        try {
+          const deleteCommand = new DeleteObjectCommand({
+            Bucket: process.env.AWS_S3_BUCKET_NAME,
+            Key: s3Key,
+          });
+          await s3Client.send(deleteCommand);
+          console.log(`Successfully deleted ${s3Key} from S3 during clear operation.`);
+        } catch (s3Error) {
+          console.error(`Failed to delete ${s3Key} from S3 during clear operation. It might have already been deleted or there was a permission issue. Error: ${s3Error.message}`);
+          // Continue to delete other images and clear from DB even if one S3 delete fails
+        }
+      }
+    }
+
+    wedding.scrapbookImages = []; // Clear the array in MongoDB
+    await wedding.save();
+
+    res.status(200).json({
+      message: 'Scrapbook images cleared successfully from MongoDB and S3.',
+      weddingData: wedding
+    });
+  } catch (error) {
+    console.error('Error clearing scrapbook images:', error);
+    res.status(500).json({ message: 'Error clearing scrapbook images', error: error.message });
   }
 });
 

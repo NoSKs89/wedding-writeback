@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const ImageSchema = new mongoose.Schema({
   id: String,
   fileName: String,
+  s3Key: String,
   caption: String,
   uploadedAt: Date
 });

@@ -18,6 +18,7 @@ const ImageUploadSetup = () => {
   const [uploadProgress, setUploadProgress] = useState({}); // To track progress for multiple files
   const [uploadError, setUploadError] = useState('');
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [successMessage, setSuccessMessage] = useState(''); // New state for success messages
 
   // Fetch current wedding data to display existing images
   useEffect(() => {
@@ -33,7 +34,9 @@ const ImageUploadSetup = () => {
             name: img.fileName.substring(img.fileName.lastIndexOf('/') + 1),
             preview: img.fileName, // This is the full S3 URL
             s3Url: img.fileName,
-            caption: img.caption
+            caption: img.caption,
+            _id: img._id, // Store the MongoDB _id
+            s3Key: img.s3Key // Store s3Key if needed for display or other ops
           })));
         }
       } catch (err) {
@@ -45,13 +48,25 @@ const ImageUploadSetup = () => {
     fetchWeddingData();
   }, [weddingId]);
 
-  const onDrop = useCallback(acceptedFiles => {
-    acceptedFiles.forEach(file => {
-      handleUpload(file, selectedImageType);
-    });
+  const onDrop = useCallback(async acceptedFiles => {
+    if (!selectedImageType) {
+      setUploadError('Please select an image type first.');
+      return;
+    }
+
+    let commonCaption = '';
+    if (selectedImageType === IMAGE_TYPES.SCRAPBOOK && acceptedFiles.length > 0) {
+      // Prompt for caption once if uploading scrapbook images
+      commonCaption = prompt("Enter a caption for the uploaded scrapbook image(s) (optional):");
+      if (commonCaption === null) commonCaption = ''; // Handle cancel on prompt
+    }
+
+    for (const file of acceptedFiles) {
+      await handleUpload(file, selectedImageType, commonCaption); // Pass commonCaption
+    }
   }, [weddingId, selectedImageType]);
 
-  const handleUpload = async (file, imageTypeToUpload) => {
+  const handleUpload = async (file, imageTypeToUpload, captionForScrapbook) => {
     if (!weddingId) {
       setUploadError('Wedding ID is missing. Cannot upload file.');
       return;
@@ -85,16 +100,16 @@ const ImageUploadSetup = () => {
       });
       setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], status: 'Processing on server...', progress: 100 } }));
 
-      let captionInput = '';
+      let captionToSave = '';
       if (imageTypeToUpload === IMAGE_TYPES.SCRAPBOOK) {
-        captionInput = prompt("Enter a caption for this scrapbook image (optional):", file.name);
-      }
+        captionToSave = captionForScrapbook; // Use the caption passed in
+      } // For INTRO images, caption is not typically used or handled differently
 
       const saveImageResponse = await axios.post(`http://localhost:5000/api/weddings/${weddingId}/images`, {
         imageUrl: publicUrl,
-        caption: captionInput,
+        caption: captionToSave, // Use the determined caption
         s3Key: s3Key,
-        imageType: imageTypeToUpload // Pass imageType to save endpoint
+        imageType: imageTypeToUpload
       });
 
       // Update local state to reflect changes
@@ -107,7 +122,9 @@ const ImageUploadSetup = () => {
                 name: img.fileName.substring(img.fileName.lastIndexOf('/') + 1),
                 preview: img.fileName,
                 s3Url: img.fileName,
-                caption: img.caption
+                caption: img.caption,
+                _id: img._id, // Ensure _id is mapped
+                s3Key: img.s3Key
             })));
         }
       }
@@ -119,6 +136,60 @@ const ImageUploadSetup = () => {
       const errorMessage = error.response?.data?.message || error.message || 'Unknown upload error.';
       setUploadError(`Error uploading ${file.name} for ${imageTypeToUpload}: ${errorMessage}`);
       setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], status: `Error: ${errorMessage}`, progress: prev[progressKey]?.progress || 0 } }));
+    }
+  };
+
+  const handleDeleteScrapbookImage = async (imageIdToDelete) => {
+    if (!weddingId || !imageIdToDelete) {
+      setUploadError('Cannot delete image: Missing wedding ID or image ID.');
+      return;
+    }
+    setUploadError('');
+    setSuccessMessage(''); // Clear previous success messages
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/weddings/${weddingId}/images/${imageIdToDelete}`);
+      const updatedWeddingData = response.data.weddingData;
+      setCurrentWeddingData(updatedWeddingData);
+      // Refresh scrapbook images from the updated weddingData
+      if (updatedWeddingData && updatedWeddingData.scrapbookImages) {
+        setUploadedScrapbookImages(updatedWeddingData.scrapbookImages.map(img => ({
+          name: img.fileName.substring(img.fileName.lastIndexOf('/') + 1),
+          preview: img.fileName,
+          s3Url: img.fileName,
+          caption: img.caption,
+          _id: img._id,
+          s3Key: img.s3Key
+        })));
+      } else {
+        setUploadedScrapbookImages([]); // If array is now empty
+      }
+      setSuccessMessage('Scrapbook image deleted successfully!');
+      setTimeout(() => setSuccessMessage(''), 5000); // Clear after 5 seconds
+    } catch (error) {
+      console.error('[ImageUploadSetup] Error deleting scrapbook image:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error deleting image.';
+      setUploadError(`Error deleting image: ${errorMessage}`);
+    }
+  };
+
+  const handleClearScrapbook = async () => {
+    if (!weddingId) {
+      setUploadError('Wedding ID is missing. Cannot clear scrapbook.');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to delete ALL scrapbook images for this wedding? This cannot be undone.')) {
+      return;
+    }
+    setUploadError('');
+    try {
+      const response = await axios.delete(`http://localhost:5000/api/weddings/${weddingId}/scrapbook-images`);
+      setCurrentWeddingData(response.data.weddingData);
+      setUploadedScrapbookImages([]); // Clear local state too
+      alert('Scrapbook images cleared successfully!');
+    } catch (error) {
+      console.error('[ImageUploadSetup] Error clearing scrapbook images:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown error clearing scrapbook.';
+      setUploadError(`Error clearing scrapbook: ${errorMessage}`);
     }
   };
 
@@ -168,7 +239,7 @@ const ImageUploadSetup = () => {
   );
 
   const scrapbookPreviews = uploadedScrapbookImages.map(fileInfo => (
-    <div key={fileInfo.s3Url || fileInfo.fileName} style={{ display: 'inline-flex', flexDirection: 'column', borderRadius: 2, border: '1px solid #eaeaea', marginBottom: 8, marginRight: 8, width: 150, padding: 4, boxSizing: 'border-box', textAlign: 'center' }}>
+    <div key={fileInfo._id || fileInfo.s3Url} style={{ position: 'relative', display: 'inline-flex', flexDirection: 'column', borderRadius: 2, border: '1px solid #eaeaea', marginBottom: 8, marginRight: 8, width: 150, padding: 4, boxSizing: 'border-box', textAlign: 'center' }}>
       <img
         src={fileInfo.preview} 
         style={{ display: 'block', width: '100%', height: '100px', objectFit: 'cover', marginBottom: '5px' }}
@@ -176,6 +247,19 @@ const ImageUploadSetup = () => {
       />
       <p style={{fontSize: '0.8em', margin:0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}} title={fileInfo.name}>{fileInfo.name}</p>
       {fileInfo.caption && <p style={{fontSize: '0.7em', margin:'2px 0', color: 'gray'}}>{fileInfo.caption}</p>}
+      {fileInfo._id && (
+        <button 
+          onClick={() => handleDeleteScrapbookImage(fileInfo._id)}
+          title="Delete this image"
+          style={{
+            position: 'absolute', top: '5px', right: '5px', background: 'rgba(255,0,0,0.7)', color: 'white', 
+            border: 'none', borderRadius: '50%', width: '20px', height: '20px', 
+            fontSize: '12px', lineHeight: '20px', textAlign: 'center', cursor: 'pointer', padding: 0
+          }}
+        >
+          X
+        </button>
+      )}
     </div>
   ));
 
@@ -224,6 +308,7 @@ const ImageUploadSetup = () => {
       
       <div style={{ marginTop:'20px', marginBottom: '20px', padding: '15px', border: '1px solid #ddd', borderRadius: '4px' }}>
         <h4>Scrapbook Images</h4>
+        {successMessage && <p style={{ color: 'green', fontWeight: 'bold' }}>{successMessage}</p>} {/* Display success message */}
         <div {...getRootProps({
           style: {
             flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -242,6 +327,15 @@ const ImageUploadSetup = () => {
           <em>(JPEG, PNG, GIF, WEBP images will be accepted)</em>
         </div>
         {scrapbookPreviews.length > 0 ? scrapbookPreviews : <p>No scrapbook images uploaded yet.</p>}
+        {uploadedScrapbookImages.length > 0 && 
+          <button 
+            type="button" 
+            onClick={handleClearScrapbook} 
+            style={{marginTop: '10px', padding: '8px 12px', backgroundColor: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+          >
+            Clear All Scrapbook Images
+          </button>
+        }
       </div>
 
       {(currentUploadsDisplay.length > 0 || uploadError) &&
