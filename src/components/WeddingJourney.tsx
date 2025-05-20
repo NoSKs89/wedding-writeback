@@ -449,6 +449,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [toggleGuideLines, setShowGuideLines]);
 
+  // Log received scrapbook images
+  useEffect(() => {
+    console.log('[WeddingJourney.tsx] Received resolvedScrapbookImages prop:', JSON.stringify(resolvedScrapbookImages));
+  }, [resolvedScrapbookImages]);
+
   const gradientColorRGBs = useMemo(() => {
     const currentHexColors = [
       { bottom: colorStop1_Bottom, top: colorStop1_Top },
@@ -1187,6 +1192,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                 {resolvedScrapbookImages.map((imageSrc, index) => {
                     const initialStyle = memoizedScrapbookImageStyles[index];
                     if (!initialStyle) return null; 
+
+                    console.log(`[WeddingJourney.tsx] Rendering ScrapbookImageItem ${index}, imageSrc: ${imageSrc}`); // Log imageSrc for each item
 
                     const altText = `Scrapbook item ${index + 1}`;
                     

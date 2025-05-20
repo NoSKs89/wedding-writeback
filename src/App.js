@@ -59,10 +59,15 @@ const WeddingPageController = ({ setShowGuideLines }) => {
       console.log('[App.js] WeddingPageController - useEffect (data loading) triggered for weddingId:', weddingId);
       try {
         // Construct the backend API URL. Ensure your backend is running on port 5000.
-        const apiUrl = `http://localhost:5000/api/weddings/${weddingId}`;
+        // FOR MOBILE TESTING: Replace 'localhost' with your computer's local IP address (e.g., '192.168.1.100')
+        const computerIpAddress = 'localhost'; // <-- !!! REPLACE 'localhost' WITH YOUR COMPUTER'S IP ADDRESS FOR MOBILE TESTING !!!
+        const apiUrl = `http://${computerIpAddress}:5000/api/weddings/${weddingId}`;
         const response = await axios.get(apiUrl);
         const sourceData = response.data;
         console.log('[App.js] Fetched data from backend:', sourceData);
+        if (sourceData && sourceData.scrapbookImages) {
+          console.log('[App.js] Raw sourceData.scrapbookImages from backend:', JSON.stringify(sourceData.scrapbookImages));
+        }
 
         if (sourceData && sourceData.customId) {
           const transformedData = {
@@ -77,12 +82,16 @@ const WeddingPageController = ({ setShowGuideLines }) => {
             scrapbookImageFolder: sourceData.scrapbookImageFolder,
             scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
             // The RSVP endpoint will be constructed by RSVPForm using this base and weddingId
-            rsvpEndpoint: `http://localhost:5000/api/rsvp/${sourceData.customId}`, 
+            // FOR MOBILE TESTING: Ensure this also uses your computer's IP address if computerIpAddress above is changed.
+            rsvpEndpoint: `http://${computerIpAddress}:5000/api/rsvp/${sourceData.customId}`, 
             isPlated: sourceData.isPlated,
             platedOptions: sourceData.platedOptions || [],
             eventAddress: sourceData.eventAddress
           };
           console.log('[App.js] Transformed data for WeddingJourney:', transformedData);
+          if (transformedData.scrapbookImageFileNames) {
+            console.log('[App.js] Transformed scrapbookImageFileNames:', JSON.stringify(transformedData.scrapbookImageFileNames));
+          }
           setCurrentWeddingData(transformedData);
           setError(null); // Clear any previous errors
         } else {
@@ -94,6 +103,8 @@ const WeddingPageController = ({ setShowGuideLines }) => {
         console.error('[App.js] Error fetching wedding data from backend:', err);
         setCurrentWeddingData(null);
         setError(`Failed to load wedding data for "${weddingId}". ${err.message}`);
+        // Show an alert, which is more noticeable on mobile
+        alert(`Error fetching wedding data for ${weddingId}: ${err.message}. Please check your network connection and ensure the backend server is accessible.`);
       }
     };
 
@@ -103,13 +114,20 @@ const WeddingPageController = ({ setShowGuideLines }) => {
   useEffect(() => {
     if (currentWeddingData && currentWeddingData.scrapbookImageFolder && currentWeddingData.scrapbookImageFileNames && currentWeddingData.scrapbookImageFileNames.length > 0) {
       const imagePaths = currentWeddingData.scrapbookImageFileNames.map(fileName => {
+        // If fileName is already an absolute URL (e.g., from S3), use it directly.
+        if (fileName && (fileName.startsWith('http://') || fileName.startsWith('https://'))) {
+          return fileName;
+        }
+        // Otherwise, construct the path as before (for local fallbacks, though unlikely for S3 setup)
         const folder = currentWeddingData.scrapbookImageFolder.endsWith('/') ? currentWeddingData.scrapbookImageFolder : currentWeddingData.scrapbookImageFolder + '/';
         const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
         return folder + name;
       });
+      console.log('[App.js] Generated imagePaths for scrapbook:', JSON.stringify(imagePaths));
       setResolvedScrapbookImages(imagePaths);
     } else {
-      setResolvedScrapbookImages([]); 
+      console.log('[App.js] No scrapbook images to resolve or missing folder/filenames. Setting resolvedScrapbookImages to [].');
+      setResolvedScrapbookImages([]);
     }
   }, [currentWeddingData]); // This effect depends on the processed currentWeddingData
 
@@ -149,6 +167,7 @@ const WeddingPageController = ({ setShowGuideLines }) => {
     return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading wedding details for "{weddingId}"...</div>;
   }
 
+  console.log('[App.js] Passing resolvedScrapbookImages to WeddingJourney:', JSON.stringify(resolvedScrapbookImages));
   return <WeddingJourney weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} setShowGuideLines={setShowGuideLines} />;
 };
 
