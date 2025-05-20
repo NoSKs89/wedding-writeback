@@ -4,10 +4,12 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const path = require('path'); // Import path module
+const serverless = require('serverless-http'); // Added for AWS Lambda
 
 // AWS SDK v3 imports
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses"); // Added for SES
 const { v4: uuidv4 } = require('uuid'); // For generating unique file names
 
 dotenv.config();
@@ -19,27 +21,31 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from the React frontend build directory
-app.use(express.static(path.join(__dirname, '..', 'build')));
+// Serve static files from the React frontend build directory - REMOVED FOR LAMBDA
+// app.use(express.static(path.join(__dirname, '..', 'build')));
 // For development, if you place the build folder inside backend, it would be:
 // app.use(express.static(path.join(__dirname, 'build')));
 
 // Initialize S3 Client
 // Ensure your .env file has AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and AWS_S3_BUCKET_NAME
-const s3Client = new S3Client({
-  region: process.env.AWS_REGION,
-  credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-  },
-});
+// These will be Lambda environment variables in AWS
+const s3Client = new S3Client({}); // SDK infers region and credentials in Lambda
+
+// Initialize SES Client
+// This will also use Lambda environment variables for credentials and region
+const sesClient = new SESClient({}); // SDK infers region and credentials in Lambda
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected successfully...'))
   .catch(err => {
     console.error('MongoDB connection error:', err);
-    process.exit(1); // Exit process with failure
+    // In Lambda, you might want to handle this differently than process.exit(1)
+    // For now, we'll keep it, but it's something to consider.
+    // If the DB connection fails on Lambda cold start, subsequent invocations might also fail.
+    // A better approach might be to attempt connection within the handler or use a connection pool manager.
+    // For simplicity in this step, we leave it as is, but flag for potential improvement.
+    process.exit(1); 
   });
 
 // Import Item model
@@ -144,7 +150,7 @@ app.post('/api/s3/presigned-url', async (req, res) => {
       Bucket: bucketName,
       Key: uniqueFileName,
       ContentType: fileType,
-      // ACL: 'public-read', // ACL can be set here if bucket policy doesn't cover it or for specific object needs
+      ACL: 'public-read' // Make uploaded object publicly readable
     });
 
     const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
@@ -314,8 +320,8 @@ app.post('/api/rsvp/:customId', async (req, res) => {
     const rsvpPayload = req.body;
 
     // Check if wedding data for this customId exists (optional, but good practice)
-    const weddingExists = await WeddingData.findOne({ customId });
-    if (!weddingExists) {
+    const weddingDetails = await WeddingData.findOne({ customId });
+    if (!weddingDetails) {
       return res.status(404).json({ message: `Wedding with ID '${customId}' not found.` });
     }
 
@@ -326,6 +332,61 @@ app.post('/api/rsvp/:customId', async (req, res) => {
 
     const savedRsvp = await newRsvp.save();
     
+    // Send email notification via SES
+    // IMPORTANT: Replace with your VERIFIED email addresses and customize content
+    const toEmailAddress = process.env.RSVP_TO_EMAIL; // e.g., your admin email from Lambda env
+    const fromEmailAddress = process.env.RSVP_FROM_EMAIL; // e.g., a 'no-reply@yourdomain.com' VERIFIED with SES
+
+    if (!toEmailAddress || !fromEmailAddress) {
+      console.warn('SES email sending skipped: RSVP_TO_EMAIL or RSVP_FROM_EMAIL environment variables not set.');
+    } else {
+      try {
+        let mealInfo = 'N/A';
+        if (rsvpPayload.attending && rsvpPayload.mealChoices) {
+          if (typeof rsvpPayload.mealChoices === 'string') {
+            mealInfo = rsvpPayload.mealChoices;
+          } else if (typeof rsvpPayload.mealChoices === 'object') {
+            mealInfo = Object.entries(rsvpPayload.mealChoices)
+              .map(([meal, quantity]) => `${meal}: ${quantity}`)
+              .join(', ');
+          }
+        }
+
+        const emailSubject = `New RSVP for ${weddingDetails.eventName || customId}: ${rsvpPayload.firstName} ${rsvpPayload.lastName}`;
+        const emailBody = `
+          <h1>New RSVP Received!</h1>
+          <p><strong>Wedding:</strong> ${weddingDetails.eventName || customId}</p>
+          <p><strong>Name:</strong> ${rsvpPayload.firstName} ${rsvpPayload.lastName}</p>
+          <p><strong>Attending:</strong> ${rsvpPayload.attending ? 'Yes' : 'No'}</p>
+          ${rsvpPayload.attending ? `<p><strong>Guests:</strong> ${rsvpPayload.guestCount}</p>` : ''}
+          ${rsvpPayload.attending && weddingDetails.isPlated ? `<p><strong>Meal Choices:</strong> ${mealInfo}</p>` : ''}
+          <p><strong>Message:</strong> ${rsvpPayload.message || 'No message provided.'}</p>
+          <hr>
+          <p>RSVP ID: ${savedRsvp._id}</p>
+        `;
+
+        const sendEmailCommand = new SendEmailCommand({
+          Destination: { ToAddresses: [toEmailAddress] },
+          Message: {
+            Body: {
+              Html: { Charset: "UTF-8", Data: emailBody },
+              Text: { Charset: "UTF-8", Data: emailBody.replace(/<[^>]+>/g, '') } // Simple text version
+            },
+            Subject: { Charset: "UTF-8", Data: emailSubject },
+          },
+          Source: fromEmailAddress,
+          // ReplyToAddresses: [ fromEmailAddress ], // Optional
+        });
+        
+        await sesClient.send(sendEmailCommand);
+        console.log('RSVP notification email sent successfully via SES.');
+
+      } catch (emailError) {
+        console.error('Failed to send RSVP notification email via SES:', emailError);
+        // Do not fail the RSVP submission if email fails, just log the error.
+        // The RSVP is already saved to the database.
+      }
+    }
     // Optionally, you might want to link this RSVP back to the WeddingData document,
     // e.g., by pushing its ID into the wedding.rsvps array.
     // await WeddingData.findOneAndUpdate({ customId }, { $push: { rsvps: savedRsvp._id } });
@@ -378,13 +439,11 @@ app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
   }
 });
 
-// The "catchall" handler: for any request that doesn't match one above,
+// The "catchall" handler: for any request that doesn't match one above, - REMOVED FOR LAMBDA
 // send back React's index.html file.
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'build', 'index.html'));
-  // If build folder is inside backend:
-  // res.sendFile(path.join(__dirname, 'build', 'index.html'));
-});
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '..', 'build', 'index.html'));
+// });
 
 // Basic Error Handling Middleware
 app.use((err, req, res, next) => {
@@ -392,6 +451,4 @@ app.use((err, req, res, next) => {
   res.status(500).send('Something broke!');
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-}); 
+module.exports.handler = serverless(app); // Export the handler for Lambda 

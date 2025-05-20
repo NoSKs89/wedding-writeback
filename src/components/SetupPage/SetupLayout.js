@@ -19,7 +19,8 @@ const PasswordModal = ({ weddingId, onAuthenticated }) => {
     setIsLoading(true);
     console.log('[PasswordModal] Verifying password for weddingId:', weddingId);
     try {
-      const response = await axios.post(`http://localhost:5000/api/weddings/${weddingId}/verify-setup-password`, { password });
+      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+      const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/verify-setup-password`, { password });
       if (response.data.success) {
         onAuthenticated();
       } else {

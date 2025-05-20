@@ -60,8 +60,10 @@ const WeddingPageController = ({ setShowGuideLines }) => {
       try {
         // Construct the backend API URL. Ensure your backend is running on port 5000.
         // FOR MOBILE TESTING: Replace 'localhost' with your computer's local IP address (e.g., '192.168.1.100')
-        const computerIpAddress = 'localhost'; // <-- !!! REPLACE 'localhost' WITH YOUR COMPUTER'S IP ADDRESS FOR MOBILE TESTING !!!
-        const apiUrl = `http://${computerIpAddress}:5000/api/weddings/${weddingId}`;
+        // const computerIpAddress = 'localhost'; // <-- !!! REPLACE 'localhost' WITH YOUR COMPUTER'S IP ADDRESS FOR MOBILE TESTING !!!
+        // const apiUrl = `http://${computerIpAddress}:5000/api/weddings/${weddingId}`;
+        const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+        const apiUrl = `${apiBaseUrl}/weddings/${weddingId}`;
         const response = await axios.get(apiUrl);
         const sourceData = response.data;
         console.log('[App.js] Fetched data from backend:', sourceData);
@@ -83,7 +85,8 @@ const WeddingPageController = ({ setShowGuideLines }) => {
             scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
             // The RSVP endpoint will be constructed by RSVPForm using this base and weddingId
             // FOR MOBILE TESTING: Ensure this also uses your computer's IP address if computerIpAddress above is changed.
-            rsvpEndpoint: `http://${computerIpAddress}:5000/api/rsvp/${sourceData.customId}`, 
+            // rsvpEndpoint: `http://${computerIpAddress}:5000/api/rsvp/${sourceData.customId}`, 
+            rsvpEndpoint: `${apiBaseUrl}/rsvp/${sourceData.customId}`,
             isPlated: sourceData.isPlated,
             platedOptions: sourceData.platedOptions || [],
             eventAddress: sourceData.eventAddress

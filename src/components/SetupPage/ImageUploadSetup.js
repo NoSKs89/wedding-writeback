@@ -26,7 +26,8 @@ const ImageUploadSetup = () => {
       if (!weddingId) return;
       setIsLoadingData(true);
       try {
-        const response = await axios.get(`http://localhost:5000/api/weddings/${weddingId}`);
+        const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+        const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}`);
         setCurrentWeddingData(response.data);
         // Populate scrapbook images if they exist
         if (response.data && response.data.scrapbookImages) {
@@ -81,7 +82,8 @@ const ImageUploadSetup = () => {
 
     try {
       setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], status: 'Getting upload URL...' } }));
-      const presignedUrlResponse = await axios.post('http://localhost:5000/api/s3/presigned-url', {
+      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+      const presignedUrlResponse = await axios.post(`${apiBaseUrl}/s3/presigned-url`, {
         fileName: file.name,
         fileType: file.type,
         weddingId: weddingId,
@@ -105,7 +107,7 @@ const ImageUploadSetup = () => {
         captionToSave = captionForScrapbook; // Use the caption passed in
       } // For INTRO images, caption is not typically used or handled differently
 
-      const saveImageResponse = await axios.post(`http://localhost:5000/api/weddings/${weddingId}/images`, {
+      const saveImageResponse = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/images`, {
         imageUrl: publicUrl,
         caption: captionToSave, // Use the determined caption
         s3Key: s3Key,
@@ -147,7 +149,8 @@ const ImageUploadSetup = () => {
     setUploadError('');
     setSuccessMessage(''); // Clear previous success messages
     try {
-      const response = await axios.delete(`http://localhost:5000/api/weddings/${weddingId}/images/${imageIdToDelete}`);
+      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+      const response = await axios.delete(`${apiBaseUrl}/weddings/${weddingId}/images/${imageIdToDelete}`);
       const updatedWeddingData = response.data.weddingData;
       setCurrentWeddingData(updatedWeddingData);
       // Refresh scrapbook images from the updated weddingData
@@ -182,7 +185,8 @@ const ImageUploadSetup = () => {
     }
     setUploadError('');
     try {
-      const response = await axios.delete(`http://localhost:5000/api/weddings/${weddingId}/scrapbook-images`);
+      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+      const response = await axios.delete(`${apiBaseUrl}/weddings/${weddingId}/scrapbook-images`);
       setCurrentWeddingData(response.data.weddingData);
       setUploadedScrapbookImages([]); // Clear local state too
       alert('Scrapbook images cleared successfully!');
