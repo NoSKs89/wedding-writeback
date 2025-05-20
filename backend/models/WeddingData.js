@@ -45,6 +45,12 @@ const WeddingDataSchema = new mongoose.Schema({
   settings: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId
+  setupPassword: {
+    type: String,
+    // Production TODO: In a real application, this should be selected: false by default
+    // and only populated/managed through secure, specific backend logic.
+    // Passwords should ALWAYS be hashed before saving (e.g., using bcryptjs).
+  }
 }, { timestamps: true }); // Adds createdAt and updatedAt automatically
 
 module.exports = mongoose.model('WeddingData', WeddingDataSchema); 

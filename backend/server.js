@@ -3,6 +3,11 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 
+// AWS SDK v3 imports
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v4: uuidv4 } = require('uuid'); // For generating unique file names
+
 dotenv.config();
 
 const app = express();
@@ -11,6 +16,16 @@ const port = process.env.PORT || 5000;
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize S3 Client
+// Ensure your .env file has AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and AWS_S3_BUCKET_NAME
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
@@ -94,6 +109,67 @@ app.get('/api/weddings/:customId', async (req, res) => {
   }
 });
 
+// New endpoint to generate a pre-signed URL for S3
+app.post('/api/s3/presigned-url', async (req, res) => {
+  try {
+    const { fileName, fileType, weddingId } = req.body;
+    if (!fileName || !fileType || !weddingId) {
+      return res.status(400).json({ message: 'fileName, fileType, and weddingId are required.' });
+    }
+
+    const uniqueFileName = `${weddingId}/scrapbook/${uuidv4()}-${fileName.replace(/\s+/g, '_')}`; // Create a unique path/filename
+    const bucketName = process.env.AWS_S3_BUCKET_NAME;
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: uniqueFileName,
+      ContentType: fileType,
+      // ACL: 'public-read', // ACL can be set here if bucket policy doesn't cover it or for specific object needs
+    });
+
+    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+    const publicUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFileName}`;
+
+    res.json({ presignedUrl, publicUrl, key: uniqueFileName });
+  } catch (error) {
+    console.error('Error generating pre-signed URL:', error);
+    res.status(500).json({ message: 'Error generating pre-signed URL', error: error.message });
+  }
+});
+
+// New endpoint to save image information to WeddingData after S3 upload
+app.post('/api/weddings/:customId/images', async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const { imageUrl, caption, s3Key } = req.body; // s3Key is the 'key' from presigned-url response
+
+    if (!imageUrl) {
+      return res.status(400).json({ message: 'imageUrl is required.' });
+    }
+
+    const wedding = await WeddingData.findOne({ customId });
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found.' });
+    }
+
+    const newImage = {
+      // id: uuidv4(), // Mongoose will auto-generate _id for subdocuments if 'id' is not strictly needed
+      fileName: imageUrl, // Storing the full public URL
+      caption: caption || '',
+      uploadedAt: new Date(),
+      // s3Key: s3Key // Optional: store the S3 key if needed for direct S3 operations later
+    };
+
+    wedding.scrapbookImages.push(newImage);
+    await wedding.save();
+
+    res.status(201).json({ message: 'Image added successfully', image: newImage, weddingData: wedding });
+  } catch (error) {
+    console.error('Error adding image to wedding data:', error);
+    res.status(500).json({ message: 'Error adding image to wedding data', error: error.message });
+  }
+});
+
 // Route to handle RSVP submissions
 app.post('/api/rsvp/:customId', async (req, res) => {
   try {
@@ -121,6 +197,47 @@ app.post('/api/rsvp/:customId', async (req, res) => {
   } catch (err) {
     console.error('Error saving RSVP:', err.message);
     res.status(400).json({ message: 'Error saving RSVP', error: err.message });
+  }
+});
+
+// Route to verify the setup password for a given wedding customId
+app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const { password } = req.body;
+
+    if (!password) {
+      return res.status(400).json({ message: 'Password is required.' });
+    }
+
+    const wedding = await WeddingData.findOne({ customId }); //.select('+setupPassword'); // Use .select if setupPassword has select: false in schema
+
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found.' });
+    }
+
+    if (!wedding.setupPassword) {
+      // This case means a password was never set for this wedding. 
+      // You might decide to allow access or require a password to be set first.
+      // For now, let's treat it as unauthorized if a password was expected for setup.
+      return res.status(401).json({ message: 'Setup password not configured for this wedding.' }); 
+    }
+
+    // IMPORTANT: In production, compare hashed passwords.
+    // const isMatch = await bcrypt.compare(password, wedding.setupPassword);
+    // For now, direct string comparison (NOT FOR PRODUCTION):
+    const isMatch = (password === wedding.setupPassword);
+
+    if (isMatch) {
+      // In a real app, you might issue a short-lived JWT or session token here for setup access.
+      // For simplicity, we'll just return success, and the frontend will manage its auth state.
+      res.json({ success: true, message: 'Password verified.' });
+    } else {
+      res.status(401).json({ success: false, message: 'Invalid password.' });
+    }
+  } catch (err) {
+    console.error('Error verifying setup password:', err.message);
+    res.status(500).json({ message: 'Error verifying setup password', error: err.message });
   }
 });
 

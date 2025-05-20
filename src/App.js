@@ -11,6 +11,8 @@ import './App.css';
 import WeddingJourney from './components/WeddingJourney';
 // import weddingDataJson from './testData.json'; // No longer directly import testData.json
 import axios from 'axios'; // Import axios
+import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
+import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Import ImageUploadSetup
 
 //todo:
 // -if past wedding date, have the form change to be a comment about the wedding... like a memory
@@ -69,10 +71,10 @@ const WeddingPageController = ({ setShowGuideLines }) => {
             brideName: sourceData.brideName,
             groomName: sourceData.groomName,
             weddingDate: formatDate(sourceData.weddingDate),
-            // Assuming backend schema uses these names (introBackground, introCouple, scrapbookImageFolder)
-            introBackground: sourceData.introBackground || '/tempImages/mainImages/intro-background.jpg', // Fallback if not provided
-            introCouple: sourceData.introCouple || '/tempImages/mainImages/intro-main-image.png', // Fallback if not provided
-            scrapbookImageFolder: sourceData.scrapbookImageFolder || '/tempImages/scrapbookImages/', // Fallback if not provided
+            // Removing fallbacks: if these are not in sourceData, they will be undefined
+            introBackground: sourceData.introBackground,
+            introCouple: sourceData.introCouple,
+            scrapbookImageFolder: sourceData.scrapbookImageFolder,
             scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
             // The RSVP endpoint will be constructed by RSVPForm using this base and weddingId
             rsvpEndpoint: `http://localhost:5000/api/rsvp/${sourceData.customId}`, 
@@ -204,6 +206,11 @@ function App() {
             {!defaultWeddingIdToUse && (
                  <Route path="/" element={<div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading default wedding...</div>} />
             )}
+            {/* Setup Routes: Changed from /setup/:weddingId to /:weddingId/setup */}
+            <Route path="/:weddingId/setup" element={<SetupLayout />}>
+              <Route path="images" element={<ImageUploadSetup />} />
+              {/* Add other setup sub-routes here if needed */}
+            </Route>
           </Routes>
         </div>
       </Router>

@@ -1,14 +1,13 @@
 {
-    "_id": "dbGeneratedUniqueId",
     "customId": "erickson2025",
     "ownerUserId": "userIdOfCouple",
     "eventName": "Erickson & Christenson Nuptials 2025",
     "brideName": "Brooke Christenson",
     "groomName": "Stephen Erickson",
     "weddingDate": "2025-09-05T18:00:00Z",
-    "introBackgroundUrl": "/images/erickson2025/intro-background.jpg",
-    "introCoupleUrl": "/images/erickson2025/intro-main-image.png",
-    "scrapbookImageFolderUrl": "/images/erickson2025/scrapbook/",
+    "introBackground": "/images/erickson2025/intro-background.jpg",
+    "introCouple": "/images/erickson2025/intro-main-image.png",
+    "scrapbookImageFolder": "/images/erickson2025/scrapbook/",
     "scrapbookImages": [
         { "id": "scrapbookImg1", "fileName": "1E5A0860.jpg", "caption": "A beautiful moment.", "uploadedAt": "2024-01-10T10:00:00Z" },
         { "id": "scrapbookImg2", "fileName": "1E5A0857-Edit.jpg", "caption": "A beautiful moment.", "uploadedAt": "2024-01-10T10:00:00Z" },
@@ -155,7 +154,5 @@
         "lastModifiedAt": "2025-06-15T14:30:00Z",
         "isModified": false
       }
-    ],
-    "createdAt": "2024-01-15T12:00:00Z",
-    "updatedAt": "2025-05-18T23:15:00Z"
+    ]
 }
