@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
 import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useTrackedControls
+import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
 
 // Interface for individual meal options
 interface MealOption {
@@ -25,7 +26,6 @@ interface WeddingData {
 interface RSVPFormProps {
   weddingData: WeddingData;
   backendUrl: string;
-  onStyleChange?: (styleData: { values: any; changedKeys: Set<string>; schema: any }) => void; // New prop
 }
 
 // Type for the selectedMeals state (mapping meal names to quantities)
@@ -34,30 +34,24 @@ interface SelectedMeals {
 }
 
 // Leva controls schema for RSVP Form
-const rsvpFormControlsSchema = {
+const rsvpFormControlsSchema: LevaFolderSchema = {
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
   formHeight: { value: 700, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
   stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'}
 };
 
-const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl, onStyleChange }) => {
+const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
 
-  // Leva controls using useTrackedControls
-  const { values: rsvpStyleControls, changedKeys: rsvpStyleChangedKeys, set: setRsvpStyleControls } = useTrackedControls("RSVP Form Style", rsvpFormControlsSchema);
-  const { formWidth, formHeight, formPadding, stackThreshold } = rsvpStyleControls;
-
-  useEffect(() => {
-    if (onStyleChange) {
-      onStyleChange({ values: rsvpStyleControls, changedKeys: rsvpStyleChangedKeys, schema: rsvpFormControlsSchema });
-    }
-  }, [rsvpStyleControls, rsvpStyleChangedKeys, onStyleChange]);
+  // Leva controls now use useTrackedControls, which connects to the Zustand store
+  const { values: rsvpStyleControls } = useTrackedControls("RSVP Form Style", rsvpFormControlsSchema);
+  // Destructure after getting values to ensure they are defined if rsvpStyleControls is initially undefined by the store hook
+  const { formWidth = 500, formHeight = 700, formPadding = 30, stackThreshold = 400 } = rsvpStyleControls || {};
 
   // Calculate responsive padding
-  // Use a smaller percentage of the smaller dimension, capped by formPadding
-  const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05); // 5% of smaller dimension
-  const actualPadding = Math.min(responsivePaddingBase, formPadding); // Ensure it doesn't exceed Leva control
+  const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05);
+  const actualPadding = Math.min(responsivePaddingBase, formPadding);
 
   // States for the initial form part
   const [firstName, setFirstName] = useState<string>('');

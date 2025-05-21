@@ -1,13 +1,14 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated, config as springConfigs } from 'react-spring';
-import { Leva, useControls as useLevaControls } from 'leva';
+import { Leva } from 'leva';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
 import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
 import ParallaxBackgroundImage from './ParallaxBackgroundImage';
 import { useTrackedControls } from '../hooks/useTrackedControls';
+import { useLevaStore, LevaFolderSchema } from '../stores/levaStore';
 
 // Type Definitions
 interface WeddingData {
@@ -85,7 +86,7 @@ function rgbToCss(r: number, g: number, b: number): string {
 }
 
 // Define the schema for Leva controls
-const backgroundAnimationSchema = {
+const backgroundAnimationSchema: LevaFolderSchema = {
   opacityGentleEnd: { value: 500, min: 0, max: 5000, step: 10, label: 'Opacity Gentle End (px)' },
   opacityTargetAtGentleEnd: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Opacity at Gentle End' },
   opacityDrasticStartPixels: { value: 700, min: 0, max: 5000, step: 10, label: 'Opacity Drastic Start (px)' },
@@ -101,7 +102,7 @@ const backgroundAnimationSchema = {
 };
 
 // NEW: Schema for BackgroundColor Leva controls
-const backgroundColorControlsSchema = {
+const backgroundColorControlsSchema: LevaFolderSchema = {
   colorStop1_Bottom: { value: '#ff3c00', label: 'Stop 1 Bottom' },
   colorStop1_Top:    { value: '#ff7e33', label: 'Stop 1 Top' },
   colorStop2_Bottom: { value: '#ff5a00', label: 'Stop 2 Bottom' },
@@ -116,7 +117,7 @@ const backgroundColorControlsSchema = {
 };
 
 // NEW: Schema for Scrapbook Layout Leva controls
-const scrapbookControlsSchema = {
+const scrapbookControlsSchema: LevaFolderSchema = {
   angleMin: { value: -6, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
   angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
   radiusFactor: { value: 95, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
@@ -128,7 +129,7 @@ const scrapbookControlsSchema = {
 };
 
 // NEW: Schema for Scrapbook Parallax Movement Leva controls
-const scrapbookMovementControlsSchema = {
+const scrapbookMovementControlsSchema: LevaFolderSchema = {
   minXMovementSensitivity: { value: -0.08, min: -0.4, max: 0.4, step: 0.01, label: 'Min X Parallax Sens.' },
   maxXMovementSensitivity: { value: 0.17, min: -0.4, max: 0.4, step: 0.01, label: 'Max X Parallax Sens.' },
   minYMovementSensitivity: { value: -0.2, min: -0.4, max: 0.4, step: 0.01, label: 'Min Y Parallax Sens.' },
@@ -137,6 +138,11 @@ const scrapbookMovementControlsSchema = {
   maxZMovementSensitivity: { value: 0.0001, min: -0.001, max: 0.001, step: 0.000001, label: 'Max Z Parallax Sens.' },
   baseItemScale: { value: 1, min: 0.1, max: 2, step: 0.05, label: 'Base Item Scale' },
   movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
+};
+
+const overallControlsSchema: LevaFolderSchema = {
+  showHUD: { value: true, label: 'Show Debug HUD' },
+  toggleGuideLines: { value: true, label: 'Toggle Guide Lines' }
 };
 
 // Updated generateScrapbookImageStyle to use Leva controls
@@ -235,7 +241,6 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const scrapbookImageRefs = useRef<(HTMLImageElement | null)[]>([]);
   const [scrollY, setScrollY] = useState(0);
   const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
-  const [rsvpFormStyleData, setRsvpFormStyleData] = useState<{ values: any; changedKeys: Set<string>; schema: any } | null>(null);
 
   // --- State for Focused Image Logic ---
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
@@ -338,25 +343,35 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [updateScrollPosition]);
 
-  const { values: animControls, changedKeys: animChangedKeys, set: setAnimControls } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true }) as unknown as { values: BackgroundAnimControlValues; changedKeys: Set<string>; set: any };
-  const {
-    opacityGentleEnd,
-    opacityTargetAtGentleEnd,
-    opacityDrasticStartPixels,
-    opacityTargetAtDrasticStart,
-    opacityFullTransparent,
-    translateYThreshold,
-    translateYMultiplier,
-    scaleInitialRate,
-    scaleDrasticStartPx,
-    scaleDrasticRate,
-    borderRadiusStartScrollY,
-    clipPathVanishScrollY,
-  } = animControls;
+  // --- Leva controls via useTrackedControls (now connected to Zustand store) ---
+  const { values: animControlsUntyped } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
+  const animControls = animControlsUntyped as BackgroundAnimControlValues;
 
-  const { values: bgControls, changedKeys: bgChangedKeys, set: setBgControls } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema, { collapsed: true });
-  const { values: scrapbookCtrl, changedKeys: scrapbookChangedKeys, set: setScrapbookCtrl } = useTrackedControls('Scrapbook Layout', scrapbookControlsSchema, { collapsed: true });
-  const { values: scrapbookMovementCtrl, changedKeys: scrapbookMovementChangedKeys, set: setScrapbookMovementCtrl } = useTrackedControls('Scrapbook Movement', scrapbookMovementControlsSchema, { collapsed: true });
+  const { values: bgControls } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema, { collapsed: true });
+  const { values: scrapbookCtrl } = useTrackedControls('Scrapbook Layout', scrapbookControlsSchema, { collapsed: true });
+  const { values: scrapbookMovementCtrl } = useTrackedControls('Scrapbook Movement', scrapbookMovementControlsSchema, { collapsed: true });
+  const { values: overallCtrlValues, changedKeys: overallCtrlChangedKeys, set: setOverallCtrl } = useTrackedControls('Overall Controls', overallControlsSchema, { collapsed: true });
+
+  // --- Access data from Zustand store for HUD ---
+  // New Approach: Select individual pieces and memoize/construct manually
+  const controlValuesFromStore = useLevaStore(state => state.controlValues);
+  const changedKeysFromStore = useLevaStore(state => state.changedKeys);
+  const schemasFromStore = useLevaStore(state => state.schemas);
+
+  // Local state to hold our combined object for HUD dependencies
+  // This local state itself isn't strictly needed if hudData's useMemo directly uses the store pieces.
+  // However, if storeDataForHUD was used elsewhere, this pattern would be useful.
+  // For now, we'll simplify and have hudData's useMemo depend directly on the store pieces.
+
+  // Memoize the result of getDisplayDataForHUD
+  const hudData = React.useMemo(() => {
+    console.log("[WeddingJourney] Recalculating hudData memo");
+    // getState() is fine here as useMemo dependencies handle re-computation.
+    return useLevaStore.getState().getDisplayDataForHUD();
+    // Depend directly on the pieces from the store that getDisplayDataForHUD implicitly depends on.
+  }, [controlValuesFromStore, changedKeysFromStore, schemasFromStore]);
+
+  const showGlobalHUD = useLevaStore(state => state.controlValues['Overall Controls']?.showHUD ?? true);
 
   // HUD Springs - defined at the top level
   const [{ opacity: hudOpacitySpring }] = useSpring(() => ({
@@ -379,18 +394,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
   };
 
-  // Leva controls for HUD and Guide Lines visibility
-  const { values: overallCtrlValues, changedKeys: overallCtrlChangedKeys, set: setOverallCtrl } = useTrackedControls('Overall Controls', {
-    showHUD: { value: true, label: 'Show Debug HUD' },
-    toggleGuideLines: { value: true, label: 'Toggle Guide Lines' }
-  }, { collapsed: true });
-
   // useEffect to update App.js state when Leva control for guide lines changes
   useEffect(() => {
-    if (setShowGuideLines) { 
+    if (setShowGuideLines && overallCtrlValues) { 
       setShowGuideLines(overallCtrlValues.toggleGuideLines);
     }
-  }, [overallCtrlValues.toggleGuideLines, setShowGuideLines]);
+  }, [overallCtrlValues?.toggleGuideLines, setShowGuideLines]);
 
   // Log received scrapbook images
   useEffect(() => {
@@ -514,77 +523,23 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     calculatedClipPathValue_HUD = 'circle(70.7107% at 50% 50%)';
   }
 
-  const handleRsvpStyleChange = useCallback((styleData: { values: any; changedKeys: Set<string>; schema: any }) => {
-    setRsvpFormStyleData(styleData);
-  }, []);
-
-  const allChangedKeys = useMemo(() => {
-    const keys = new Set([
-      ...Array.from(animChangedKeys),
-      ...Array.from(bgChangedKeys),
-      ...Array.from(scrapbookChangedKeys),
-      ...Array.from(scrapbookMovementChangedKeys),
-      ...Array.from(overallCtrlChangedKeys)
-    ]);
-    if (rsvpFormStyleData?.changedKeys) {
-      rsvpFormStyleData.changedKeys.forEach(key => keys.add(key));
-    }
-    return keys;
-  }, [animChangedKeys, bgChangedKeys, scrapbookChangedKeys, scrapbookMovementChangedKeys, overallCtrlChangedKeys, rsvpFormStyleData]);
-
-  const allSchemas = useMemo(() => ({
-    'Background Animation': backgroundAnimationSchema,
-    'BackgroundColor Controls': backgroundColorControlsSchema,
-    'Scrapbook Layout': scrapbookControlsSchema,
-    'Scrapbook Movement': scrapbookMovementControlsSchema,
-    'Overall Controls': {
-      showHUD: { value: true, label: 'Show Debug HUD' },
-      toggleGuideLines: { value: true, label: 'Toggle Guide Lines' }
-    },
-    ...(rsvpFormStyleData?.schema && { 'RSVP Form Style': rsvpFormStyleData.schema })
-  }), [rsvpFormStyleData?.schema]);
-
   const changedKeyDetailsOutput = useMemo(() => {
-    if (allChangedKeys.size === 0) return "";
     let details = "Change Defaults To:\n";
-
-    const findSchemaAndLabelForKey = (keyToFind: string): { schemaName: string, label: string } | null => {
-      for (const [schemaName, schema] of Object.entries(allSchemas)) {
-        if ((schema as any)[keyToFind]) {
-          return { schemaName, label: (schema as any)[keyToFind].label || keyToFind };
+    let hasChanges = false;
+    hudData.forEach(item => {
+      if (item.isChanged) {
+        hasChanges = true;
+        let formattedValue = String(item.value);
+        if (typeof item.value === 'number') {
+          formattedValue = Number(item.value.toFixed(3)).toString();
+        } else if (typeof item.value === 'string' && item.value.startsWith('#')) {
+          formattedValue = item.value;
         }
+        details += `${item.label} (${item.folderName}/${item.key}): ${formattedValue}\n`;
       }
-      return null;
-    };
-
-    for (const key of Array.from(allChangedKeys)) {
-      let value: any;
-      let displayLabel = key;
-
-      const schemaInfo = findSchemaAndLabelForKey(key);
-      if (schemaInfo) {
-        displayLabel = schemaInfo.label;
-      }
-
-      if (animControls.hasOwnProperty(key)) value = (animControls as any)[key];
-      else if (bgControls.hasOwnProperty(key)) value = (bgControls as any)[key];
-      else if (scrapbookCtrl.hasOwnProperty(key)) value = (scrapbookCtrl as any)[key];
-      else if (scrapbookMovementCtrl.hasOwnProperty(key)) value = (scrapbookMovementCtrl as any)[key];
-      else if (overallCtrlValues.hasOwnProperty(key)) value = (overallCtrlValues as any)[key];
-      else if (rsvpFormStyleData?.values && rsvpFormStyleData.values.hasOwnProperty(key)) {
-        value = rsvpFormStyleData.values[key];
-      }
-
-      let formattedValue = String(value);
-      if (typeof value === 'number') {
-        formattedValue = Number(value.toFixed(3)).toString();
-      } else if (typeof value === 'string' && value.startsWith('#')) {
-        formattedValue = value;
-      }
-      details += `${displayLabel} (${key}): ${formattedValue}\n`;
-    }
-    return details;
-  }, [allChangedKeys, animControls, bgControls, scrapbookCtrl, scrapbookMovementCtrl, overallCtrlValues, rsvpFormStyleData, allSchemas]);
+    });
+    return hasChanges ? details : "";
+  }, [hudData]);
 
   // Memoize the scrapbook image styles
   const memoizedScrapbookImageStyles = useMemo(() => {
@@ -1199,7 +1154,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
             {/* RSVP Form - ensure it's on top */}
             <div style={{ position: 'relative', zIndex: 10 }}>
-              <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} onStyleChange={handleRsvpStyleChange} />
+              <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
             </div>
           </ParallaxLayer>
 
@@ -1329,7 +1284,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         )}
 
         {/* HUD - Placed at the end of the main animated.div for correct layering and context */}
-        {overallCtrlValues.showHUD && (
+        {showGlobalHUD && (
           <div
             style={{
               position: 'fixed',
@@ -1342,13 +1297,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
               fontSize: '12px',
               borderRadius: '4px',
               whiteSpace: 'pre-wrap',
-              // pointerEvents: 'none', // Removed to make HUD selectable
             }}
           >
             {`ScrollY: ${scrollY.toFixed(0)}
-Displayed Images: ${displayedImagesAndTheirData.length} / ${resolvedScrapbookImages.length} (max: ${(scrapbookCtrl as any).maxImages})
+Displayed Images: ${displayedImagesAndTheirData.length} / ${resolvedScrapbookImages.length} (max: ${(scrapbookCtrl as any)?.maxImages})
 DynamicAngle[0]: ${(
-              displayedImagesAndTheirData.length > 0 && displayedImagesAndTheirData[0].scrollSensitivity
+              displayedImagesAndTheirData.length > 0 && displayedImagesAndTheirData[0].scrollSensitivity && scrapbookCtrl
                 ? Math.sin(scrollY * displayedImagesAndTheirData[0].scrollSensitivity) * 45
                 : 0
             ).toFixed(3)}
