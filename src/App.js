@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   BrowserRouter as Router,
   Routes,
   Route,
   useParams,
   Navigate,
-  useLocation
+  useLocation,
+  useNavigate
 } from 'react-router-dom';
 import { ParallaxProvider } from 'react-scroll-parallax';
 import './App.css';
 import WeddingJourney from './components/WeddingJourney';
+import WeddingJourneyMobile from './components/WeddingJourneyMobile';
 // import weddingDataJson from './testData.json'; // No longer directly import testData.json
 import axios from 'axios'; // Import axios
 import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
@@ -17,6 +19,7 @@ import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Impor
 import { SetupModeProvider, useSetupMode } from './contexts/SetupModeContext'; // UPDATED: Added useSetupMode
 import { useLevaStore } from './stores/levaStore'; // Ensure useLevaStore is imported
 import { getApiBaseUrl } from './config/apiConfig'; // Import the centralized helper
+import { useIsMobile } from './utils/deviceDetect'; // ADDED
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -52,6 +55,35 @@ const formatDate = (isoDateString) => {
   }
 };
 
+// ADDED: transformWeddingData function
+const transformWeddingData = (sourceData) => {
+  if (!sourceData || !sourceData.customId) {
+    console.warn('[App.js] transformWeddingData: sourceData is null or missing customId. Returning null.');
+    return null;
+  }
+  return {
+    id: sourceData.customId,
+    eventName: sourceData.eventName,
+    brideName: sourceData.brideName,
+    groomName: sourceData.groomName,
+    weddingDate: formatDate(sourceData.weddingDate),
+    introBackground: sourceData.introBackground,
+    introCouple: sourceData.introCouple,
+    scrapbookImageFolder: sourceData.scrapbookImageFolder,
+    // scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
+    // Ensure scrapbookImages is an array before mapping, and handle null/undefined fileName
+    scrapbookImageFileNames: Array.isArray(sourceData.scrapbookImages)
+      ? sourceData.scrapbookImages.map(img => img && img.fileName ? img.fileName : null).filter(name => name !== null)
+      : [],
+    rsvpEndpoint: `${getApiBaseUrl()}/rsvp/${sourceData.customId}`,
+    isPlated: sourceData.isPlated,
+    platedOptions: sourceData.platedOptions || [],
+    eventAddress: sourceData.eventAddress,
+    // Pass through the raw scrapbookImages array as well, as WeddingJourneyWrapperForSetup uses it for resolvedScrapbookImages
+    scrapbookImages: sourceData.scrapbookImages || [], 
+  };
+};
+
 // This component will decide whether to show Intro or Main content for a wedding
 const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
   const { weddingId } = useParams();
@@ -59,6 +91,7 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
   const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]);
   const [error, setError] = useState(null); // State for API errors
   const [fallbackId, setFallbackId] = useState('erickson2025'); // Default fallback ID
+  const isMobile = useIsMobile(); // ADDED
 
   useEffect(() => {
     const fetchWeddingData = async () => {
@@ -75,31 +108,28 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
         }
 
         if (sourceData && sourceData.customId) {
-          const transformedData = {
-            id: sourceData.customId,
-            eventName: sourceData.eventName,
-            brideName: sourceData.brideName,
-            groomName: sourceData.groomName,
-            weddingDate: formatDate(sourceData.weddingDate),
-            // Removing fallbacks: if these are not in sourceData, they will be undefined
-            introBackground: sourceData.introBackground,
-            introCouple: sourceData.introCouple,
-            scrapbookImageFolder: sourceData.scrapbookImageFolder,
-            scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
-            // The RSVP endpoint will be constructed by RSVPForm using this base and weddingId
-            // FOR MOBILE TESTING: Ensure this also uses your computer's IP address if computerIpAddress above is changed.
-            // rsvpEndpoint: `http://${computerIpAddress}:5000/api/rsvp/${sourceData.customId}`, 
-            rsvpEndpoint: `${getApiBaseUrl()}/rsvp/${sourceData.customId}`, // Use imported getApiBaseUrl()
-            isPlated: sourceData.isPlated,
-            platedOptions: sourceData.platedOptions || [],
-            eventAddress: sourceData.eventAddress
-          };
+          const transformedData = transformWeddingData(sourceData);
           console.log('[App.js] Transformed data for WeddingJourney:', transformedData);
           if (transformedData.scrapbookImageFileNames) {
             console.log('[App.js] Transformed scrapbookImageFileNames:', JSON.stringify(transformedData.scrapbookImageFileNames));
           }
           setCurrentWeddingData(transformedData);
           setError(null); // Clear any previous errors
+
+          // ADDED: Attempt to load layout settings for the regular wedding page view
+          try {
+            console.log(`[App.js] WeddingPageController: Attempting to load ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}`);
+            if (isMobile) {
+              await useLevaStore.getState().loadMobileSettingsFromServer(weddingId);
+            } else {
+              await useLevaStore.getState().loadSettingsFromServer(weddingId);
+            }
+            console.log(`[App.js] WeddingPageController: Layout settings load attempt complete for ${weddingId}`);
+          } catch (layoutError) {
+            console.error(`[App.js] WeddingPageController: Error loading ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}:`, layoutError);
+            // Non-critical error, just log and continue
+          }
+
         } else {
           console.log('[App.js] No matching wedding data found or data is malformed from API for ID:', weddingId);
           setCurrentWeddingData(null);
@@ -115,7 +145,7 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
     };
 
     fetchWeddingData();
-  }, [weddingId]);
+  }, [weddingId, isMobile]);
 
   useEffect(() => {
     if (currentWeddingData && currentWeddingData.scrapbookImageFolder && currentWeddingData.scrapbookImageFileNames && currentWeddingData.scrapbookImageFileNames.length > 0) {
@@ -174,7 +204,8 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
   }
 
   console.log('[App.js] Passing resolvedScrapbookImages to WeddingJourney:', JSON.stringify(resolvedScrapbookImages));
-  return <WeddingJourney weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} /*setShowGuideLines={setShowGuideLines} REMOVED*/ />;
+  const JourneyComponent = isMobile ? WeddingJourneyMobile : WeddingJourney;
+  return <JourneyComponent weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} /*setShowGuideLines={setShowGuideLines} REMOVED*/ />;
 };
 
 // Define MainAppContent to use useLocation
@@ -252,107 +283,93 @@ function App() {
 // This will eventually fetch weddingData similar to WeddingPageController
 // or WeddingPageController will be refactored to be more versatile.
 const WeddingJourneyWrapperForSetup = () => {
-  const { setIsSetupMode } = useSetupMode();
   const { weddingId } = useParams();
+  const { setIsSetupMode } = useSetupMode();
   const [weddingData, setWeddingData] = useState(null);
   const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]);
   const [showGuideLines, setShowGuideLines] = useState(true); // This could be driven by Leva state too eventually
   const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);
   const [error, setError] = useState(null); // New error state
+  const isMobile = useIsMobile(); // ADDED
 
-  useEffect(() => {
-    setIsSetupMode(true);
-    let isMounted = true;
-
-    // Reset states when weddingId changes to ensure fresh loading for the new ID
-    setInitialLayoutLoaded(false);
-    setWeddingData(null);
-    setError(null);
-
-    const fetchCoreDataAndLayout = async () => {
-      if (!weddingId) {
-        if (isMounted) {
-          setError("Wedding ID is missing in URL for setup.");
-          setInitialLayoutLoaded(true);
-        }
-        return;
-      }
-
+  const fetchCoreDataAndLayout = useCallback(async () => {
+    if (!weddingId) return;
+    console.log(`[App.js] WeddingJourneyWrapper: Fetching core data for ${weddingId}`);
+    setInitialLayoutLoaded(false); // Reset for new weddingId
+    setError(null); // Reset error state
+    
+    try { // ADDED OUTER TRY
+      let coreData;
       try {
-        const apiBase = getApiBaseUrl();
-        console.log(`[App.js] WeddingJourneyWrapper: Fetching core data for ${weddingId}`);
-        const response = await axios.get(`${apiBase}/weddings/${weddingId}`);
-        const sourceData = response.data;
-
-        if (!isMounted) return;
-
-        if (sourceData && sourceData.customId) {
-          const transformedData = {
-            id: sourceData.customId,
-            eventName: sourceData.eventName,
-            brideName: sourceData.brideName,
-            groomName: sourceData.groomName,
-            weddingDate: formatDate(sourceData.weddingDate),
-            introBackground: sourceData.introBackground,
-            introCouple: sourceData.introCouple,
-            scrapbookImageFolder: sourceData.scrapbookImageFolder,
-            scrapbookImageFileNames: sourceData.scrapbookImages ? sourceData.scrapbookImages.map(img => img.fileName) : [],
-            rsvpEndpoint: `${apiBase}/rsvp/${sourceData.customId}`,
-            isPlated: sourceData.isPlated,
-            platedOptions: sourceData.platedOptions || [],
-            eventAddress: sourceData.eventAddress
-          };
-          setWeddingData(transformedData);
-          if (transformedData.scrapbookImageFileNames) {
-            const imagePaths = transformedData.scrapbookImageFileNames.map(fileName => {
-               if (fileName && (fileName.startsWith('http://') || fileName.startsWith('https://'))) {
-                   return fileName;
-               }
-               const folder = transformedData.scrapbookImageFolder.endsWith('/') ? transformedData.scrapbookImageFolder : transformedData.scrapbookImageFolder + '/';
-               const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-               return folder + name;
-           });
-           setResolvedScrapbookImages(imagePaths);
-         }
-          setError(null); // Clear any previous error from a different weddingId load
-
-          // Attempt to load layout settings
-          try {
-            console.log(`[App.js] WeddingJourneyWrapper: Attempting to load layout settings for ${weddingId}`);
-            await useLevaStore.getState().loadSettingsFromServer(weddingId);
-            if (!isMounted) return;
-            console.log(`[App.js] WeddingJourneyWrapper: Layout settings load attempt complete for ${weddingId}`);
-            // Non-critical error for layout settings, don't set main error state
-            // setError(null); // Already cleared above, or layout specific error handling could go here
-          } catch (layoutError) {
-            if (!isMounted) return;
-            console.error(`[App.js] WeddingJourneyWrapper: Error loading layout settings for ${weddingId}:`, layoutError);
-            // Optionally set a non-critical error message for the user, e.g., using a toast notification
-            // For now, we just log it and proceed with default layout if WeddingJourney handles it.
+        const response = await axios.get(`${getApiBaseUrl()}/weddings/${weddingId}`);
+        coreData = response.data;
+        if (coreData && Object.keys(coreData).length > 0) {
+          const transformed = transformWeddingData(coreData);
+          setWeddingData(transformed);
+          if (transformed && transformed.scrapbookImageFolder && transformed.scrapbookImageFileNames) {
+            const imagePaths = transformed.scrapbookImageFileNames.map(fileName => {
+              if (fileName && (fileName.startsWith('http://') || fileName.startsWith('https://'))) {
+                return fileName;
+              }
+              const folder = transformed.scrapbookImageFolder.endsWith('/') ? transformed.scrapbookImageFolder : transformed.scrapbookImageFolder + '/';
+              const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
+              return folder + name;
+            });
+            setResolvedScrapbookImages(imagePaths);
+          } else {
+            setResolvedScrapbookImages([]);
           }
         } else {
+          console.error('[App.js] WeddingJourneyWrapper: No core data returned or data is empty');
           setWeddingData(null);
-          setError(`Wedding data for "${weddingId}" not found or is malformed.`);
+          setError('Wedding data not found or is empty.');
+          // Still set initialLayoutLoaded true so we don't hang on loading forever
+          setInitialLayoutLoaded(true); 
+          return; // Stop if core data fetch failed but indicate loading is done
         }
-      } catch (coreErr) {
-        if (!isMounted) return;
-        console.error(`[App.js] WeddingJourneyWrapper: Error fetching core wedding data for ${weddingId}:`, coreErr);
+      } catch (err) {
+        console.error('[App.js] WeddingJourneyWrapper: Error fetching core wedding data:', err);
+        setError(err.message || 'Failed to fetch wedding data.');
         setWeddingData(null);
-        setError(`Failed to load wedding data for "${weddingId}". ${coreErr.message || ''}`);
-      } finally {
-        if (isMounted) {
-          setInitialLayoutLoaded(true);
-        }
+        // Still set initialLayoutLoaded true so we don't hang on loading forever
+        setInitialLayoutLoaded(true);
+        return; // Stop if core data fetch failed but indicate loading is done
       }
-    };
 
-    fetchCoreDataAndLayout();
+      // If core data loaded successfully, proceed to load layout settings
+      try {
+        console.log(`[App.js] WeddingJourneyWrapper: Attempting to load ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}`);
+        if (isMobile) {
+          await useLevaStore.getState().loadMobileSettingsFromServer(weddingId);
+        } else {
+          await useLevaStore.getState().loadSettingsFromServer(weddingId);
+        }
+        console.log('[App.js] WeddingJourneyWrapper: Layout settings loaded.');
+      } catch (layoutError) {
+        console.error(`[App.js] WeddingJourneyWrapper: Error loading ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings:`, layoutError);
+        // Non-critical for initial display, component will use defaults. Logged already.
+        // setError('Failed to load layout settings.'); // Optionally set an error message
+      }
+      setInitialLayoutLoaded(true);
+    } catch (overallError) { // ADDED OUTER CATCH
+      console.error('[App.js] WeddingJourneyWrapper: Critical error in fetchCoreDataAndLayout:', overallError);
+      setError('A critical error occurred while loading setup data.');
+      setWeddingData(null);
+      setInitialLayoutLoaded(true); // Ensure UI updates out of loading state
+    }
+  }, [weddingId, isMobile]); // isMobile dependency is correct here
 
+  // useEffect to call fetchCoreDataAndLayout
+  useEffect(() => {
+    if (weddingId) {
+      setIsSetupMode(true); // Set setup mode when this wrapper is active
+      fetchCoreDataAndLayout();
+    }
+    // Cleanup function to reset setup mode when component unmounts or weddingId changes
     return () => {
-      isMounted = false;
-      setIsSetupMode(false); 
+      setIsSetupMode(false);
     };
-  }, [weddingId, setIsSetupMode]); // Dependency array updated
+  }, [weddingId, fetchCoreDataAndLayout, setIsSetupMode]);
 
   // Revised render logic
   if (!initialLayoutLoaded && !error) { 
@@ -377,12 +394,11 @@ const WeddingJourneyWrapperForSetup = () => {
 
   // If weddingData is present, render WeddingJourney. 
   // A non-critical layout error might have occurred but is only logged for now.
-  if (weddingData) {
-    return <WeddingJourney weddingData={weddingData} resolvedScrapbookImages={resolvedScrapbookImages} setShowGuideLines={setShowGuideLines} />;
-  }
-
-  // Default fallback (should ideally not be reached if logic above is complete)
-  return <div style={{ padding: '20px', textAlign: 'center' }}>An unexpected issue occurred in setup mode.</div>;
+  const JourneyComponent = isMobile ? WeddingJourneyMobile : WeddingJourney;
+  return <JourneyComponent
+    weddingData={weddingData}
+    resolvedScrapbookImages={resolvedScrapbookImages} // Use the state variable for resolved images
+  />;
 };
 
 export default App; 

@@ -172,6 +172,51 @@ app.post('/api/weddings/:customId/layout-settings', async (req, res) => {
 
 // --- END: Endpoints for Layout Settings ---
 
+// --- NEW: Endpoints for MOBILE Layout Settings ---
+
+// GET MOBILE layout settings for a wedding
+app.get('/api/weddings/:customId/layout-settings-mobile', async (req, res) => {
+  try {
+    const wedding = await WeddingData.findOne({ customId: req.params.customId }).select('layoutSettingsMobile customId');
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found' });
+    }
+    res.json(wedding.layoutSettingsMobile || {}); // Return mobile settings or an empty object
+  } catch (err) {
+    console.error('Error fetching mobile layout settings:', err.message);
+    res.status(500).json({ message: 'Error fetching mobile layout settings', error: err.message });
+  }
+});
+
+// POST (save/update) MOBILE layout settings for a wedding
+app.post('/api/weddings/:customId/layout-settings-mobile', async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const newLayoutSettingsMobile = req.body;
+
+    if (typeof newLayoutSettingsMobile !== 'object' || newLayoutSettingsMobile === null) {
+        return res.status(400).json({ message: 'Invalid mobile layout settings format. Expected an object.' });
+    }
+
+    const wedding = await WeddingData.findOneAndUpdate(
+      { customId },
+      { $set: { layoutSettingsMobile: newLayoutSettingsMobile } },
+      { new: true, runValidators: true, select: 'layoutSettingsMobile customId' }
+    );
+
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found to update mobile settings for.' });
+    }
+
+    res.status(200).json({ message: 'Mobile layout settings saved successfully.', layoutSettingsMobile: wedding.layoutSettingsMobile });
+  } catch (err) {
+    console.error('Error saving mobile layout settings:', err.message);
+    res.status(500).json({ message: 'Error saving mobile layout settings', error: err.message });
+  }
+});
+
+// --- END: Endpoints for MOBILE Layout Settings ---
+
 // New endpoint to generate a pre-signed URL for S3
 app.post('/api/s3/presigned-url', async (req, res) => {
   try {

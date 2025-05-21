@@ -1,7 +1,9 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig'; // Import the centralized helper
+import { useIsMobile } from '../../utils/deviceDetect'; // ADDED
+import styles from './SetupLayout.module.css';
 
 // Create a context for setup authentication
 const SetupAuthContext = createContext(null);
@@ -73,6 +75,8 @@ const SetupLayout = () => {
   const { weddingId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const isLayoutPage = location.pathname.includes('/setup/layout');
+  const isMobile = useIsMobile(); // ADDED
 
   // Store auth per weddingId. In a real app, consider more robust session/token management.
   const [isAuthenticatedForWedding, setIsAuthenticatedForWedding] = useState(() => {
@@ -108,25 +112,38 @@ const SetupLayout = () => {
   // Provide auth context to children if needed (though simple sessionStorage is used here)
   const authContextValue = { isAuthenticated: isAuthenticatedForWedding, weddingId };
 
-  // Determine if the current path is the specific layout editing page
-  // Path will be /:weddingId/setup/layout
-  const isLayoutEditPage = location.pathname.endsWith('/setup/layout');
-
   return (
     <SetupAuthContext.Provider value={authContextValue}>
       <div className="setup-page-layout">
-        {!isLayoutEditPage && (
-          <header style={{ padding: '20px', background: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
+        {!isLayoutPage && (
+          <header className={styles.header}>
             <h2>Wedding Setup: {weddingId}</h2>
-            <nav>
+            <nav className={styles.nav}>
               <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
-              {/* Add other general setup navigation links here if needed */}
+              <Link to="/admin/dashboard" className={styles.navLink}>Admin Dashboard</Link>
+              {/* Add other setup navigation links here if needed */}
               <hr style={{margin: '15px 0'}} />
             </nav>
           </header>
         )}
-        <main style={isLayoutEditPage ? { padding: 0 } : { padding: '20px' }}>
-          <Outlet /> {/* This is where nested routes like ImageUploadSetup or WeddingJourneyWrapperForSetup will render */}
+        {isLayoutPage && (
+          <div style={{ 
+            position: 'fixed', 
+            top: '10px', 
+            left: '50%', 
+            transform: 'translateX(-50%)',
+            zIndex: 10002, // Above Leva and Save button
+            background: 'rgba(0,0,0,0.7)',
+            color: 'white',
+            padding: '5px 10px',
+            borderRadius: '4px',
+            fontSize: '0.9em'
+          }}>
+            Editing: {isMobile ? 'Mobile View' : 'Desktop View'}
+          </div>
+        )}
+        <main className={styles.mainContent}>
+          <Outlet />
         </main>
       </div>
     </SetupAuthContext.Provider>

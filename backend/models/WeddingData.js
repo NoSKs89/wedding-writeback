@@ -45,6 +45,7 @@ const WeddingDataSchema = new mongoose.Schema({
   // Consider defining full schemas for these if their structure is stable and needs validation.
   settings: mongoose.Schema.Types.Mixed,
   layoutSettings: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobile: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId
   setupPassword: {

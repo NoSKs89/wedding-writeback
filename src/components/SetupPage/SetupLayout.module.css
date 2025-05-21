@@ -1,0 +1,25 @@
+/* Basic styles for SetupLayout - add more as needed */
+.header {
+    padding: 1rem;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ddd;
+}
+
+.nav {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+.navLink {
+    text-decoration: none;
+    color: blue;
+}
+
+.navLink:hover {
+    text-decoration: underline;
+}
+
+.mainContent {
+    padding: 1rem;
+} 

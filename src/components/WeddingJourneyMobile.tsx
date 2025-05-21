@@ -121,12 +121,12 @@ const backgroundColorControlsSchema: LevaFolderSchema = {
 const scrapbookControlsSchema: LevaFolderSchema = {
   angleMin: { value: -6, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
   angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
-  radiusFactor: { value: 95, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
-  sizeMinPx: { value: 110, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
-  sizeRangePx: { value: 160, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
+  radiusFactor: { value: 80, min: 10, max: 200, step: 1, label: 'Spread Radius (%)' }, // MOBILE: Potentially adjusted
+  sizeMinPx: { value: 60, min: 30, max: 300, step: 5, label: 'Min Size (px)' },       // MOBILE: Reduced
+  sizeRangePx: { value: 80, min: 0, max: 200, step: 5, label: 'Size Range (px)' },     // MOBILE: Reduced
   scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
   scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
-  maxImages: { value: 20, min: 1, max: 100, step: 1, label: 'Max Images to Display' },
+  maxImages: { value: 12, min: 1, max: 50, step: 1, label: 'Max Images to Display' }, // MOBILE: Reduced
 };
 
 // NEW: Schema for Scrapbook Parallax Movement Leva controls
@@ -241,7 +241,7 @@ const parseRotationFromStyle = (transformString?: string | number): number => {
   return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
 };
 
-const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages }) => {
+const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages }) => {
   const { isSetupMode } = useSetupMode();
   const location = useLocation();
 
@@ -286,7 +286,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   useEffect(() => {
     let isMounted = true; // To prevent state updates on unmounted component or from stale effects
-    console.log('WeddingJourney resolvedScrapbookImages effect running. Length:', resolvedScrapbookImages ? resolvedScrapbookImages.length : 0);
+    console.log('WeddingJourneyMobile resolvedScrapbookImages effect running. Length:', resolvedScrapbookImages ? resolvedScrapbookImages.length : 0);
 
     if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) {
       if (isMounted) {
@@ -318,13 +318,13 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       Promise.all(dimensionsPromises).then(dims => {
         if (isMounted) {
           // More detailed logging for the dimensions being set
-          console.log('WJ: DimLoadEffect - SUCCESS. Dims to be set (first 3): ', JSON.stringify(dims.slice(0,3)));
+          console.log('WJM: DimLoadEffect - SUCCESS. Dims to be set (first 3): ', JSON.stringify(dims.slice(0,3)));
           if (dims.length > 0 && dims.every(d => d.width === 0 && d.height === 0)) {
-            console.warn("WJ: DimLoadEffect - WARNING: All loaded image dimensions are 0x0. Check image sources/paths.");
+            console.warn("WJM: DimLoadEffect - WARNING: All loaded image dimensions are 0x0. Check image sources/paths.");
           }
           setImageNaturalDimensions(dims);
         } else {
-          console.log('WJ: DimLoadEffect - SKIPPED setting dimensions (effect was stale). Dims would have been (first 3):', JSON.stringify(dims.slice(0,3)));
+          console.log('WJM: DimLoadEffect - SKIPPED setting dimensions (effect was stale). Dims would have been (first 3):', JSON.stringify(dims.slice(0,3)));
         }
       }).catch(error => {
         if (isMounted) {
@@ -411,7 +411,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   // Memoize the result of getDisplayDataForHUD
   const hudData = React.useMemo(() => {
-    console.log("[WeddingJourney] Recalculating hudData memo");
+    console.log("[WeddingJourneyMobile] Recalculating hudData memo");
     // getState() is fine here as useMemo dependencies handle re-computation.
     return useLevaStore.getState().getDisplayDataForHUD();
     // Depend directly on the pieces from the store that getDisplayDataForHUD implicitly depends on.
@@ -571,7 +571,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       // For safety, check if imageNaturalDimensions has entries for all resolvedScrapbookImages
       const allDimsLoaded = resolvedScrapbookImages.every(src => imageNaturalDimensions.some(dim => dim.src === src && dim.width > 0 && dim.height > 0));
       if (!allDimsLoaded && resolvedScrapbookImages.length > 0) {
-          // console.warn("WJ: displayedImagesAndTheirData - Not all natural dimensions loaded yet or mismatch. Waiting.");
+          // console.warn("WJM: displayedImagesAndTheirData - Not all natural dimensions loaded yet or mismatch. Waiting.");
           return []; 
       }
       if (resolvedScrapbookImages.length === 0) return [];
@@ -707,8 +707,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   // Moved onClick logic to a dedicated handler
   const handleImageClick = (details: ScrapbookClickDetails) => {
-    console.log("WJ: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
-    console.log("WJ: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
+    console.log("WJM: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
+    console.log("WJM: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
     setLastPutDownIndex(null); // Clear last put down index on new pick up
     
     const {
@@ -742,7 +742,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     const fullInitialRotateOnClick = baseRotateOnClick + currentDynamicAngleForPickUp;
 
     // Logging for pick-up:
-    console.log(`WJ: PICK UP IMAGE - Display Index: ${clickedDisplayIndex} ('${clickedSrc}')`, {
+    console.log(`WJM: PICK UP IMAGE - Display Index: ${clickedDisplayIndex} ('${clickedSrc}')`, {
         topPx: rect.top,
         leftPx: rect.left,
         widthPx: rect.width,
@@ -771,7 +771,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       photographer: photographer
     };
 
-    console.log("WJ: Attempting to set focused image with:", clickedImageDetails);
+    console.log("WJM: Attempting to set focused image with:", clickedImageDetails);
 
     if (focusedImage) { // If an image is already focused, put it down first
       setImageReturningToScrapbook(focusedImage);
@@ -834,7 +834,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * 45;
         const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
 
-        console.log(`WJ: PUT DOWN IMAGE - Display Index: ${returningDisplayIndex} ('${returningSrc}') - Target State for flying image:`, {
+        console.log(`WJM: PUT DOWN IMAGE - Display Index: ${returningDisplayIndex} ('${returningSrc}') - Target State for flying image:`, {
             targetTopPx: currentRect.top, targetLeftPx: currentRect.left,
             targetWidthPx: initialWidthPx, targetHeightPx: initialHeightPx,
             targetRotateDeg: totalCurrentRotationForPutDown
@@ -861,11 +861,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         
         // Schedule the scrapbook item in the grid to reappear very quickly
         const REAPPEAR_DELAY_MS = 50; // ms
-        console.log(`WJ: Scheduling scrapbook item ${returningDisplayIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
+        console.log(`WJM: Scheduling scrapbook item ${returningDisplayIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
         
         returnTimeoutId = setTimeout(() => {
           const currentReturningImageFromRef = imageReturningToScrapbookRef.current;
-          console.log(`WJ: Timeout fired for item ${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.`);
+          console.log(`WJM: Timeout fired for item ${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.`);
           
           setImageReturningToScrapbook(null); // This triggers reappearance
 
@@ -884,7 +884,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         }, REAPPEAR_DELAY_MS);
 
       } else {
-        console.warn(`WJ: PUT DOWN - Target for scrapbook item index ${returningDisplayIndex} ('${returningSrc}') not found. Hiding focused image and clearing state immediately.`);
+        console.warn(`WJM: PUT DOWN - Target for scrapbook item index ${returningDisplayIndex} ('${returningSrc}') not found. Hiding focused image and clearing state immediately.`);
         focusedImageApi.start({ opacity: 0, immediate: true });
         setImageReturningToScrapbook(null);
         if (pendingImageToFocus) {
@@ -900,7 +900,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     // Cleanup function for the timeout
     return () => {
       if (returnTimeoutId) {
-        console.log("WJ: Clearing returnTimeoutId in useEffect cleanup.");
+        console.log("WJM: Clearing returnTimeoutId in useEffect cleanup.");
         clearTimeout(returnTimeoutId);
       }
     };
@@ -957,7 +957,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       const newPhotographer = `Photographer ${newDisplayIndex + 1}.`; // Placeholder
 
       // Logging for pick-up during navigation:
-      console.log(`WJ: NAV PICK UP IMAGE - Display Index: ${newDisplayIndex} ('${newImageSrc}')`, {
+      console.log(`WJM: NAV PICK UP IMAGE - Display Index: ${newDisplayIndex} ('${newImageSrc}')`, {
           topPx: rect.top,
           leftPx: rect.left,
           widthPx: rect.width,
@@ -1026,33 +1026,25 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   const handleSaveLayout = async () => {
     if (!currentWeddingId) {
-      console.error("[WeddingJourney] Cannot save layout: weddingId is missing.");
+      console.error("[WeddingJourneyMobile] Cannot save layout: weddingId is missing.");
       alert("Error: Cannot save layout, wedding ID is missing.");
       return;
     }
-    // Get settings from Zustand store - This line was correctly commented out by the user previously as it's implicitly handled by saveSettingsToServer.
-    // const layoutSettingsToSave = useLevaStore.getState().getSettingsForSave();
-
-    // REMOVE these console logs and alert
-    // console.log("[WeddingJourney] Layout Settings to Save for weddingId:", currentWeddingId);
-    // console.log(JSON.stringify(layoutSettingsToSave, null, 2)); // Pretty print JSON
-    // alert('Layout settings logged to console! Check the developer tools.');
-
-    // UNCOMMENT this try/catch block
     try {
-      console.log(`[WeddingJourney] Attempting to save layout for weddingId: ${currentWeddingId}`);
-      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId));
-      alert('Layout settings saved successfully!');
-      console.log('[WeddingJourney] Layout settings save call completed.');
+      console.log(`[WeddingJourneyMobile] Attempting to save MOBILE layout for weddingId: ${currentWeddingId}`);
+      // MODIFIED TO SAVE MOBILE SETTINGS
+      await useLevaStore.getState().saveMobileSettingsToServer(String(currentWeddingId));
+      alert('Mobile layout settings saved successfully!');
+      console.log('[WeddingJourneyMobile] Mobile layout settings save call completed.');
     } catch (error) {
-      console.error('[WeddingJourney] Failed to save layout settings:', error);
+      console.error('[WeddingJourneyMobile] Failed to save mobile layout settings:', error);
       let errorMessage = 'Unknown error';
       if (error instanceof Error) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
       }
-      alert(`Error saving layout settings: ${errorMessage}`);
+      alert(`Error saving mobile layout settings: ${errorMessage}`);
     }
   };
 
@@ -1068,7 +1060,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   // ADDED: Log current path and isSetupMode
   useEffect(() => {
-    console.log(`[WeddingJourney] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
+    console.log(`[WeddingJourneyMobile] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
   }, [location.pathname, isSetupMode]);
 
   return (
@@ -1249,7 +1241,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
                 if (!initialStyle) return null;
 
-                // console.log(`[WeddingJourney.tsx] Rendering ScrapbookImageItem (Display Index ${displayIndex}), imageSrc: ${imageSrc}`);
+                // console.log(`[WeddingJourneyMobile.tsx] Rendering ScrapbookImageItem (Display Index ${displayIndex}), imageSrc: ${imageSrc}`);
 
                 const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + displayIndex * 0.5) * 45;
 
@@ -1418,4 +1410,4 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   );
 };
 
-export default WeddingJourney;
+export default WeddingJourneyMobile; 
