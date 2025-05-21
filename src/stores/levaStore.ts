@@ -227,52 +227,44 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
     console.log('[LevaStore] loadSettingsFromDB called with:', JSON.stringify(settings));
     const newControlValues = { ...state.controlValues };
     const newChangedKeys = { ...state.changedKeys }; // Preserve existing changedKeys by default
+    const newInitialControlValues = { ...state.initialControlValues }; // ADDED: To update initial values
 
     for (const folderName in settings) {
       const folderSettingsFromDB = settings[folderName];
       if (typeof folderSettingsFromDB === 'object' && folderSettingsFromDB !== null) {
         // console.log(`[LevaStore] Processing loaded settings for folder: ${folderName}`);
 
-        // Initialize or update control values for the folder directly with DB values.
-        // This ensures that newControlValues[folderName] will exist after this.
+        // 1. Update controlValues with DB values
         const currentFolderLiveValues = { ...(newControlValues[folderName] || {}), ...folderSettingsFromDB };
         newControlValues[folderName] = currentFolderLiveValues;
 
-        // Try to recalculate changedKeys if schema defaults (initialControlValues) are available.
-        // If not, registerControls will handle the final calculation of changedKeys.
-        const schemaDefaults = state.initialControlValues[folderName];
-        if (schemaDefaults) {
-          const currentFolderChangedKeysSet = new Set<string>();
-          for (const key in currentFolderLiveValues) {
-            // Only consider keys that are part of the schema defaults for changed status
-            if (schemaDefaults.hasOwnProperty(key)) {
-              if (currentFolderLiveValues[key] !== schemaDefaults[key]) {
-                currentFolderChangedKeysSet.add(key);
-              }
-            }
-            // Note: Keys in folderSettingsFromDB but not in schemaDefaults are ignored for 'changed' status here,
-            // as Leva won't display them anyway. They are, however, part of currentFolderLiveValues.
-          }
-          newChangedKeys[folderName] = currentFolderChangedKeysSet;
-          // console.log(`[LevaStore] Updated controlValues for ${folderName} from DB:`, JSON.stringify(currentFolderLiveValues));
-          // console.log(`[LevaStore] Updated changedKeys for ${folderName} (based on existing schema defaults):`, Array.from(currentFolderChangedKeysSet));
-        } else {
-          // Schema defaults not yet available for this folder.
-          // controlValues are updated. changedKeys will be properly set by registerControls.
-          // Ensure an entry for changedKeys exists, even if empty, so registerControls can work with it.
-          newChangedKeys[folderName] = newChangedKeys[folderName] || new Set<string>();
-          // console.log(`[LevaStore] Updated controlValues for ${folderName} from DB:`, JSON.stringify(currentFolderLiveValues));
-          // console.log(`[LevaStore] Schema defaults for ${folderName} not yet registered. changedKeys will be finalized upon registration.`);
+        // 2. Update initialControlValues with a deep copy of DB values
+        newInitialControlValues[folderName] = JSON.parse(JSON.stringify(folderSettingsFromDB));
+
+        // 3. Reset changedKeys for this folder
+        newChangedKeys[folderName] = new Set<string>();
+
+        // 4. If Leva setter exists, update Leva UI
+        if (state.levaSetters[folderName]) {
+          // console.log(`[LevaStore] Calling Leva setter for ${folderName} with DB values.`);
+          state.levaSetters[folderName](folderSettingsFromDB);
         }
+
+        // console.log(`[LevaStore] Updated controlValues for ${folderName} from DB:`, JSON.stringify(currentFolderLiveValues));
+        // console.log(`[LevaStore] Updated initialControlValues for ${folderName} from DB:`, JSON.stringify(newInitialControlValues[folderName]));
+        // console.log(`[LevaStore] Cleared changedKeys for ${folderName}`);
+
       } else {
          // console.warn(`[LevaStore] Settings for folder '${folderName}' from DB are not an object or are null. Skipping update for this folder.`);
       }
     }
 
     // console.log('[LevaStore] final newControlValues after loadSettingsFromDB:', JSON.stringify(newControlValues));
+    // console.log('[LevaStore] final newInitialControlValues after loadSettingsFromDB:', JSON.stringify(newInitialControlValues));
     // console.log('[LevaStore] final newChangedKeys after loadSettingsFromDB:', Object.keys(newChangedKeys).reduce((acc, key) => { acc[key] = Array.from(newChangedKeys[key]); return acc; }, {} as Record<string, string[]>));
     return {
       controlValues: newControlValues,
+      initialControlValues: newInitialControlValues, // Make sure to return the updated initial values
       changedKeys: newChangedKeys,
     };
   }),
