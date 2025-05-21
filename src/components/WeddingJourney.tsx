@@ -654,6 +654,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const backdropSpring = useSpring({
       opacity: focusedImage ? 1 : 0,
       pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none',
+      position: 'fixed' as any,
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      background: 'rgba(0, 0, 0, 0.7)',
       config: { tension: 250, friction: 30 },
   });
 
@@ -665,6 +671,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       width: '0px',
       height: '0px',
       transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
+      position: 'fixed' as any,
       config: { tension: 220, friction: 22 }, 
   }));
 
@@ -1164,10 +1171,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         {/* Backdrop - Ensure this is a direct child of wedding-journey-wrapper or another suitable parent */}
         <animated.div
           style={{
-            ...backdropSpring, // This should already contain position: fixed and dimensions
-            // Ensure other necessary styles for backdropSpring are set where it's defined
-            // background: 'rgba(0, 0, 0, 0.8)', // Already in backdropSpring or should be
-            zIndex: 1000,
+            ...backdropSpring, // Now includes all necessary styles
+            zIndex: 1000, 
           }}
           onClick={handleCloseFocusedImage}
         />
@@ -1176,9 +1181,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         {(focusedImage || imageReturningToScrapbook) && (
           <animated.div
             style={{
-              ...focusedImageContainerSpring, // This should already contain position: fixed
-              // Ensure other necessary styles are set where focusedImageContainerSpring is defined
-              zIndex: 1001,
+              ...focusedImageContainerSpring, // Now includes position: fixed
+              zIndex: 1001, 
             }}
           >
             {(focusedImage || imageReturningToScrapbook) && (
