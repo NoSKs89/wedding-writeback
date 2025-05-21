@@ -152,6 +152,7 @@ const scrapbookControlsSchema = {
   sizeRangePx: { value: 160, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
   scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
   scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
+  maxImages: { value: 20, min: 1, max: 100, step: 1, label: 'Max Images to Display' },
 };
 
 // NEW: Schema for Scrapbook Parallax Movement Leva controls
@@ -400,7 +401,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     sizeMinPx,
     sizeRangePx,
     scrollAngleSensitivityMin,
-    scrollAngleSensitivityMax
+    scrollAngleSensitivityMax,
+    maxImages
   } = scrapbookCtrl;
 
   const { values: scrapbookMoveCtrl, changedKeys: scrapbookMoveChangedKeys } = useTrackedControls('Scrapbook Parallax', scrapbookMovementControlsSchema, { collapsed: true });
@@ -689,13 +691,14 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         sizeRangePx: scrapbookCtrl.sizeRangePx,
         };
         // Ensure refs array is ready
-        if (scrapbookImageRefs.current.length !== resolvedScrapbookImages.length) {
-            scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
-        }
+        // This will be handled by displayedImagesAndTheirData logic now
+        // if (scrapbookImageRefs.current.length !== resolvedScrapbookImages.length) {
+        //     scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
+        // }
         return resolvedScrapbookImages.map((_, index) => 
         generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
         );
-    }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl]);
+    }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl.angleMin, scrapbookCtrl.angleMax, scrapbookCtrl.radiusFactor, scrapbookCtrl.sizeMinPx, scrapbookCtrl.sizeRangePx]);
 
     // NEW: Memoize scroll sensitivities for each image
     const memoizedScrollSensitivities = useMemo(() => {
@@ -708,28 +711,83 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         );
     }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
 
-    // NEW: Memoize X and Y movement sensitivities for each image
-    const memoizedXMovementSensitivities = useMemo(() => {
-        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-        const minSens = Math.min(scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity);
-        const maxSens = Math.max(scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity);
-        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
-    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity]);
+    // NEW: This will be our primary source for rendering scrapbook items
+    const displayedImagesAndTheirData = useMemo(() => {
+      if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0 || !currentWindow || imageNaturalDimensions.length === 0) {
+        // Ensure imageNaturalDimensions is also populated before proceeding
+        // or that resolvedScrapbookImages aligns with imageNaturalDimensions if it's partially loaded.
+        // For safety, check if imageNaturalDimensions has entries for all resolvedScrapbookImages
+        const allDimsLoaded = resolvedScrapbookImages.every(src => imageNaturalDimensions.some(dim => dim.src === src && dim.width > 0 && dim.height > 0));
+        if (!allDimsLoaded && resolvedScrapbookImages.length > 0) {
+            // console.warn("WJ: displayedImagesAndTheirData - Not all natural dimensions loaded yet or mismatch. Waiting.");
+            return []; 
+        }
+        if (resolvedScrapbookImages.length === 0) return [];
+      }
+    
+      const numImagesToDisplay = Math.min(scrapbookCtrl.maxImages, resolvedScrapbookImages.length);
+      let imagesToProcess: Array<{ src: string; originalIndex: number }> = [];
+    
+      if (resolvedScrapbookImages.length <= numImagesToDisplay) {
+        imagesToProcess = resolvedScrapbookImages.map((src, index) => ({ src, originalIndex: index }));
+      } else {
+        // Shuffle resolvedScrapbookImages along with their original indices
+        const indexedImages = resolvedScrapbookImages.map((src, index) => ({ src, originalIndex: index }));
+        const shuffled = [...indexedImages].sort(() => 0.5 - Math.random());
+        imagesToProcess = shuffled.slice(0, numImagesToDisplay);
+      }
+      
+      const layoutStyleControls = {
+        angleMin: scrapbookCtrl.angleMin,
+        angleMax: scrapbookCtrl.angleMax,
+        radiusFactor: scrapbookCtrl.radiusFactor,
+        sizeMinPx: scrapbookCtrl.sizeMinPx,
+        sizeRangePx: scrapbookCtrl.sizeRangePx,
+      };
+    
+      return imagesToProcess.map((imageInfo, displayIndex) => {
+        const { src, originalIndex } = imageInfo;
+        
+        // Generate style using displayIndex and the current number of images being processed for layout
+        const style = generateScrapbookImageStyle(displayIndex, imagesToProcess.length, currentWindow, layoutStyleControls);
+        
+        // Sensitivities are randomized per item instance in the displayed set
+        const scrollSensitivity = (Math.random() * (scrapbookCtrl.scrollAngleSensitivityMax - scrapbookCtrl.scrollAngleSensitivityMin) + scrapbookCtrl.scrollAngleSensitivityMin);
+        const xMovementSensitivity = (Math.random() * (scrapbookMoveCtrl.maxXMovementSensitivity - scrapbookMoveCtrl.minXMovementSensitivity) + scrapbookMoveCtrl.minXMovementSensitivity);
+        const yMovementSensitivity = (Math.random() * (scrapbookMoveCtrl.maxYMovementSensitivity - scrapbookMoveCtrl.minYMovementSensitivity) + scrapbookMoveCtrl.minYMovementSensitivity);
+        const zMovementSensitivity = (Math.random() * (scrapbookMoveCtrl.maxZMovementSensitivity - scrapbookMoveCtrl.minZMovementSensitivity) + scrapbookMoveCtrl.minZMovementSensitivity);
+    
+        return {
+          src,
+          originalIndex, 
+          displayIndex,  
+          altText: \`Scrapbook item \${displayIndex + 1}\`,
+          initialStyle: style,
+          scrollSensitivity,
+          xMovementSensitivity,
+          yMovementSensitivity,
+          zMovementSensitivity,
+          // Natural dimensions will be looked up via src when needed for focus
+        };
+      });
+    }, [
+      resolvedScrapbookImages, 
+      imageNaturalDimensions, // Added: ensure this is a dependency
+      currentWindow,
+      scrapbookCtrl.maxImages, 
+      scrapbookCtrl.angleMin, scrapbookCtrl.angleMax, scrapbookCtrl.radiusFactor, scrapbookCtrl.sizeMinPx, scrapbookCtrl.sizeRangePx,
+      scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax,
+      scrapbookMoveCtrl.minXMovementSensitivity, scrapbookMoveCtrl.maxXMovementSensitivity, 
+      scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity,
+      scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity,
+      // scrapbookMoveCtrl.baseItemScale, // This is global in ScrapbookImageItem
+      // scrapbookMoveCtrl.movementScrollCap // This is global in ScrapbookImageItem
+    ]);
 
-    const memoizedYMovementSensitivities = useMemo(() => {
-        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-        const minSens = Math.min(scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity);
-        const maxSens = Math.max(scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity);
-        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
-    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minYMovementSensitivity, scrapbookMoveCtrl.maxYMovementSensitivity]);
-
-    // NEW: Memoize Z movement sensitivities for each image
-    const memoizedZMovementSensitivities = useMemo(() => {
-        if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-        const minSens = Math.min(scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity);
-        const maxSens = Math.max(scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity);
-        return resolvedScrapbookImages.map(() => Math.random() * (maxSens - minSens) + minSens);
-    }, [resolvedScrapbookImages, scrapbookMoveCtrl.minZMovementSensitivity, scrapbookMoveCtrl.maxZMovementSensitivity]);
+    // Update scrapbookImageRefs based on the length of displayed images
+    useEffect(() => {
+      scrapbookImageRefs.current = Array(displayedImagesAndTheirData.length).fill(null);
+    }, [displayedImagesAndTheirData.length]);
 
     // Animation spring for the focused image backdrop
     const backdropSpring = useSpring({
@@ -800,7 +858,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         initialStyle: clickedInitialStyle, // This 'initialStyle' is the base style from memoizedScrapbookImageStyles
         currentBoundingClientRect: rect,
         imageElement,
-        index: clickedIndex
+        index: clickedDisplayIndex // This is now displayIndex from ScrapbookImageItem
       } = details;
 
       let naturalDims = imageNaturalDimensions.find(dim => dim.src === clickedSrc);
@@ -815,13 +873,17 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       }
 
       const baseRotateOnClick = parseRotationFromStyle(clickedInitialStyle.transform);
-      const itemScrollSensitivityOnClick = memoizedScrollSensitivities[clickedIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+      // Get the correct scroll sensitivity for the clicked image using its displayIndex from displayedImagesAndTheirData
+      const clickedImageData = displayedImagesAndTheirData.find(d => d.displayIndex === clickedDisplayIndex);
+      const itemScrollSensitivityOnClick = clickedImageData ? clickedImageData.scrollSensitivity : ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+      
       // This is the DYNAMIC part of the angle, matching what's visually rendered
-      const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedIndex * 0.5) * 45;
+      // The 'clickedDisplayIndex * 0.5' part is an arbitrary phase offset, ensure it matches rendering if it matters
+      const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedDisplayIndex * 0.5) * 45;
       const fullInitialRotateOnClick = baseRotateOnClick + currentDynamicAngleForPickUp;
 
       // Logging for pick-up:
-      console.log(`WJ: PICK UP IMAGE - Index: ${clickedIndex} ('${clickedSrc}')`, {
+      console.log(\`WJ: PICK UP IMAGE - Display Index: \${clickedDisplayIndex} ('\${clickedSrc}')\`, {
           topPx: rect.top,
           leftPx: rect.left,
           widthPx: rect.width,
@@ -832,8 +894,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           rawInitialStyleTransform: clickedInitialStyle.transform
       });
       
-      const description = `Image ${clickedIndex + 1} description.`; // Placeholder
-      const photographer = `Photographer ${clickedIndex + 1}.`; // Placeholder
+      const description = \`Image \${clickedDisplayIndex + 1} description.\`; // Placeholder
+      const photographer = \`Photographer \${clickedDisplayIndex + 1}.\`; // Placeholder
 
       const clickedImageDetails: FocusedImageState = {
         src: clickedSrc,
@@ -845,7 +907,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         initialRotateDeg: fullInitialRotateOnClick, // Use the full current rotation
         naturalWidth: naturalDims.width,
         naturalHeight: naturalDims.height,
-        currentIndex: clickedIndex,
+        currentIndex: clickedDisplayIndex, // Store displayIndex as currentIndex
         description: description,
         photographer: photographer
       };
@@ -878,18 +940,18 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         focusedImageApi.start({
           from: { 
             opacity: 0.5, 
-            top: `${focusedImage.initialTopPx}px`,
-            left: `${focusedImage.initialLeftPx}px`,
-            width: `${focusedImage.initialWidthPx}px`,
-            height: `${focusedImage.initialHeightPx}px`,
-            transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
+            top: \`\${focusedImage.initialTopPx}px\`,
+            left: \`\${focusedImage.initialLeftPx}px\`,
+            width: \`\${focusedImage.initialWidthPx}px\`,
+            height: \`\${focusedImage.initialHeightPx}px\`,
+            transform: \`translate(0px, 0px) rotate(\${focusedImage.initialRotateDeg}deg) scale(1)\`,
           },
           to: { 
             opacity: 1,
-            top: `${calculatedTargetTopPx}px`,
-            left: `${calculatedTargetLeftPx}px`,
-            width: `${targetWidth}px`,
-            height: `${targetHeight}px`,
+            top: \`\${calculatedTargetTopPx}px\`,
+            left: \`\${calculatedTargetLeftPx}px\`,
+            width: \`\${targetWidth}px\`,
+            height: \`\${targetHeight}px\`,
             transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
           },
           config: springConfigs.gentle, // Explicitly set gentle config for pick-up
@@ -899,19 +961,21 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
         });
       } else if (imageReturningToScrapbook) {
         // === ANIMATE BACK TO SCRAPBOOK (PUT DOWN) ===
-        const { currentIndex, initialWidthPx, initialHeightPx, src: returningSrc } = imageReturningToScrapbook;
-        const targetScrapbookElement = scrapbookImageRefs.current[currentIndex];
-        const currentScrapbookLayoutInfo = memoizedScrapbookImageStyles[currentIndex]; // Base style of the slot
+        const { currentIndex: returningDisplayIndex, initialWidthPx, initialHeightPx, src: returningSrc } = imageReturningToScrapbook;
+        const targetScrapbookElement = scrapbookImageRefs.current[returningDisplayIndex];
+        // Get the current style info from displayedImagesAndTheirData for the returning item
+        const currentItemDataForReturn = displayedImagesAndTheirData.find(d => d.displayIndex === returningDisplayIndex);
 
-        if (targetScrapbookElement && currentScrapbookLayoutInfo) {
+        if (targetScrapbookElement && currentItemDataForReturn) {
           const currentRect = targetScrapbookElement.getBoundingClientRect(); // Current position of the slot
+          const scrapbookLayoutInfoForReturn = currentItemDataForReturn.initialStyle; // Base style of the slot from displayed data
 
-          const baseRotationPutDown = parseRotationFromStyle(currentScrapbookLayoutInfo.transform);
-          const itemScrollSensitivityPutDown = memoizedScrollSensitivities[currentIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
-          const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + currentIndex * 0.5) * 45;
+          const baseRotationPutDown = parseRotationFromStyle(scrapbookLayoutInfoForReturn.transform);
+          const itemScrollSensitivityPutDown = currentItemDataForReturn.scrollSensitivity;
+          const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * 45;
           const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
 
-          console.log(`WJ: PUT DOWN IMAGE - Index: ${currentIndex} ('${returningSrc}') - Target State for flying image:`, {
+          console.log(\`WJ: PUT DOWN IMAGE - Display Index: \${returningDisplayIndex} ('\${returningSrc}') - Target State for flying image:\`, {
               targetTopPx: currentRect.top, targetLeftPx: currentRect.left,
               targetWidthPx: initialWidthPx, targetHeightPx: initialHeightPx,
               targetRotateDeg: totalCurrentRotationForPutDown
@@ -920,11 +984,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           // Animate position, size, rotation of the "flying" image
           focusedImageApi.start({
             to: {
-              top: `${currentRect.top}px`,
-              left: `${currentRect.left}px`,
-              width: `${initialWidthPx}px`,
-              height: `${initialHeightPx}px`,
-              transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`,
+              top: \`\${currentRect.top}px\`,
+              left: \`\${currentRect.left}px\`,
+              width: \`\${initialWidthPx}px\`,
+              height: \`\${initialHeightPx}px\`,
+              transform: \`translate(0px, 0px) rotate(\${totalCurrentRotationForPutDown}deg) scale(1)\`,
             },
             config: springConfigs.gentle, // Slower travel animation for put-down
           });
@@ -938,11 +1002,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           
           // Schedule the scrapbook item in the grid to reappear very quickly
           const REAPPEAR_DELAY_MS = 50; // ms
-          console.log(`WJ: Scheduling scrapbook item ${currentIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
+          console.log(\`WJ: Scheduling scrapbook item \${returningDisplayIndex} (in grid) to reappear in \${REAPPEAR_DELAY_MS}ms.\`);
           
           returnTimeoutId = setTimeout(() => {
             const currentReturningImageFromRef = imageReturningToScrapbookRef.current;
-            console.log(`WJ: Timeout fired for item ${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.`);
+            console.log(\`WJ: Timeout fired for item \${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.\`);
             
             setImageReturningToScrapbook(null); // This triggers reappearance
 
@@ -961,7 +1025,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           }, REAPPEAR_DELAY_MS);
 
         } else {
-          console.warn(`WJ: PUT DOWN - Target for scrapbook item index ${currentIndex} ('${returningSrc}') not found. Hiding focused image and clearing state immediately.`);
+          console.warn(\`WJ: PUT DOWN - Target for scrapbook item index \${returningDisplayIndex} ('\${returningSrc}') not found. Hiding focused image and clearing state immediately.\`);
           focusedImageApi.start({ opacity: 0, immediate: true });
           setImageReturningToScrapbook(null);
           if (pendingImageToFocus) {
@@ -987,11 +1051,10 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       pendingImageToFocus, 
       focusedImageApi,
       currentWindow, // Added: affects target dimensions/positions if window resizes
-      memoizedScrapbookImageStyles, // Added: provides target style for return
-      memoizedScrollSensitivities, // Added: for dynamic angle recalculation
+      displayedImagesAndTheirData, // Added: provides target style and sensitivities
       scrollY, // Added: for dynamic angle recalculation
-      scrapbookCtrl.scrollAngleSensitivityMin, // Added: for dynamic angle recalculation
-      scrapbookCtrl.scrollAngleSensitivityMax  // Added: for dynamic angle recalculation
+      scrapbookCtrl.scrollAngleSensitivityMin, // Kept for fallback if data not found (shouldn't happen)
+      scrapbookCtrl.scrollAngleSensitivityMax  // Kept for fallback
     ]);
 
     // NEW: Handler for closing the focused image
@@ -1009,32 +1072,33 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     };
 
     // NEW: Navigation Handlers
-    const updateAndFocusNewImage = (newIndex: number) => {
-      if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0 || newIndex < 0 || newIndex >= resolvedScrapbookImages.length) {
-        console.warn("Cannot update focused image: invalid index or no images.", newIndex, resolvedScrapbookImages.length);
+    const updateAndFocusNewImage = (newDisplayIndex: number) => {
+      if (!displayedImagesAndTheirData || displayedImagesAndTheirData.length === 0 || newDisplayIndex < 0 || newDisplayIndex >= displayedImagesAndTheirData.length) {
+        console.warn("Cannot update focused image: invalid newDisplayIndex or no displayed images.", newDisplayIndex, displayedImagesAndTheirData.length);
         return null;
       }
       setLastPutDownIndex(null); // Clear last put down index on navigation pick up
 
-      const targetImageElement = scrapbookImageRefs.current[newIndex];
-      const newImageSrc = resolvedScrapbookImages[newIndex];
+      const targetImageData = displayedImagesAndTheirData[newDisplayIndex];
+      const targetImageElement = scrapbookImageRefs.current[newDisplayIndex]; // Use newDisplayIndex for refs
+      const newImageSrc = targetImageData.src;
       const naturalDims = imageNaturalDimensions.find(dim => dim.src === newImageSrc);
-      const styleForNewImage = memoizedScrapbookImageStyles[newIndex]; // Get base style for this item
+      const styleForNewImage = targetImageData.initialStyle; // Get base style from displayed data
 
       if (targetImageElement && newImageSrc && naturalDims && naturalDims.width > 0 && naturalDims.height > 0 && styleForNewImage) {
         const rect = targetImageElement.getBoundingClientRect();
         
         const baseRotateNav = parseRotationFromStyle(styleForNewImage.transform);
-        const itemScrollSensitivityNav = memoizedScrollSensitivities[newIndex] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+        const itemScrollSensitivityNav = targetImageData.scrollSensitivity;
         // Recalculate dynamic part for the "from" state, consistent with rendering
-        const currentDynamicAngleForNavPickUp = Math.sin(scrollY * itemScrollSensitivityNav + newIndex * 0.5) * 45;
+        const currentDynamicAngleForNavPickUp = Math.sin(scrollY * itemScrollSensitivityNav + newDisplayIndex * 0.5) * 45;
         const fullInitialRotateNav = baseRotateNav + currentDynamicAngleForNavPickUp;
         
-        const newDescription = `Image ${newIndex + 1} description.`; // Placeholder
-        const newPhotographer = `Photographer ${newIndex + 1}.`; // Placeholder
+        const newDescription = \`Image \${newDisplayIndex + 1} description.\`; // Placeholder
+        const newPhotographer = \`Photographer \${newDisplayIndex + 1}.\`; // Placeholder
 
         // Logging for pick-up during navigation:
-        console.log(`WJ: NAV PICK UP IMAGE - Index: ${newIndex} ('${newImageSrc}')`, {
+        console.log(\`WJ: NAV PICK UP IMAGE - Display Index: \${newDisplayIndex} ('\${newImageSrc}')\`, {
             topPx: rect.top,
             leftPx: rect.left,
             widthPx: rect.width,
@@ -1047,7 +1111,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
         return {
           src: newImageSrc,
-          altText: `Scrapbook item ${newIndex + 1}`,
+          altText: \`Scrapbook item \${newDisplayIndex + 1}\`,
           initialTopPx: rect.top,
           initialLeftPx: rect.left,
           initialWidthPx: rect.width,
@@ -1055,12 +1119,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           initialRotateDeg: fullInitialRotateNav, // Use the full current rotation
           naturalWidth: naturalDims.width,
           naturalHeight: naturalDims.height,
-          currentIndex: newIndex,
+          currentIndex: newDisplayIndex, // Store displayIndex
           description: newDescription, 
           photographer: newPhotographer 
         };
       } else {
-        console.warn(`Could not get details for new focused image at index ${newIndex}. Missing element, src, dimensions, or style.`, {targetImageElement, newImageSrc, naturalDims, styleForNewImage});
+        console.warn(\`Could not get details for new focused image at index \${newDisplayIndex}. Missing element, src, dimensions, or style.\`, {targetImageElement, newImageSrc, naturalDims, styleForNewImage});
         return null;
       }
     };
@@ -1069,7 +1133,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       e.stopPropagation();
       if (!focusedImage) return; // Can only navigate if an image is currently fully focused
 
-      const newIndex = (focusedImage.currentIndex - 1 + resolvedScrapbookImages.length) % resolvedScrapbookImages.length;
+      const newIndex = (focusedImage.currentIndex - 1 + displayedImagesAndTheirData.length) % displayedImagesAndTheirData.length;
       const newImageDetails = updateAndFocusNewImage(newIndex);
 
       if (newImageDetails) {
@@ -1083,7 +1147,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       e.stopPropagation();
       if (!focusedImage) return; // Can only navigate if an image is currently fully focused
 
-      const newIndex = (focusedImage.currentIndex + 1) % resolvedScrapbookImages.length;
+      const newIndex = (focusedImage.currentIndex + 1) % displayedImagesAndTheirData.length;
       const newImageDetails = updateAndFocusNewImage(newIndex);
 
       if (newImageDetails) {
@@ -1120,12 +1184,14 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                 whiteSpace: 'pre-wrap' 
                 }}
             >
-                {`ScrollY: ${scrollY.toFixed(0)}
-    DynamicAngle[0]: ${(Math.sin(scrollY * (memoizedScrollSensitivities[0] || 0.0005) + 0 * 0.5) * 45).toFixed(3)}
-    Opacity (BG): ${hudOpacitySpring.get().toFixed(2)} 
-    Scale (BG): ${hudScaleSpring.get().toFixed(2)} 
-    TranslateY (Couple): ${currentTranslateY.toFixed(2)}%
-    ${changedKeyDetailsOutput.trim()}`}
+                {/* Update HUD to reflect displayed images count and first item's sensitivity */}
+                {\`ScrollY: \${scrollY.toFixed(0)}
+    Displayed Images: \${displayedImagesAndTheirData.length} / \${resolvedScrapbookImages.length} (max: \${scrapbookCtrl.maxImages})
+    DynamicAngle[0]: \${(displayedImagesAndTheirData.length > 0 ? Math.sin(scrollY * (displayedImagesAndTheirData[0].scrollSensitivity || 0.0005) + 0 * 0.5) * 45 : 0).toFixed(3)}
+    Opacity (BG): \${hudOpacitySpring.get().toFixed(2)} 
+    Scale (BG): \${hudScaleSpring.get().toFixed(2)} 
+    TranslateY (Couple): \${currentTranslateY.toFixed(2)}%
+${changedKeyDetailsOutput.trim()}\`}
             </div>
             )}
 
@@ -1189,36 +1255,37 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                 height: '100%',
                 zIndex: 1 // Lower zIndex for scrapbook images container
                 }}>
-                {resolvedScrapbookImages.map((imageSrc, index) => {
-                    const initialStyle = memoizedScrapbookImageStyles[index];
+                {/* Map over displayedImagesAndTheirData */}
+                {displayedImagesAndTheirData.map((imageData, displayIndex) => {
+                    const { 
+                      src: imageSrc, 
+                      altText, 
+                      initialStyle, 
+                      scrollSensitivity: itemScrollSensitivity,
+                      xMovementSensitivity: itemXSensitivity,
+                      yMovementSensitivity: itemYSensitivity,
+                      zMovementSensitivity: itemZSensitivity
+                    } = imageData;
+
                     if (!initialStyle) return null; 
 
-                    console.log(`[WeddingJourney.tsx] Rendering ScrapbookImageItem ${index}, imageSrc: ${imageSrc}`); // Log imageSrc for each item
-
-                    const altText = `Scrapbook item ${index + 1}`;
+                    console.log(\`[WeddingJourney.tsx] Rendering ScrapbookImageItem (Display Index \${displayIndex}), imageSrc: \${imageSrc}\`);
                     
-                    const itemScrollSensitivity = memoizedScrollSensitivities[index] || ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
-                    const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + index * 0.5) * 45;
-
-                    // NEW: Calculate parallax translation for X and Y
-                    const itemXSensitivity = memoizedXMovementSensitivities[index] || 0;
-                    const itemYSensitivity = memoizedYMovementSensitivities[index] || 0;
+                    // dynamicAngle uses displayIndex for its phase offset, consistent with old logic
+                    const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + displayIndex * 0.5) * 45;
                     
-                    // Apply scroll cap to the scrollY used for movement
                     const cappedScrollYForMovement = Math.min(scrollY, scrapbookMoveCtrl.movementScrollCap);
 
                     const parallaxTranslateX = cappedScrollYForMovement * itemXSensitivity;
                     const parallaxTranslateY = cappedScrollYForMovement * itemYSensitivity;
 
-                    // NEW: Calculate parallax scale
-                    const itemZSensitivity = memoizedZMovementSensitivities[index] || 0;
                     let parallaxScale = scrapbookMoveCtrl.baseItemScale + (cappedScrollYForMovement * itemZSensitivity);
-                    parallaxScale = Math.max(0.1, parallaxScale); // Ensure scale doesn't go below 0.1
+                    parallaxScale = Math.max(0.1, parallaxScale);
 
                     let isEffectivelyHidden = false;
-                    if (focusedImage && focusedImage.currentIndex === index) {
+                    if (focusedImage && focusedImage.currentIndex === displayIndex) {
                     isEffectivelyHidden = true;
-                    } else if (imageReturningToScrapbook && imageReturningToScrapbook.currentIndex === index) {
+                    } else if (imageReturningToScrapbook && imageReturningToScrapbook.currentIndex === displayIndex) {
                     isEffectivelyHidden = true;
                     }
                     // We don't explicitly hide for pendingImageToFocus here,
@@ -1227,15 +1294,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
                     return (
                     <ScrapbookImageItem
-                        key={imageSrc || index} // Use imageSrc if unique and available, otherwise index
+                        key={imageSrc || displayIndex} // Use imageSrc if unique and available, otherwise displayIndex
                         imageSrc={imageSrc}
                         initialStyle={initialStyle}
                         altText={altText}
                         dynamicAngleOffsetDeg={dynamicAngle}
-                        index={index}
+                        index={displayIndex} // Pass displayIndex as 'index' to ScrapbookImageItem
                         isHiddenForFocus={isEffectivelyHidden}
                         lastPutDownIndex={lastPutDownIndex} // Pass new prop
-                        ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[index] = el; }}
+                        ref={(el: HTMLImageElement | null) => { scrapbookImageRefs.current[displayIndex] = el; }} // Use displayIndex for refs
                         onClick={handleImageClick}
                         parallaxTranslateX={parallaxTranslateX} // Pass new prop
                         parallaxTranslateY={parallaxTranslateY} // Pass new prop
@@ -1307,7 +1374,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                         position: 'absolute',
                         bottom: '-60px', // Position below the image
                         left: '50%',
-                        transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`),
+                        transform: infoBoxSpring.transform.to(t => \`\${t} translateX(-50%)\`),
                         width: 'calc(100% - 20px)', // Slightly narrower than image
                         maxWidth: '400px',
                         backgroundColor: 'rgba(0,0,0,0.75)',
@@ -1329,7 +1396,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
             {/* Navigation Arrows - Conditionally render only when an image is truly focused */}
             {/* Positioned relative to the viewport */}
-            {focusedImage && resolvedScrapbookImages && resolvedScrapbookImages.length > 1 && (
+            {focusedImage && displayedImagesAndTheirData && displayedImagesAndTheirData.length > 1 && (
             <>
                 <button
                 onClick={handlePreviousImage}

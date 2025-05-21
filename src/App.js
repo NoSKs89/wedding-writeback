@@ -14,9 +14,12 @@ import axios from 'axios'; // Import axios
 import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
 import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Import ImageUploadSetup
 
-//todo:
-// -if past wedding date, have the form change to be a comment about the wedding... like a memory
-// -perhaps even allow a user to upload a photo from the wedding?
+// --- Backend Configuration ---
+const useLocalBackend = true; // Set to true for local backend, false for AWS
+const localApiBaseUrl = 'http://localhost:5000/api'; // Your local backend URL
+const awsApiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+const apiBaseUrl = useLocalBackend ? localApiBaseUrl : awsApiBaseUrl;
+// --- End Backend Configuration ---
 
 // Helper function to format ISO date to a more readable string
 const formatDate = (isoDateString) => {
@@ -62,7 +65,6 @@ const WeddingPageController = ({ setShowGuideLines }) => {
         // FOR MOBILE TESTING: Replace 'localhost' with your computer's local IP address (e.g., '192.168.1.100')
         // const computerIpAddress = 'localhost'; // <-- !!! REPLACE 'localhost' WITH YOUR COMPUTER'S IP ADDRESS FOR MOBILE TESTING !!!
         // const apiUrl = `http://${computerIpAddress}:5000/api/weddings/${weddingId}`;
-        const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
         const apiUrl = `${apiBaseUrl}/weddings/${weddingId}`;
         const response = await axios.get(apiUrl);
         const sourceData = response.data;

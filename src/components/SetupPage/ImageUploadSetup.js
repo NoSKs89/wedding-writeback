@@ -65,7 +65,7 @@ const ImageUploadSetup = () => {
     for (const file of acceptedFiles) {
       await handleUpload(file, selectedImageType, commonCaption); // Pass commonCaption
     }
-  }, [weddingId, selectedImageType]);
+  }, [weddingId, selectedImageType, handleUpload]);
 
   const handleUpload = async (file, imageTypeToUpload, captionForScrapbook) => {
     if (!weddingId) {
@@ -329,6 +329,7 @@ const ImageUploadSetup = () => {
             <p>Drag 'n' drop scrapbook images here, or click to select files</p>
           }
           <em>(JPEG, PNG, GIF, WEBP images will be accepted)</em>
+          <em style={{display: 'block', marginTop: '5px', fontSize: '0.8em'}}>(Recommended: 30 images or less for optimal performance and to avoid visual clutter.)</em>
         </div>
         {scrapbookPreviews.length > 0 ? scrapbookPreviews : <p>No scrapbook images uploaded yet.</p>}
         {uploadedScrapbookImages.length > 0 && 
