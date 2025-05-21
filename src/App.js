@@ -215,7 +215,7 @@ const MainAppContent = () => {
   const [defaultWeddingIdToUse, setDefaultWeddingIdToUse] = useState('erickson2025');
 
   // Get showGuideLines from Zustand store
-  const showGuideLinesFromStore = useLevaStore(state => state.controlValues.overallControls?.showGuideLines);
+  const showGuideLinesFromStore = useLevaStore(state => state.controlValues.overallControls?.toggleGuideLines);
 
   useEffect(() => {
     // Placeholder for fetching default ID
@@ -226,7 +226,7 @@ const MainAppContent = () => {
 
   return (
     <div className="App">
-      {isSetupLayoutPage && showGuideLinesFromStore && ( // Only show on /setup/layout AND if Leva toggle is on
+      {isSetupLayoutPage && ( // Only show on /setup/layout AND if Leva toggle is on
         <>
           <div style={{
             position: 'fixed',
@@ -235,7 +235,7 @@ const MainAppContent = () => {
             bottom: 0,
             width: '1px',
             backgroundColor: 'red',
-            zIndex: 9999,
+            zIndex: 10003,
             transform: 'translateX(-50%)'
           }} />
           <div style={{
@@ -245,7 +245,7 @@ const MainAppContent = () => {
             right: 0,
             height: '1px',
             backgroundColor: 'blue',
-            zIndex: 9999,
+            zIndex: 10003,
             transform: 'translateY(-50%)'
           }} />
         </>

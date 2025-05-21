@@ -1336,7 +1336,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                       position: 'absolute', // Keep this for layout relative to parent
                       bottom: '-60px',
                       left: '50%',
-                       // transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`), // transform is part of infoBoxSpring
+                      transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`), // Ensure translateX(-50%) is part of the transform
                       width: 'calc(100% - 20px)',
                       maxWidth: '400px',
                       backgroundColor: 'rgba(0,0,0,0.75)',
