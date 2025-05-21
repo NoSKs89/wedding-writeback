@@ -490,4 +490,11 @@ app.use((err, req, res, next) => {
   res.status(500).send('Something broke!');
 });
 
+// Conditionally start the server for local development
+if (process.env.NODE_ENV !== 'production') { // Or any other condition that signifies local dev
+  app.listen(port, () => {
+    console.log(`Server running locally on port ${port}`);
+  });
+}
+
 module.exports.handler = serverless(app); // Export the handler for Lambda 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
+import { useControls } from 'leva'; // Import Leva
 
 // Interface for individual meal options
 interface MealOption {
@@ -31,8 +32,24 @@ interface SelectedMeals {
   [mealName: string]: number;
 }
 
+// Leva controls schema for RSVP Form
+const rsvpFormControlsSchema = {
+  formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
+  formHeight: { value: 700, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
+  formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
+  stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'}
+};
+
 const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
+
+  // Leva controls
+  const { formWidth, formHeight, formPadding, stackThreshold } = useControls("RSVP Form Style", rsvpFormControlsSchema);
+
+  // Calculate responsive padding
+  // Use a smaller percentage of the smaller dimension, capped by formPadding
+  const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05); // 5% of smaller dimension
+  const actualPadding = Math.min(responsivePaddingBase, formPadding); // Ensure it doesn't exceed Leva control
 
   // States for the initial form part
   const [firstName, setFirstName] = useState<string>('');
@@ -184,12 +201,16 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   // Inline styles (can be moved to CSS Modules or a separate CSS file if preferred)
   const formStyle: React.CSSProperties = {
     background: 'white',
-    padding: '30px',
+    padding: `${actualPadding}px`,
     borderRadius: '10px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
-    width: '500px',
-    maxWidth: '90%',
+    width: `${formWidth}px`,
+    height: `${formHeight}px`,
+    overflowY: 'auto',
+    boxSizing: 'border-box',
     textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
   };
 
   const inputGroupStyle: React.CSSProperties = {
@@ -208,6 +229,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const nameInputContainerStyle: React.CSSProperties = {
     display: 'flex',
     gap: '10px',
+    flexDirection: formWidth < stackThreshold ? 'column' : 'row',
   };
 
   const mealOptionStyle: React.CSSProperties = {
@@ -250,7 +272,8 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
       display: 'flex',
       justifyContent: 'space-around',
       marginTop: '25px',
-      gap: '10px'
+      gap: '10px',
+      flexDirection: formWidth < stackThreshold ? 'column' : 'row',
   };
 
   const buttonStyle: React.CSSProperties = {
