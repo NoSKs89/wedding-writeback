@@ -2,6 +2,7 @@ import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
 import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useTrackedControls
 import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
+import { useSetupMode } from '../contexts/SetupModeContext'; // ADDED
 
 // Interface for individual meal options
 interface MealOption {
@@ -36,18 +37,29 @@ interface SelectedMeals {
 // Leva controls schema for RSVP Form
 const rsvpFormControlsSchema: LevaFolderSchema = {
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
-  formHeight: { value: 700, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
+  formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
   stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'}
 };
 
 const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
+  const { isSetupMode } = useSetupMode(); // ADDED
 
   // Leva controls now use useTrackedControls, which connects to the Zustand store
-  const { values: rsvpStyleControls } = useTrackedControls("RSVP Form Style", rsvpFormControlsSchema);
-  // Destructure after getting values to ensure they are defined if rsvpStyleControls is initially undefined by the store hook
-  const { formWidth = 500, formHeight = 700, formPadding = 30, stackThreshold = 400 } = rsvpStyleControls || {};
+  const rsvpStyleControlsHook = useTrackedControls(
+    "RSVP Form Style", // Store key & Leva folder title
+    // "rsvpFormControls", // REMOVED: Unique ID
+    rsvpFormControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode } // CORRECTED: collapsed when isSetupMode is true
+  );
+  // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
+  const {
+    formWidth = rsvpFormControlsSchema.formWidth.value,
+    formHeight = rsvpFormControlsSchema.formHeight.value,
+    formPadding = rsvpFormControlsSchema.formPadding.value,
+    stackThreshold = rsvpFormControlsSchema.stackThreshold.value
+  } = rsvpStyleControlsHook?.values || {}; // Use schema defaults if rsvpStyleControlsHook.values is null/undefined
 
   // Calculate responsive padding
   const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05);

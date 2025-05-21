@@ -1,11 +1,22 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
-import { Outlet, useParams, useNavigate } from 'react-router-dom';
+import { Outlet, useParams, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
+import { getApiBaseUrl } from '../../config/apiConfig'; // Import the centralized helper
 
 // Create a context for setup authentication
 const SetupAuthContext = createContext(null);
 
 export const useSetupAuth = () => useContext(SetupAuthContext);
+
+// Helper function for API base URL (can be moved to a shared util if used in more places)
+// const getApiBaseUrl = () => {
+//   // Assuming 'development' environment implies local backend.
+//   // process.env.NODE_ENV is typically 'development', 'production', or 'test'.
+//   const useLocalBackend = process.env.NODE_ENV === 'development';
+//   const localApiBaseUrl = 'http://localhost:5000/api';
+//   const awsApiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api'; // Ensure this is your correct AWS URL
+//   return useLocalBackend ? localApiBaseUrl : awsApiBaseUrl;
+// };
 
 // Simple Password Modal (can be styled better or moved to its own file)
 const PasswordModal = ({ weddingId, onAuthenticated }) => {
@@ -19,7 +30,7 @@ const PasswordModal = ({ weddingId, onAuthenticated }) => {
     setIsLoading(true);
     console.log('[PasswordModal] Verifying password for weddingId:', weddingId);
     try {
-      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
+      const apiBaseUrl = getApiBaseUrl();
       const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/verify-setup-password`, { password });
       if (response.data.success) {
         onAuthenticated();
@@ -61,6 +72,8 @@ const PasswordModal = ({ weddingId, onAuthenticated }) => {
 const SetupLayout = () => {
   const { weddingId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
   // Store auth per weddingId. In a real app, consider more robust session/token management.
   const [isAuthenticatedForWedding, setIsAuthenticatedForWedding] = useState(() => {
     const storedAuth = sessionStorage.getItem(`setupAuth_${weddingId}`);
@@ -95,20 +108,25 @@ const SetupLayout = () => {
   // Provide auth context to children if needed (though simple sessionStorage is used here)
   const authContextValue = { isAuthenticated: isAuthenticatedForWedding, weddingId };
 
+  // Determine if the current path is the specific layout editing page
+  // Path will be /:weddingId/setup/layout
+  const isLayoutEditPage = location.pathname.endsWith('/setup/layout');
+
   return (
     <SetupAuthContext.Provider value={authContextValue}>
       <div className="setup-page-layout">
-        <header style={{ padding: '20px', background: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
-          <h2>Wedding Setup: {weddingId}</h2>
-          <nav>
-            {/* Basic navigation for setup pages - can be expanded */}
-            <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
-            {/* <button onClick={() => navigate(`/${weddingId}/setup/details`)}>Wedding Details</button> */}
-            <hr style={{margin: '15px 0'}} />
-          </nav>
-        </header>
-        <main style={{ padding: '20px' }}>
-          <Outlet /> {/* This is where nested routes like ImageUploadSetup will render */}
+        {!isLayoutEditPage && (
+          <header style={{ padding: '20px', background: '#f0f0f0', borderBottom: '1px solid #ccc' }}>
+            <h2>Wedding Setup: {weddingId}</h2>
+            <nav>
+              <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
+              {/* Add other general setup navigation links here if needed */}
+              <hr style={{margin: '15px 0'}} />
+            </nav>
+          </header>
+        )}
+        <main style={isLayoutEditPage ? { padding: 0 } : { padding: '20px' }}>
+          <Outlet /> {/* This is where nested routes like ImageUploadSetup or WeddingJourneyWrapperForSetup will render */}
         </main>
       </div>
     </SetupAuthContext.Provider>

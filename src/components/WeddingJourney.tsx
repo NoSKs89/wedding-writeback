@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated, config as springConfigs } from 'react-spring';
 import { Leva } from 'leva';
+import { useLocation } from 'react-router-dom';
 import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
@@ -9,6 +10,7 @@ import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem'
 import ParallaxBackgroundImage from './ParallaxBackgroundImage';
 import { useTrackedControls } from '../hooks/useTrackedControls';
 import { useLevaStore, LevaFolderSchema } from '../stores/levaStore';
+import { useSetupMode } from '../contexts/SetupModeContext';
 
 // Type Definitions
 interface WeddingData {
@@ -42,7 +44,6 @@ interface BackgroundAnimControlValues {
 interface WeddingJourneyProps {
   weddingData: WeddingData;
   resolvedScrapbookImages: string[];
-  setShowGuideLines: (show: boolean) => void;
 }
 
 // Updated FocusedImageState for precise animation control
@@ -140,10 +141,11 @@ const scrapbookMovementControlsSchema: LevaFolderSchema = {
   movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
 };
 
-const overallControlsSchema: LevaFolderSchema = {
-  showHUD: { value: true, label: 'Show Debug HUD' },
-  toggleGuideLines: { value: true, label: 'Toggle Guide Lines' }
-};
+// Modify overallControlsSchema slightly for clarity with isSetupMode
+const overallControlsSchemaDefinition = (isSetupModeFromContext: boolean): LevaFolderSchema => ({
+  showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' }, // Default based on setup mode
+  toggleGuideLines: { value: isSetupModeFromContext, label: 'Toggle Guide Lines' } // Default based on setup mode
+});
 
 // Updated generateScrapbookImageStyle to use Leva controls
 const generateScrapbookImageStyle = (
@@ -231,7 +233,20 @@ const generateScrapbookImageStyle = (
   };
 };
 
-const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages, setShowGuideLines }) => {
+// Helper function to parse rotation from transform string
+const parseRotationFromStyle = (transformString?: string | number): number => {
+  if (typeof transformString === 'number') return transformString;
+  if (!transformString) return 0;
+  const rotateMatch = transformString.match(/rotate\(([-\d.]+)deg\)/);
+  return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
+};
+
+const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages }) => {
+  const { isSetupMode } = useSetupMode();
+  const location = useLocation();
+
+  const { id: currentWeddingId } = weddingData;
+
   const {
     brideName, groomName, weddingDate,
     introBackground, introCouple, rsvpEndpoint
@@ -343,14 +358,45 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, [updateScrollPosition]);
 
-  // --- Leva controls via useTrackedControls (now connected to Zustand store) ---
-  const { values: animControlsUntyped } = useTrackedControls('Background Animation', backgroundAnimationSchema, { collapsed: true });
-  const animControls = animControlsUntyped as BackgroundAnimControlValues;
+  // Initialize overallControlsSchema with the current setup mode
+  const overallControlsSchema = useMemo(() => overallControlsSchemaDefinition(isSetupMode), [isSetupMode]);
 
-  const { values: bgControls } = useTrackedControls('BackgroundColor Controls', backgroundColorControlsSchema, { collapsed: true });
-  const { values: scrapbookCtrl } = useTrackedControls('Scrapbook Layout', scrapbookControlsSchema, { collapsed: true });
-  const { values: scrapbookMovementCtrl } = useTrackedControls('Scrapbook Movement', scrapbookMovementControlsSchema, { collapsed: true });
-  const { values: overallCtrlValues, changedKeys: overallCtrlChangedKeys, set: setOverallCtrl } = useTrackedControls('Overall Controls', overallControlsSchema, { collapsed: true });
+  // --- Leva Controls ---
+  // IMPORTANT: Overall Controls should be registered first for ordering
+  const overallControls = useTrackedControls(
+    'Overall Controls', // Store key & Leva folder title
+    overallControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
+
+  const { showHUD: showGlobalHUDEnabled, toggleGuideLines: guideLinesEnabled } = overallControls?.values || {};
+
+  // --- Scrapbook Controls ---
+  const scrapbookControls = useTrackedControls(
+    'Scrapbook Layout', // Store key for Leva folder title
+    scrapbookControlsSchema, // The schema definition
+    { collapsed: isSetupMode, hidden: !isSetupMode } // Options: collapsed by default in setup, hidden otherwise
+  );
+
+  const scrapbookMovementControls = useTrackedControls(
+    'Scrapbook Movement',
+    scrapbookMovementControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
+
+  // --- Background Animation Controls ---
+  const backgroundAnimControls = useTrackedControls(
+    'Background Animation',
+    backgroundAnimationSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
+
+  // --- Background Color Controls ---
+  const backgroundColorControls = useTrackedControls(
+    'Background Colors',
+    backgroundColorControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
 
   // --- Access data from Zustand store for HUD ---
   // New Approach: Select individual pieces and memoize/construct manually
@@ -371,74 +417,19 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     // Depend directly on the pieces from the store that getDisplayDataForHUD implicitly depends on.
   }, [controlValuesFromStore, changedKeysFromStore, schemasFromStore]);
 
-  const showGlobalHUD = useLevaStore(state => state.controlValues['Overall Controls']?.showHUD ?? true);
-
-  // HUD Springs - defined at the top level
-  const [{ opacity: hudOpacitySpring }] = useSpring(() => ({
-    opacity: animControls.opacityFullTransparent, 
-    from: { opacity: 1 },
-    config: { duration: 300 } // Optional: Add a subtle config if desired
-  }), [animControls.opacityFullTransparent]);
-
-  const [{ scale: hudScaleSpring }] = useSpring(() => ({
-    scale: 1 + animControls.scaleInitialRate * (scrollY / (animControls.opacityFullTransparent || 1)),
-    from: { scale: 1 },
-    config: { duration: 300 } // Optional: Add a subtle config if desired
-  }), [animControls.scaleInitialRate, animControls.opacityFullTransparent, scrollY]);
-
-  // Helper function to parse rotation from transform string
-  const parseRotationFromStyle = (transformString?: string | number): number => {
-    if (typeof transformString === 'number') return transformString;
-    if (!transformString) return 0;
-    const rotateMatch = transformString.match(/rotate\(([-\d.]+)deg\)/);
-    return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
-  };
-
-  // useEffect to update App.js state when Leva control for guide lines changes
-  useEffect(() => {
-    if (setShowGuideLines && overallCtrlValues) { 
-      setShowGuideLines(overallCtrlValues.toggleGuideLines);
-    }
-  }, [overallCtrlValues?.toggleGuideLines, setShowGuideLines]);
-
-  // Log received scrapbook images
-  useEffect(() => {
-    console.log('[WeddingJourney.tsx] Received resolvedScrapbookImages prop:', JSON.stringify(resolvedScrapbookImages));
-  }, [resolvedScrapbookImages]);
-
-  const gradientColorRGBs = useMemo(() => {
-    const currentHexColors = [
-      { bottom: bgControls.colorStop1_Bottom, top: bgControls.colorStop1_Top },
-      { bottom: bgControls.colorStop2_Bottom, top: bgControls.colorStop2_Top },
-      { bottom: bgControls.colorStop3_Bottom, top: bgControls.colorStop3_Top },
-      { bottom: bgControls.colorStop4_Bottom, top: bgControls.colorStop4_Top },
-      { bottom: bgControls.colorStop5_Bottom, top: bgControls.colorStop5_Top },
-    ];
-    return currentHexColors.map(colors => ({
-      bottom: hexToRgb(colors.bottom),
-      top: hexToRgb(colors.top)
-    })).filter(colors => colors.bottom && colors.top) as { bottom: number[]; top: number[] }[]; // Ensure structure and filter out nulls
-  }, [
-    bgControls.colorStop1_Bottom, bgControls.colorStop1_Top,
-    bgControls.colorStop2_Bottom, bgControls.colorStop2_Top,
-    bgControls.colorStop3_Bottom, bgControls.colorStop3_Top,
-    bgControls.colorStop4_Bottom, bgControls.colorStop4_Top,
-    bgControls.colorStop5_Bottom, bgControls.colorStop5_Top
-  ]);
-
   // Calculations for HUD display (derived from animControls and scrollY)
-  const opacityFullTransparent_HUD = animControls.opacityFullTransparent;
-  const opacityGentleEnd_HUD = animControls.opacityGentleEnd;
-  const opacityTargetAtGentleEnd_HUD = animControls.opacityTargetAtGentleEnd;
-  const opacityDrasticStartPixels_HUD = animControls.opacityDrasticStartPixels;
-  const opacityTargetAtDrasticStart_HUD = animControls.opacityTargetAtDrasticStart;
-  const scaleDrasticStartPx_HUD = animControls.scaleDrasticStartPx;
-  const scaleInitialRate_HUD = animControls.scaleInitialRate;
-  const scaleDrasticRate_HUD = animControls.scaleDrasticRate;
-  const translateYThreshold_HUD = animControls.translateYThreshold;
-  const translateYMultiplier_HUD = animControls.translateYMultiplier;
-  const borderRadiusStartScrollY_HUD = animControls.borderRadiusStartScrollY;
-  const clipPathVanishScrollY_HUD = animControls.clipPathVanishScrollY;
+  const opacityFullTransparent_HUD = backgroundAnimControls?.values?.opacityFullTransparent;
+  const opacityGentleEnd_HUD = backgroundAnimControls?.values?.opacityGentleEnd;
+  const opacityTargetAtGentleEnd_HUD = backgroundAnimControls?.values?.opacityTargetAtGentleEnd;
+  const opacityDrasticStartPixels_HUD = backgroundAnimControls?.values?.opacityDrasticStartPixels;
+  const opacityTargetAtDrasticStart_HUD = backgroundAnimControls?.values?.opacityTargetAtDrasticStart;
+  const scaleDrasticStartPx_HUD = backgroundAnimControls?.values?.scaleDrasticStartPx;
+  const scaleInitialRate_HUD = backgroundAnimControls?.values?.scaleInitialRate;
+  const scaleDrasticRate_HUD = backgroundAnimControls?.values?.scaleDrasticRate;
+  const translateYThreshold_HUD = backgroundAnimControls?.values?.translateYThreshold;
+  const translateYMultiplier_HUD = backgroundAnimControls?.values?.translateYMultiplier;
+  const borderRadiusStartScrollY_HUD = backgroundAnimControls?.values?.borderRadiusStartScrollY;
+  const clipPathVanishScrollY_HUD = backgroundAnimControls?.values?.clipPathVanishScrollY;
 
   let calculatedBackgroundOpacity_HUD = 1.0;
   if (scrollY <= 0) {
@@ -545,11 +536,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const memoizedScrapbookImageStyles = useMemo(() => {
       if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
       const layoutControls = {
-      angleMin: scrapbookCtrl.angleMin,
-      angleMax: scrapbookCtrl.angleMax,
-      radiusFactor: scrapbookCtrl.radiusFactor,
-      sizeMinPx: scrapbookCtrl.sizeMinPx,
-      sizeRangePx: scrapbookCtrl.sizeRangePx,
+      angleMin: scrapbookControls?.values?.angleMin,
+      angleMax: scrapbookControls?.values?.angleMax,
+      radiusFactor: scrapbookControls?.values?.radiusFactor,
+      sizeMinPx: scrapbookControls?.values?.sizeMinPx,
+      sizeRangePx: scrapbookControls?.values?.sizeRangePx,
       };
       // Ensure refs array is ready
       // This will be handled by displayedImagesAndTheirData logic now
@@ -559,18 +550,18 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       return resolvedScrapbookImages.map((_, index) => 
       generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
       );
-  }, [resolvedScrapbookImages, currentWindow, scrapbookCtrl.angleMin, scrapbookCtrl.angleMax, scrapbookCtrl.radiusFactor, scrapbookCtrl.sizeMinPx, scrapbookCtrl.sizeRangePx]);
+  }, [resolvedScrapbookImages, currentWindow, scrapbookControls?.values?.angleMin, scrapbookControls?.values?.angleMax, scrapbookControls?.values?.radiusFactor, scrapbookControls?.values?.sizeMinPx, scrapbookControls?.values?.sizeRangePx]);
 
   // NEW: Memoize scroll sensitivities for each image
   const memoizedScrollSensitivities = useMemo(() => {
       if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
       // Ensure scrapbookCtrl is initialized before accessing its properties
-      const minSens = scrapbookCtrl.scrollAngleSensitivityMin || 0.0001;
-      const maxSens = scrapbookCtrl.scrollAngleSensitivityMax || 0.002;
+      const minSens = scrapbookControls?.values?.scrollAngleSensitivityMin || 0.0001;
+      const maxSens = scrapbookControls?.values?.scrollAngleSensitivityMax || 0.002;
       return resolvedScrapbookImages.map(() => 
       Math.random() * (maxSens - minSens) + minSens
       );
-  }, [resolvedScrapbookImages, scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax]);
+  }, [resolvedScrapbookImages, scrapbookControls?.values?.scrollAngleSensitivityMin, scrapbookControls?.values?.scrollAngleSensitivityMax]);
 
   // NEW: This will be our primary source for rendering scrapbook items
   const displayedImagesAndTheirData = useMemo(() => {
@@ -586,7 +577,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       if (resolvedScrapbookImages.length === 0) return [];
     }
   
-    const numImagesToDisplay = Math.min(scrapbookCtrl.maxImages, resolvedScrapbookImages.length);
+    const numImagesToDisplay = Math.min(scrapbookControls?.values?.maxImages, resolvedScrapbookImages.length);
     let imagesToProcess: Array<{ src: string; originalIndex: number }> = [];
   
     if (resolvedScrapbookImages.length <= numImagesToDisplay) {
@@ -599,11 +590,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
     
     const layoutStyleControls = {
-      angleMin: scrapbookCtrl.angleMin,
-      angleMax: scrapbookCtrl.angleMax,
-      radiusFactor: scrapbookCtrl.radiusFactor,
-      sizeMinPx: scrapbookCtrl.sizeMinPx,
-      sizeRangePx: scrapbookCtrl.sizeRangePx,
+      angleMin: scrapbookControls?.values?.angleMin,
+      angleMax: scrapbookControls?.values?.angleMax,
+      radiusFactor: scrapbookControls?.values?.radiusFactor,
+      sizeMinPx: scrapbookControls?.values?.sizeMinPx,
+      sizeRangePx: scrapbookControls?.values?.sizeRangePx,
     };
   
     return imagesToProcess.map((imageInfo, displayIndex) => {
@@ -613,10 +604,10 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       const style = generateScrapbookImageStyle(displayIndex, imagesToProcess.length, currentWindow, layoutStyleControls);
       
       // Sensitivities are randomized per item instance in the displayed set
-      const scrollSensitivity = (Math.random() * (scrapbookCtrl.scrollAngleSensitivityMax - scrapbookCtrl.scrollAngleSensitivityMin) + scrapbookCtrl.scrollAngleSensitivityMin);
-      const xMovementSensitivity = (Math.random() * (scrapbookMovementCtrl.maxXMovementSensitivity - scrapbookMovementCtrl.minXMovementSensitivity) + scrapbookMovementCtrl.minXMovementSensitivity);
-      const yMovementSensitivity = (Math.random() * (scrapbookMovementCtrl.maxYMovementSensitivity - scrapbookMovementCtrl.minYMovementSensitivity) + scrapbookMovementCtrl.minYMovementSensitivity);
-      const zMovementSensitivity = (Math.random() * (scrapbookMovementCtrl.maxZMovementSensitivity - scrapbookMovementCtrl.minZMovementSensitivity) + scrapbookMovementCtrl.minZMovementSensitivity);
+      const scrollSensitivity = (Math.random() * (scrapbookControls?.values?.scrollAngleSensitivityMax - scrapbookControls?.values?.scrollAngleSensitivityMin) + scrapbookControls?.values?.scrollAngleSensitivityMin);
+      const xMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxXMovementSensitivity - scrapbookMovementControls?.values?.minXMovementSensitivity) + scrapbookMovementControls?.values?.minXMovementSensitivity);
+      const yMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxYMovementSensitivity - scrapbookMovementControls?.values?.minYMovementSensitivity) + scrapbookMovementControls?.values?.minYMovementSensitivity);
+      const zMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxZMovementSensitivity - scrapbookMovementControls?.values?.minZMovementSensitivity) + scrapbookMovementControls?.values?.minZMovementSensitivity);
   
       return {
         src,
@@ -635,12 +626,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     resolvedScrapbookImages, 
     imageNaturalDimensions, // Added: ensure this is a dependency
     currentWindow,
-    scrapbookCtrl.maxImages, 
-    scrapbookCtrl.angleMin, scrapbookCtrl.angleMax, scrapbookCtrl.radiusFactor, scrapbookCtrl.sizeMinPx, scrapbookCtrl.sizeRangePx,
-    scrapbookCtrl.scrollAngleSensitivityMin, scrapbookCtrl.scrollAngleSensitivityMax,
-    scrapbookMovementCtrl.minXMovementSensitivity, scrapbookMovementCtrl.maxXMovementSensitivity, 
-    scrapbookMovementCtrl.minYMovementSensitivity, scrapbookMovementCtrl.maxYMovementSensitivity,
-    scrapbookMovementCtrl.minZMovementSensitivity, scrapbookMovementCtrl.maxZMovementSensitivity,
+    scrapbookControls?.values?.maxImages, 
+    scrapbookControls?.values?.angleMin, scrapbookControls?.values?.angleMax, scrapbookControls?.values?.radiusFactor, scrapbookControls?.values?.sizeMinPx, scrapbookControls?.values?.sizeRangePx,
+    scrapbookControls?.values?.scrollAngleSensitivityMin, scrapbookControls?.values?.scrollAngleSensitivityMax,
+    scrapbookMovementControls?.values?.minXMovementSensitivity, scrapbookMovementControls?.values?.maxXMovementSensitivity, 
+    scrapbookMovementControls?.values?.minYMovementSensitivity, scrapbookMovementControls?.values?.maxYMovementSensitivity,
+    scrapbookMovementControls?.values?.minZMovementSensitivity, scrapbookMovementControls?.values?.maxZMovementSensitivity,
     // scrapbookMovementCtrl.baseItemScale, // This is global in ScrapbookImageItem
     // scrapbookMovementCtrl.movementScrollCap // This is global in ScrapbookImageItem
   ]);
@@ -743,7 +734,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     const baseRotateOnClick = parseRotationFromStyle(clickedInitialStyle.transform);
     // Get the correct scroll sensitivity for the clicked image using its displayIndex from displayedImagesAndTheirData
     const clickedImageData = displayedImagesAndTheirData.find(d => d.displayIndex === clickedDisplayIndex);
-    const itemScrollSensitivityOnClick = clickedImageData ? clickedImageData.scrollSensitivity : ((scrapbookCtrl.scrollAngleSensitivityMin + scrapbookCtrl.scrollAngleSensitivityMax) / 2);
+    const itemScrollSensitivityOnClick = clickedImageData ? clickedImageData.scrollSensitivity : ((scrapbookControls?.values?.scrollAngleSensitivityMin + scrapbookControls?.values?.scrollAngleSensitivityMax) / 2);
     
     // This is the DYNAMIC part of the angle, matching what's visually rendered
     // The 'clickedDisplayIndex * 0.5' part is an arbitrary phase offset, ensure it matches rendering if it matters
@@ -921,8 +912,8 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     currentWindow, // Added: affects target dimensions/positions if window resizes
     displayedImagesAndTheirData, // Added: provides target style and sensitivities
     scrollY, // Added: for dynamic angle recalculation
-    scrapbookCtrl.scrollAngleSensitivityMin, // Kept for fallback if data not found (shouldn't happen)
-    scrapbookCtrl.scrollAngleSensitivityMax  // Kept for fallback
+    scrapbookControls?.values?.scrollAngleSensitivityMin, // Kept for fallback if data not found (shouldn't happen)
+    scrapbookControls?.values?.scrollAngleSensitivityMax  // Kept for fallback
   ]);
 
   // NEW: Handler for closing the focused image
@@ -1033,18 +1024,147 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     flexDirection: 'column'
   };
 
+  const handleSaveLayout = async () => {
+    if (!currentWeddingId) {
+      console.error("[WeddingJourney] Cannot save layout: weddingId is missing.");
+      alert("Error: Cannot save layout, wedding ID is missing.");
+      return;
+    }
+    try {
+      console.log(`[WeddingJourney] Attempting to save layout for weddingId: ${currentWeddingId}`);
+      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId));
+      alert('Layout settings saved successfully!');
+      console.log('[WeddingJourney] Layout settings save call completed.');
+    } catch (error) {
+      console.error('[WeddingJourney] Failed to save layout settings:', error);
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      alert(`Error saving layout settings: ${errorMessage}`);
+    }
+  };
+
+  // Define a ref for the Save Layout button to get its height
+  const saveLayoutButtonRef = useRef<HTMLButtonElement>(null);
+  const [saveLayoutButtonHeight, setSaveLayoutButtonHeight] = useState(0);
+
+  useEffect(() => {
+    if (saveLayoutButtonRef.current) {
+      setSaveLayoutButtonHeight(saveLayoutButtonRef.current.offsetHeight);
+    }
+  }, [isSetupMode]); // Recalculate if button appears/disappears
+
+  // ADDED: Log current path and isSetupMode
+  useEffect(() => {
+    console.log(`[WeddingJourney] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
+  }, [location.pathname, isSetupMode]);
+
   return (
     <>
-      <Leva collapsed theme={levaTheme} />
+      {/* Conditionally configure Leva panel to be hidden or shown based on isSetupMode */}
+      <Leva theme={levaTheme} hidden={!isSetupMode} />
+
       <animated.div
-        className="wedding-journey-wrapper"
-        style={{
-          width: '100%',
-          height: '100vh',
-          background: `linear-gradient(to top, ${bgControls.colorStop1_Bottom}, ${bgControls.colorStop1_Top}), linear-gradient(to bottom, ${bgControls.colorStop2_Bottom}, ${bgControls.colorStop2_Top}), linear-gradient(to top, ${bgControls.colorStop3_Bottom}, ${bgControls.colorStop3_Top}), linear-gradient(to bottom, ${bgControls.colorStop4_Bottom}, ${bgControls.colorStop4_Top}), linear-gradient(to top, ${bgControls.colorStop5_Bottom}, ${bgControls.colorStop5_Top})`
+        className="wedding-journey-wrapper" // Ensure this class name is correct if it provides critical styles
+        style={{ 
+          width: '100%', 
+          height: '100vh', 
+          // Dynamically construct background from Leva controls or defaults
+          background: `linear-gradient(to top, 
+                        ${backgroundColorControls?.values?.colorStop1_Bottom || '#ff3c00'}, 
+                        ${backgroundColorControls?.values?.colorStop1_Top || '#ff7e33'}
+                      ), 
+                      linear-gradient(to bottom, 
+                        ${backgroundColorControls?.values?.colorStop2_Bottom || '#ff5a00'}, 
+                        ${backgroundColorControls?.values?.colorStop2_Top || '#ff9966'}
+                      ), 
+                      linear-gradient(to top, 
+                        ${backgroundColorControls?.values?.colorStop3_Bottom || '#ff7043'}, 
+                        ${backgroundColorControls?.values?.colorStop3_Top || '#ffc107'}
+                      ), 
+                      linear-gradient(to bottom, 
+                        ${backgroundColorControls?.values?.colorStop4_Bottom || '#ff5722'}, 
+                        ${backgroundColorControls?.values?.colorStop4_Top || '#ffab91'}
+                      ), 
+                      linear-gradient(to top, 
+                        ${backgroundColorControls?.values?.colorStop5_Bottom || '#ff3c00'}, 
+                        ${backgroundColorControls?.values?.colorStop5_Top || '#ff7e33'}
+                      )`,
         }}
       >
-        {/* HUD is moved to the end of this animated.div to ensure it's on top and to simplify JSX structure checking */}
+        {isSetupMode && (
+          <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10001 }}>
+            <button 
+              ref={saveLayoutButtonRef} // Add ref here
+              onClick={handleSaveLayout} 
+              style={{ 
+                padding: '8px 15px', 
+                background: '#4CAF50', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '4px', 
+                cursor: 'pointer',
+                marginBottom: '5px' // Add some margin below the button
+              }}
+            >
+              Save Layout
+            </button>
+          </div>
+        )}
+
+        {/* HUD Rendering - ensure it only shows if showGlobalHUDEnabled AND isSetupMode */}
+        {isSetupMode && showGlobalHUDEnabled && (
+          <div
+            style={{
+              position: 'fixed',
+              top: `${10 + saveLayoutButtonHeight + 5}px`,
+              left: '10px',
+              zIndex: 10000,
+              fontSize: '12px',
+              borderRadius: '4px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px', // Space between segments
+              pointerEvents: 'auto',
+            }}
+          >
+            {/* Segment 1: ScrollY and image count */}
+            <div style={{
+              padding: '5px 10px',
+              background: 'rgba(255, 255, 255, 0.8)',
+              color: 'black',
+              borderRadius: '4px',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {`ScrollY: ${scrollY.toFixed(0)}\nDisplayed Images: ${displayedImagesAndTheirData.length} / ${resolvedScrapbookImages.length} (max: ${(scrapbookControls?.values as any)?.maxImages})`}
+            </div>
+            {/* Segment 2: Background values */}
+            <div style={{
+              padding: '5px 10px',
+              background: 'rgba(255, 255, 255, 0.8)',
+              color: 'black',
+              borderRadius: '4px',
+              whiteSpace: 'pre-wrap',
+            }}>
+              {`Opacity (BG): ${backgroundOpacity_HUD.toFixed(2)}\nScale (BG): ${currentScale_HUD.toFixed(2)}\nTranslateY (BG): ${currentTranslateY_HUD.toFixed(2)}%\nClipPath (BG): ${calculatedClipPathValue_HUD}`}
+            </div>
+            {/* Segment 3: Changed tracked controls */}
+            {changedKeyDetailsOutput.trim() && (
+              <div style={{
+                padding: '5px 10px',
+                background: 'rgba(255, 255, 255, 0.8)',
+                color: 'black',
+                borderRadius: '4px',
+                whiteSpace: 'pre-wrap',
+              }}>
+                {changedKeyDetailsOutput.trim()}
+              </div>
+            )}
+          </div>
+        )}
 
         <Parallax
           ref={parallaxRef}
@@ -1060,7 +1180,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             <ParallaxBackgroundImage
               introBackgroundUrl={introBackground}
               scrollY={scrollY}
-              animControls={animControls} // Pass the correctly typed animControls object
+              animControls={backgroundAnimControls?.values as BackgroundAnimControlValues} // Pass the correctly typed animControls object
               currentWindow={currentWindow}
               backgroundStickyStart={0}
               backgroundStickyEnd={1}
@@ -1124,12 +1244,12 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
                 const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + displayIndex * 0.5) * 45;
 
-                const cappedScrollYForMovement = Math.min(scrollY, scrapbookMovementCtrl.movementScrollCap);
+                const cappedScrollYForMovement = Math.min(scrollY, scrapbookMovementControls?.values?.movementScrollCap);
 
                 const parallaxTranslateX = cappedScrollYForMovement * itemXSensitivity;
                 const parallaxTranslateY = cappedScrollYForMovement * itemYSensitivity;
 
-                let parallaxScale = scrapbookMovementCtrl.baseItemScale + (cappedScrollYForMovement * itemZSensitivity);
+                let parallaxScale = scrapbookMovementControls?.values?.baseItemScale + (cappedScrollYForMovement * itemZSensitivity);
                 parallaxScale = Math.max(0.1, parallaxScale);
 
                 let isEffectivelyHidden = false;
@@ -1167,158 +1287,123 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
         </Parallax>
 
-        {/* Focused Image Modal */}
-        {/* Backdrop - Ensure this is a direct child of wedding-journey-wrapper or another suitable parent */}
-        <animated.div
-          style={{
-            ...backdropSpring, // Now includes all necessary styles
-            zIndex: 1000, 
-          }}
-          onClick={handleCloseFocusedImage}
+        {/* Focused Image Modal - should work in both modes */}
+        <> {/* Fragment to group focused image related elements */}
+        <animated.div 
+            style={{
+                ...backdropSpring, 
+                zIndex: 1000, 
+            }}
+            onClick={handleCloseFocusedImage}
         />
-
-        {/* Animated Image Container */}
         {(focusedImage || imageReturningToScrapbook) && (
-          <animated.div
-            style={{
-              ...focusedImageContainerSpring, // Now includes position: fixed
-              zIndex: 1001, 
-            }}
-          >
-            {(focusedImage || imageReturningToScrapbook) && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}
-              >
-                <img
-                  src={focusedImage?.src || imageReturningToScrapbook?.src || ''}
-                  alt={focusedImage?.altText || imageReturningToScrapbook?.altText || 'Focused image'}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'contain',
-                    boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
-                    border: '10px solid white',
-                    borderRadius: '3px',
-                  }}
-                />
-                {focusedImage && (focusedImage.description || focusedImage.photographer) && (
-                  <animated.div style={{
-                    ...infoBoxSpring, // Contains opacity and transform
-                    position: 'absolute', // Keep this for layout relative to parent
-                    bottom: '-60px',
-                    left: '50%',
-                     // transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`), // transform is part of infoBoxSpring
-                    width: 'calc(100% - 20px)',
-                    maxWidth: '400px',
-                    backgroundColor: 'rgba(0,0,0,0.75)',
-                    color: 'white',
-                    padding: '15px',
-                    borderRadius: '5px',
-                    textAlign: 'left',
-                    boxSizing: 'border-box',
-                    zIndex: 1002,
-                  }}>
-                    {focusedImage.description && <p style={{ margin: '0 0 5px 0' }}><strong>Description:</strong> {focusedImage.description}</p>}
-                    {focusedImage.photographer && <p style={{ margin: 0 }}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
-                  </animated.div>
-                )}
-              </div>
-            )}
-          </animated.div>
+            <animated.div 
+                style={{
+                    ...focusedImageContainerSpring, 
+                    zIndex: 1001, 
+                }}
+            >
+              {(focusedImage || imageReturningToScrapbook) && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}
+                >
+                  <img
+                    src={focusedImage?.src || imageReturningToScrapbook?.src || ''}
+                    alt={focusedImage?.altText || imageReturningToScrapbook?.altText || 'Focused image'}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'contain',
+                      boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+                      border: '10px solid white',
+                      borderRadius: '3px',
+                    }}
+                  />
+                  {focusedImage && (focusedImage.description || focusedImage.photographer) && (
+                    <animated.div style={{
+                      ...infoBoxSpring, // Contains opacity and transform
+                      position: 'absolute', // Keep this for layout relative to parent
+                      bottom: '-60px',
+                      left: '50%',
+                       // transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`), // transform is part of infoBoxSpring
+                      width: 'calc(100% - 20px)',
+                      maxWidth: '400px',
+                      backgroundColor: 'rgba(0,0,0,0.75)',
+                      color: 'white',
+                      padding: '15px',
+                      borderRadius: '5px',
+                      textAlign: 'left',
+                      boxSizing: 'border-box',
+                      zIndex: 1002,
+                    }}>
+                      {focusedImage.description && <p style={{ margin: '0 0 5px 0' }}><strong>Description:</strong> {focusedImage.description}</p>}
+                      {focusedImage.photographer && <p style={{ margin: 0 }}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
+                    </animated.div>
+                  )}
+                </div>
+              )}
+            </animated.div>
         )}
-
-        {/* Navigation Arrows */}
+        {/* Navigation Arrows for focused image */}
         {focusedImage && displayedImagesAndTheirData && displayedImagesAndTheirData.length > 1 && (
-          <>
-            <button
-              onClick={handlePreviousImage}
-              aria-label="Previous image"
-              style={{
-                position: 'fixed',
-                left: '11vw',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1003,
-                background: 'rgba(0,0,0,0.6)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '50px',
-                height: '50px',
-                fontSize: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'auto',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-              }}
-            >
-              &lt;
-            </button>
-            <button
-              onClick={handleNextImage}
-              aria-label="Next image"
-              style={{
-                position: 'fixed',
-                right: '11vw',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1003,
-                background: 'rgba(0,0,0,0.6)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '50px',
-                height: '50px',
-                fontSize: '28px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                pointerEvents: 'auto',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-              }}
-            >
-              &gt;
-            </button>
-          </>
+            <>
+                <button
+                  onClick={handlePreviousImage}
+                  aria-label="Previous image"
+                  style={{
+                    position: 'fixed',
+                    left: '11vw',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 1003,
+                    background: 'rgba(0,0,0,0.6)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '28px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'auto',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  &lt;
+                </button>
+                <button
+                  onClick={handleNextImage}
+                  aria-label="Next image"
+                  style={{
+                    position: 'fixed',
+                    right: '11vw',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 1003,
+                    background: 'rgba(0,0,0,0.6)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '50px',
+                    height: '50px',
+                    fontSize: '28px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'auto',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
+                  }}
+                >
+                  &gt;
+                </button>
+            </>
         )}
-
-        {/* HUD - Placed at the end of the main animated.div for correct layering and context */}
-        {showGlobalHUD && (
-          <div
-            style={{
-              position: 'fixed',
-              top: '10px',
-              left: '10px',
-              padding: '5px 10px',
-              background: 'rgba(255, 255, 255, 0.8)',
-              color: 'black',
-              zIndex: 10000,
-              fontSize: '12px',
-              borderRadius: '4px',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {`ScrollY: ${scrollY.toFixed(0)}
-Displayed Images: ${displayedImagesAndTheirData.length} / ${resolvedScrapbookImages.length} (max: ${(scrapbookCtrl as any)?.maxImages})
-DynamicAngle[0]: ${(
-              displayedImagesAndTheirData.length > 0 && displayedImagesAndTheirData[0].scrollSensitivity && scrapbookCtrl
-                ? Math.sin(scrollY * displayedImagesAndTheirData[0].scrollSensitivity) * 45
-                : 0
-            ).toFixed(3)}
----
-Opacity (BG): ${backgroundOpacity_HUD.toFixed(2)}
-Scale (BG): ${currentScale_HUD.toFixed(2)}
-TranslateY (BG): ${currentTranslateY_HUD.toFixed(2)}%
-ClipPath (BG): ${calculatedClipPathValue_HUD}
----
-${changedKeyDetailsOutput.trim()}`}
-          </div>
-        )}
+        </>
       </animated.div>
     </>
   );

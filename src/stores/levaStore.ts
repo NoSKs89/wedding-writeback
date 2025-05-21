@@ -1,4 +1,6 @@
 import { create, StoreApi, UseBoundStore } from 'zustand';
+import axios from 'axios';
+import { getApiBaseUrl } from '../config/apiConfig'; // Import the centralized helper
 
 export interface LevaControlSchemaItem {
   value: any;
@@ -23,10 +25,20 @@ export interface LevaStoreState {
   getSettingsForSave: () => { [folderName: string]: Record<string, any> };
   loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }) => void;
   getDisplayDataForHUD: () => Array<{ folderName: string; key: string; label: string; value: any; isChanged: boolean }>;
+  saveSettingsToServer: (weddingId: string) => Promise<void>;
+  loadSettingsFromServer: (weddingId: string) => Promise<void>;
 }
 
 // Explicitly define the type for the store hook if direct create is problematic
 // type LevaStoreHook = UseBoundStore<StoreApi<LevaStoreState>>;
+
+// MOVED to src/config/apiConfig.js
+// const getApiBaseUrl = () => {
+//   const useLocalBackend = process.env.NODE_ENV === 'development'; // Basic check, can be more sophisticated
+//   const localApiBaseUrl = 'http://localhost:5000/api';
+//   const awsApiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api'; // Replace with your actual deployed URL if different
+//   return useLocalBackend ? localApiBaseUrl : awsApiBaseUrl;
+// };
 
 export const useLevaStore = create<LevaStoreState>()((set, get) => ({
   controlValues: {},
@@ -226,5 +238,42 @@ export const useLevaStore = create<LevaStoreState>()((set, get) => ({
       }
     }
     return displayData;
+  },
+
+  saveSettingsToServer: async (weddingId: string) => {
+    const apiBase = getApiBaseUrl();
+    const settingsToSave = get().getSettingsForSave();
+    try {
+      console.log(`[LevaStore] Saving layout settings for ${weddingId} to ${apiBase}/weddings/${weddingId}/layout-settings`, settingsToSave);
+      const response = await axios.post(`${apiBase}/weddings/${weddingId}/layout-settings`, settingsToSave);
+      console.log('[LevaStore] Layout settings saved successfully:', response.data);
+      // Optionally, clear changedKeys or give user feedback
+      // set(state => ({ changedKeys: {} })); // Example: Reset all changed keys after save
+    } catch (error) {
+      console.error('[LevaStore] Error saving layout settings to server:', error);
+      // Rethrow or handle error (e.g., show a notification to the user)
+      throw error;
+    }
+  },
+
+  loadSettingsFromServer: async (weddingId: string) => {
+    const apiBase = getApiBaseUrl();
+    try {
+      console.log(`[LevaStore] Loading layout settings for ${weddingId} from ${apiBase}/weddings/${weddingId}/layout-settings`);
+      const response = await axios.get(`${apiBase}/weddings/${weddingId}/layout-settings`);
+      const loadedSettings = response.data;
+      if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
+        console.log('[LevaStore] Layout settings loaded from server:', loadedSettings);
+        get().loadSettingsFromDB(loadedSettings);
+      } else {
+        console.log('[LevaStore] No layout settings found on server or empty settings object for', weddingId);
+        // Optionally, reset to defaults or do nothing if no settings are found
+        // get().loadSettingsFromDB({}); // Example: Load empty to reset to initial/schema defaults
+      }
+    } catch (error) {
+      console.error('[LevaStore] Error loading layout settings from server:', error);
+      // Rethrow or handle error
+      throw error;
+    }
   },
 })); 

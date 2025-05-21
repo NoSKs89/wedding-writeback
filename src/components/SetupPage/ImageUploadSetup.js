@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios'; // Import axios
 import { useParams } from 'react-router-dom'; // Import useParams to get weddingId
+import { getApiBaseUrl } from '../../config/apiConfig'; // Import centralized API config
 // import { useSetupAuth } from './SetupLayout'; // If you need auth status here
 
 const IMAGE_TYPES = {
@@ -20,53 +21,7 @@ const ImageUploadSetup = () => {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [successMessage, setSuccessMessage] = useState(''); // New state for success messages
 
-  // Fetch current wedding data to display existing images
-  useEffect(() => {
-    const fetchWeddingData = async () => {
-      if (!weddingId) return;
-      setIsLoadingData(true);
-      try {
-        const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
-        const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}`);
-        setCurrentWeddingData(response.data);
-        // Populate scrapbook images if they exist
-        if (response.data && response.data.scrapbookImages) {
-          setUploadedScrapbookImages(response.data.scrapbookImages.map(img => ({ 
-            name: img.fileName.substring(img.fileName.lastIndexOf('/') + 1),
-            preview: img.fileName, // This is the full S3 URL
-            s3Url: img.fileName,
-            caption: img.caption,
-            _id: img._id, // Store the MongoDB _id
-            s3Key: img.s3Key // Store s3Key if needed for display or other ops
-          })));
-        }
-      } catch (err) {
-        console.error('[ImageUploadSetup] Error fetching wedding data:', err);
-        setUploadError('Could not load existing wedding data. ' + (err.response?.data?.message || err.message));
-      }
-      setIsLoadingData(false);
-    };
-    fetchWeddingData();
-  }, [weddingId]);
-
-  const onDrop = useCallback(async acceptedFiles => {
-    if (!selectedImageType) {
-      setUploadError('Please select an image type first.');
-      return;
-    }
-
-    let commonCaption = '';
-    if (selectedImageType === IMAGE_TYPES.SCRAPBOOK && acceptedFiles.length > 0) {
-      // Prompt for caption once if uploading scrapbook images
-      commonCaption = prompt("Enter a caption for the uploaded scrapbook image(s) (optional):");
-      if (commonCaption === null) commonCaption = ''; // Handle cancel on prompt
-    }
-
-    for (const file of acceptedFiles) {
-      await handleUpload(file, selectedImageType, commonCaption); // Pass commonCaption
-    }
-  }, [weddingId, selectedImageType, handleUpload]);
-
+  // Moved handleUpload above onDrop
   const handleUpload = async (file, imageTypeToUpload, captionForScrapbook) => {
     if (!weddingId) {
       setUploadError('Wedding ID is missing. Cannot upload file.');
@@ -82,8 +37,8 @@ const ImageUploadSetup = () => {
 
     try {
       setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], status: 'Getting upload URL...' } }));
-      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
-      const presignedUrlResponse = await axios.post(`${apiBaseUrl}/s3/presigned-url`, {
+      const apiBase = getApiBaseUrl(); // Use centralized config
+      const presignedUrlResponse = await axios.post(`${apiBase}/s3/presigned-url`, {
         fileName: file.name,
         fileType: file.type,
         weddingId: weddingId,
@@ -107,7 +62,7 @@ const ImageUploadSetup = () => {
         captionToSave = captionForScrapbook; // Use the caption passed in
       } // For INTRO images, caption is not typically used or handled differently
 
-      const saveImageResponse = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/images`, {
+      const saveImageResponse = await axios.post(`${apiBase}/weddings/${weddingId}/images`, {
         imageUrl: publicUrl,
         caption: captionToSave, // Use the determined caption
         s3Key: s3Key,
@@ -141,6 +96,53 @@ const ImageUploadSetup = () => {
     }
   };
 
+  const onDrop = useCallback(async acceptedFiles => {
+    if (!selectedImageType) {
+      setUploadError('Please select an image type first.');
+      return;
+    }
+
+    let commonCaption = '';
+    if (selectedImageType === IMAGE_TYPES.SCRAPBOOK && acceptedFiles.length > 0) {
+      // Prompt for caption once if uploading scrapbook images
+      commonCaption = prompt("Enter a caption for the uploaded scrapbook image(s) (optional):");
+      if (commonCaption === null) commonCaption = ''; // Handle cancel on prompt
+    }
+
+    for (const file of acceptedFiles) {
+      await handleUpload(file, selectedImageType, commonCaption); // Pass commonCaption
+    }
+  }, [weddingId, selectedImageType, handleUpload]);
+
+  // Fetch current wedding data to display existing images
+  useEffect(() => {
+    const fetchWeddingData = async () => {
+      if (!weddingId) return;
+      setIsLoadingData(true);
+      try {
+        const apiBase = getApiBaseUrl(); // Use centralized config
+        const response = await axios.get(`${apiBase}/weddings/${weddingId}`);
+        setCurrentWeddingData(response.data);
+        // Populate scrapbook images if they exist
+        if (response.data && response.data.scrapbookImages) {
+          setUploadedScrapbookImages(response.data.scrapbookImages.map(img => ({ 
+            name: img.fileName.substring(img.fileName.lastIndexOf('/') + 1),
+            preview: img.fileName, // This is the full S3 URL
+            s3Url: img.fileName,
+            caption: img.caption,
+            _id: img._id, // Store the MongoDB _id
+            s3Key: img.s3Key // Store s3Key if needed for display or other ops
+          })));
+        }
+      } catch (err) {
+        console.error('[ImageUploadSetup] Error fetching wedding data:', err);
+        setUploadError('Could not load existing wedding data. ' + (err.response?.data?.message || err.message));
+      }
+      setIsLoadingData(false);
+    };
+    fetchWeddingData();
+  }, [weddingId]);
+
   const handleDeleteScrapbookImage = async (imageIdToDelete) => {
     if (!weddingId || !imageIdToDelete) {
       setUploadError('Cannot delete image: Missing wedding ID or image ID.');
@@ -149,8 +151,8 @@ const ImageUploadSetup = () => {
     setUploadError('');
     setSuccessMessage(''); // Clear previous success messages
     try {
-      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
-      const response = await axios.delete(`${apiBaseUrl}/weddings/${weddingId}/images/${imageIdToDelete}`);
+      const apiBase = getApiBaseUrl(); // Use centralized config
+      const response = await axios.delete(`${apiBase}/weddings/${weddingId}/images/${imageIdToDelete}`);
       const updatedWeddingData = response.data.weddingData;
       setCurrentWeddingData(updatedWeddingData);
       // Refresh scrapbook images from the updated weddingData
@@ -185,8 +187,8 @@ const ImageUploadSetup = () => {
     }
     setUploadError('');
     try {
-      const apiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api';
-      const response = await axios.delete(`${apiBaseUrl}/weddings/${weddingId}/scrapbook-images`);
+      const apiBase = getApiBaseUrl(); // Use centralized config
+      const response = await axios.delete(`${apiBase}/weddings/${weddingId}/scrapbook-images`);
       setCurrentWeddingData(response.data.weddingData);
       setUploadedScrapbookImages([]); // Clear local state too
       alert('Scrapbook images cleared successfully!');

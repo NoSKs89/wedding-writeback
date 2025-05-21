@@ -126,6 +126,52 @@ app.get('/api/weddings/:customId', async (req, res) => {
   }
 });
 
+// --- NEW: Endpoints for Layout Settings ---
+
+// GET layout settings for a wedding
+app.get('/api/weddings/:customId/layout-settings', async (req, res) => {
+  try {
+    const wedding = await WeddingData.findOne({ customId: req.params.customId }).select('layoutSettings customId');
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found' });
+    }
+    res.json(wedding.layoutSettings || {}); // Return settings or an empty object if undefined
+  } catch (err) {
+    console.error('Error fetching layout settings:', err.message);
+    res.status(500).json({ message: 'Error fetching layout settings', error: err.message });
+  }
+});
+
+// POST (save/update) layout settings for a wedding
+app.post('/api/weddings/:customId/layout-settings', async (req, res) => {
+  try {
+    const { customId } = req.params;
+    const newLayoutSettings = req.body;
+
+    // Validate that newLayoutSettings is an object (basic validation)
+    if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
+        return res.status(400).json({ message: 'Invalid layout settings format. Expected an object.' });
+    }
+
+    const wedding = await WeddingData.findOneAndUpdate(
+      { customId },
+      { $set: { layoutSettings: newLayoutSettings } },
+      { new: true, runValidators: true, select: 'layoutSettings customId' } // select ensures we only send back what's relevant
+    );
+
+    if (!wedding) {
+      return res.status(404).json({ message: 'Wedding data not found to update settings for.' });
+    }
+
+    res.status(200).json({ message: 'Layout settings saved successfully.', layoutSettings: wedding.layoutSettings });
+  } catch (err) {
+    console.error('Error saving layout settings:', err.message);
+    res.status(500).json({ message: 'Error saving layout settings', error: err.message });
+  }
+});
+
+// --- END: Endpoints for Layout Settings ---
+
 // New endpoint to generate a pre-signed URL for S3
 app.post('/api/s3/presigned-url', async (req, res) => {
   try {
@@ -404,49 +450,33 @@ app.post('/api/rsvp/:customId', async (req, res) => {
 
 // Route to verify the setup password for a given wedding customId
 app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
+  const startTime = Date.now();
+  const { customId } = req.params;
+  let requestBody = req.body;
+
+  console.log(`[verify-setup-password] ENTER for customId: ${customId}. Timestamp: ${startTime}`);
+  
   try {
-    const { customId } = req.params;
-    let requestBody = req.body;
-
-    // Enhanced logging to debug request content
-    console.log(`[verify-setup-password] Received request for customId: ${customId}`);
-    console.log('[verify-setup-password] Request Headers:', JSON.stringify(req.headers, null, 2));
-
     // Check if body is a buffer and content type is JSON, then parse it
     if (Buffer.isBuffer(req.body) && req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
-      try {
-        console.log('[verify-setup-password] req.body is a Buffer with application/json. Attempting to parse.');
-        requestBody = JSON.parse(req.body.toString());
-      } catch (parseError) {
-        console.error('[verify-setup-password] Failed to parse Buffer to JSON:', parseError);
-        return res.status(400).json({ message: 'Invalid JSON format in request body.' });
-      }
+      console.log(`[verify-setup-password] Body is buffer. Parsing. Elapsed: ${Date.now() - startTime}ms`);
+      requestBody = JSON.parse(req.body.toString());
+    } else {
+      console.log(`[verify-setup-password] Body is not buffer or not JSON. Using as is. Elapsed: ${Date.now() - startTime}ms`);
     }
     
-    console.log('[verify-setup-password] Request Body (after potential buffer parsing):', requestBody);
-
-    const { password } = requestBody; // Use the potentially parsed requestBody
-    console.log(`[verify-setup-password] Password extracted from requestBody: "${password}"`);
+    const { password } = requestBody;
+    console.log(`[verify-setup-password] Password extracted: "${password ? '***' : 'MISSING'}". Elapsed: ${Date.now() - startTime}ms`);
 
     if (!password) {
-      console.error('[verify-setup-password] Validation failed: Password is missing or empty in the request body.');
+      console.error('[verify-setup-password] Validation failed: Password missing.');
       return res.status(400).json({ message: 'Password is required.' });
     }
 
-    console.log('[verify-setup-password] Attempting to find wedding data...');
-    const startTime = Date.now();
-
-    // Diagnostic query: Count documents matching the customId
-    try {
-      const count = await WeddingData.countDocuments({ customId: customId }); // req.params.customId is 'customId' here
-      console.log(`[verify-setup-password] Diagnostic count for customId '${customId}': ${count}`);
-    } catch (countError) {
-      console.error(`[verify-setup-password] Error during diagnostic countDocuments: ${countError}`);
-    }
-
-    const wedding = await WeddingData.findOne({ customId }); 
-    const duration = Date.now() - startTime;
-    console.log(`[verify-setup-password] WeddingData.findOne took ${duration}ms.`);
+    console.log(`[verify-setup-password] Finding wedding data for ${customId}... Elapsed: ${Date.now() - startTime}ms`);
+    const weddingDbQueryStart = Date.now();
+    const wedding = await WeddingData.findOne({ customId }).select('setupPassword'); 
+    console.log(`[verify-setup-password] WeddingData.findOne took ${Date.now() - weddingDbQueryStart}ms. Total elapsed: ${Date.now() - startTime}ms`);
 
     if (!wedding) {
       console.error(`[verify-setup-password] Wedding data not found for customId: ${customId}`);
@@ -454,26 +484,22 @@ app.post('/api/weddings/:customId/verify-setup-password', async (req, res) => {
     }
 
     if (!wedding.setupPassword) {
-      // This case means a password was never set for this wedding. 
-      // You might decide to allow access or require a password to be set first.
-      // For now, let's treat it as unauthorized if a password was expected for setup.
+      console.error(`[verify-setup-password] Setup password not configured for wedding: ${customId}`);
       return res.status(401).json({ message: 'Setup password not configured for this wedding.' }); 
     }
 
-    // IMPORTANT: In production, compare hashed passwords.
-    // const isMatch = await bcrypt.compare(password, wedding.setupPassword);
-    // For now, direct string comparison (NOT FOR PRODUCTION):
     const isMatch = (password === wedding.setupPassword);
+    console.log(`[verify-setup-password] Password match result: ${isMatch}. Elapsed: ${Date.now() - startTime}ms`);
 
     if (isMatch) {
-      // In a real app, you might issue a short-lived JWT or session token here for setup access.
-      // For simplicity, we'll just return success, and the frontend will manage its auth state.
       res.json({ success: true, message: 'Password verified.' });
     } else {
       res.status(401).json({ success: false, message: 'Invalid password.' });
     }
+    console.log(`[verify-setup-password] EXIT for customId: ${customId}. Total duration: ${Date.now() - startTime}ms`);
+
   } catch (err) {
-    console.error('Error verifying setup password:', err.message);
+    console.error(`[verify-setup-password] CRITICAL ERROR for customId: ${customId}: ${err.message}. Stack: ${err.stack}. Total duration: ${Date.now() - startTime}ms`);
     res.status(500).json({ message: 'Error verifying setup password', error: err.message });
   }
 });
