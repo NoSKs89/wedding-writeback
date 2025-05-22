@@ -5,6 +5,23 @@ import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSche
 import { useSetupMode } from '../contexts/SetupModeContext'; // ADDED
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes'; // ADDED
 
+// Helper function to convert hex to rgba
+const hexToRgba = (hex: string, opacity: number): string => {
+  let r = "0", g = "0", b = "0";
+  // 3 digits
+  if (hex.length === 4) {
+    r = "0x" + hex[1] + hex[1];
+    g = "0x" + hex[2] + hex[2];
+    b = "0x" + hex[3] + hex[3];
+  // 6 digits
+  } else if (hex.length === 7) {
+    r = "0x" + hex[1] + hex[2];
+    g = "0x" + hex[3] + hex[4];
+    b = "0x" + hex[5] + hex[6];
+  }
+  return `rgba(${+r},${+g},${+b},${opacity})`;
+};
+
 // Interface for individual meal options
 interface MealOption {
   name: string;
@@ -35,9 +52,16 @@ interface SelectedMeals {
   [mealName: string]: number;
 }
 
+// Determine initial border color for schema from default theme
+const initialDefaultTheme = getThemeByName(defaultThemeName);
+const initialBorderColorFromTheme = initialDefaultTheme?.borderColor || '#CCCCCC'; // Fallback if not found
+
 // Leva controls schema for RSVP Form
 const rsvpFormControlsSchema: LevaFolderSchema = {
   formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
+  formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
+  formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
+  formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
   formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
@@ -57,6 +81,9 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
   const {
     formThemeName = defaultThemeName,
+    formBackgroundOpacity = rsvpFormControlsSchema.formBackgroundOpacity.value,
+    formBorderColor = rsvpFormControlsSchema.formBorderColor.value,
+    formBorderWidth = rsvpFormControlsSchema.formBorderWidth.value,
     formWidth = rsvpFormControlsSchema.formWidth.value,
     formHeight = rsvpFormControlsSchema.formHeight.value,
     formPadding = rsvpFormControlsSchema.formPadding.value,
@@ -237,7 +264,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   
   // Inline styles (can be moved to CSS Modules or a separate CSS file if preferred)
   const formStyle: React.CSSProperties = {
-    background: selectedTheme.backgroundColor,
+    background: hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity),
     color: selectedTheme.textColor,
     fontFamily: selectedTheme.fontFamily,
     padding: `${actualPadding}px`,
@@ -250,7 +277,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     textAlign: 'left',
     display: 'flex',
     flexDirection: 'column',
-    border: selectedTheme.borderColor ? `1px solid ${selectedTheme.borderColor}` : 'none',
+    border: `${formBorderWidth}px solid ${formBorderColor}`,
   };
 
   const inputGroupStyle: React.CSSProperties = {
