@@ -20,6 +20,7 @@ import { SetupModeProvider, useSetupMode } from './contexts/SetupModeContext'; /
 import { useLevaStore } from './stores/levaStore'; // Ensure useLevaStore is imported
 import { getApiBaseUrl } from './config/apiConfig'; // Import the centralized helper
 import { useIsMobile } from './utils/deviceDetect'; // ADDED
+import FontGrabber from './components/FontGrabber'; // ADDED
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -267,11 +268,25 @@ const MainAppContent = () => {
   );
 }
 
+const googleFontsToLoad = [
+  { name: 'Roboto', weights: ['400', '700'] },
+  { name: 'Open Sans', weights: ['400', '700'] },
+  { name: 'Lato', weights: ['400', '700'] },
+  { name: 'Montserrat', weights: ['400', '700'] },
+  { name: 'Poppins', weights: ['400', '700'] },
+  { name: 'Inter', weights: ['400', '700'] },
+  { name: 'Source Sans 3', weights: ['400', '700'] },
+  { name: 'Oswald', weights: ['400', '700'] },
+  { name: 'Raleway', weights: ['400', '700'] },
+  { name: 'Merriweather', weights: ['400', '700'] },
+];
+
 function App() {
   return (
     <ParallaxProvider>
       <SetupModeProvider>
         <Router>
+          <FontGrabber fonts={googleFontsToLoad} />
           <MainAppContent />
         </Router>
       </SetupModeProvider>

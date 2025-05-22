@@ -22,6 +22,37 @@ const hexToRgba = (hex: string, opacity: number): string => {
   return `rgba(${+r},${+g},${+b},${opacity})`;
 };
 
+const systemFontStack = [
+  'Arial, Helvetica, sans-serif',
+  'Georgia, serif',
+  'Times New Roman, Times, serif',
+  'Verdana, Geneva, sans-serif',
+  'Courier New, Courier, monospace',
+  'Tahoma, Geneva, sans-serif',
+  'Palatino Linotype, Book Antiqua, Palatino, serif',
+  'Lucida Console, Monaco, monospace'
+];
+
+const googleFontNames = [
+  'Roboto', // When using in CSS, ensure these are quoted if they contain spaces and use the exact name Google Fonts uses
+  'Open Sans',
+  'Lato',
+  'Montserrat',
+  'Poppins',
+  'Inter',
+  'Source Sans 3',
+  'Oswald',
+  'Raleway',
+  'Merriweather'
+];
+
+// For the CSS font-family property, we might want to add fallbacks, 
+// but for the picker, just the name is fine. Ensure the FontGrabber loads them correctly.
+const fontFamilyOptions = [
+  ...googleFontNames, 
+  ...systemFontStack
+];
+
 // Interface for individual meal options
 interface MealOption {
   name: string;
@@ -55,13 +86,27 @@ interface SelectedMeals {
 // Determine initial border color for schema from default theme
 const initialDefaultTheme = getThemeByName(defaultThemeName);
 const initialBorderColorFromTheme = initialDefaultTheme?.borderColor || '#CCCCCC'; // Fallback if not found
+// Ensure initial font family is one of the available options, or fallback to the first option
+const determineInitialFont = (themeFont?: string) => {
+  if (themeFont && fontFamilyOptions.includes(themeFont)) return themeFont;
+  // If the theme's font is not in our combined list (e.g. old custom font), try to match Google Font name first
+  const googleMatch = googleFontNames.find(gf => themeFont?.includes(gf));
+  if (googleMatch) return googleMatch;
+  return fontFamilyOptions[0]; // Default to the first option in the combined list
+};
+const initialTextFontFamily = determineInitialFont(initialDefaultTheme?.fontFamily);
+const initialButtonFontFamily = determineInitialFont(initialDefaultTheme?.fontFamily); // Could have a separate button font in theme
 
 // Leva controls schema for RSVP Form
 const rsvpFormControlsSchema: LevaFolderSchema = {
   formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
+  formTextFontFamily: { value: initialTextFontFamily, options: fontFamilyOptions, label: 'Text Font' },
+  buttonTextFontFamily: { value: initialButtonFontFamily, options: fontFamilyOptions, label: 'Button Font' },
   formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
   formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
   formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
+  cantMakeItButtonEmoji: { value: '😥', label: "Can't Make It Emoji"},
+  canMakeItButtonEmoji: { value: '😄', label: "Can Make It Emoji"},
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
   formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
@@ -81,9 +126,13 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
   const {
     formThemeName = defaultThemeName,
+    formTextFontFamily = rsvpFormControlsSchema.formTextFontFamily.value,
+    buttonTextFontFamily = rsvpFormControlsSchema.buttonTextFontFamily.value,
     formBackgroundOpacity = rsvpFormControlsSchema.formBackgroundOpacity.value,
     formBorderColor = rsvpFormControlsSchema.formBorderColor.value,
     formBorderWidth = rsvpFormControlsSchema.formBorderWidth.value,
+    cantMakeItButtonEmoji = rsvpFormControlsSchema.cantMakeItButtonEmoji.value,
+    canMakeItButtonEmoji = rsvpFormControlsSchema.canMakeItButtonEmoji.value,
     formWidth = rsvpFormControlsSchema.formWidth.value,
     formHeight = rsvpFormControlsSchema.formHeight.value,
     formPadding = rsvpFormControlsSchema.formPadding.value,
@@ -102,7 +151,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
                          name: 'EmergencyFallback', 
                          backgroundColor: '#ffffff', 
                          textColor: '#000000', 
-                         fontFamily: 'Arial, sans-serif',
+                         fontFamily: fontFamilyOptions[0],
                          borderColor: '#cccccc',
                          buttonBackgroundColor: '#007bff',
                          buttonTextColor: '#ffffff'
@@ -266,7 +315,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const formStyle: React.CSSProperties = {
     background: hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity),
     color: selectedTheme.textColor,
-    fontFamily: selectedTheme.fontFamily,
+    fontFamily: formTextFontFamily,
     padding: `${actualPadding}px`,
     borderRadius: '10px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
@@ -293,7 +342,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     fontSize: '1rem',
     backgroundColor: selectedTheme.backgroundColor,
     color: selectedTheme.textColor,
-    fontFamily: selectedTheme.fontFamily,
+    fontFamily: formTextFontFamily,
   };
   
   const nameInputContainerStyle: React.CSSProperties = {
@@ -309,6 +358,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     marginBottom: '10px',
     background: selectedTheme.backgroundColor === '#FFFFFF' ? '#f9f9f9' : selectedTheme.backgroundColor === '#1A1A1A' ? '#2a2a2a' : selectedTheme.backgroundColor,
     color: selectedTheme.textColor,
+    fontFamily: formTextFontFamily,
   };
 
   const mealNameStyle: React.CSSProperties = {
@@ -318,6 +368,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     alignItems: 'center',
     cursor: 'pointer',
     color: selectedTheme.textColor,
+    fontFamily: formTextFontFamily,
   };
   
   const mealDescriptionStyle: React.CSSProperties = {
@@ -328,6 +379,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
       borderRadius: '4px',
       fontSize: '0.9em',
       color: selectedTheme.textColor,
+      fontFamily: formTextFontFamily,
   };
 
   const dietaryTagStyle: React.CSSProperties = {
@@ -338,7 +390,8 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     borderRadius: '10px',
     fontSize: '0.8em',
     marginRight: '5px',
-    marginTop: '5px'
+    marginTop: '5px',
+    fontFamily: formTextFontFamily,
   };
   
   const initialButtonContainerStyle: React.CSSProperties = {
@@ -357,7 +410,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     fontSize: '1rem',
     fontWeight: 'bold',
     flex: 1,
-    fontFamily: selectedTheme.fontFamily,
+    fontFamily: buttonTextFontFamily,
   };
 
   const backButtonStyle: React.CSSProperties = {
@@ -385,7 +438,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   // Styles for headings, labels, and paragraphs
   const textStyle: React.CSSProperties = {
     color: selectedTheme.textColor,
-    fontFamily: selectedTheme.fontFamily,
+    fontFamily: formTextFontFamily,
   };
 
   if (isAttending === null) {
@@ -403,14 +456,14 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
           <label htmlFor="message" style={{display: 'block', marginBottom: '5px', fontWeight: '500', ...textStyle}}>Message to the Couple (Optional)</label>
           <textarea id="message" placeholder="Your message..." value={message} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} rows={3} style={inputStyle} />
         </div>
-        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: selectedTheme.fontFamily}}>{formError}</p>}
+        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: formTextFontFamily}}>{formError}</p>}
         <p style={{textAlign:'center', marginBottom:'10px', ...textStyle}}>Can you make it?</p>
         <div style={initialButtonContainerStyle}>
           <button type="button" style={{...buttonStyle, background: '#d9534f', color: 'white'}} onClick={() => handleAttendanceChoice(false)}>
-            We Can't Make It! 😥
+            We Can't Make It! {cantMakeItButtonEmoji}
           </button>
           <button type="button" style={{...buttonStyle, background: '#5cb85c', color: 'white'}} onClick={() => handleAttendanceChoice(true)}>
-            We can make it! 😄
+            We can make it! {canMakeItButtonEmoji}
           </button>
         </div>
       </div>
@@ -440,7 +493,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
                   <div style={mealDescriptionStyle}>
                     <p style={textStyle}>{meal.description}</p>
                     {meal.dietaryTags && meal.dietaryTags.length > 0 && (
-                      <div style={textStyle}><strong>Dietary Information:</strong> {meal.dietaryTags.map(tag => <span key={tag} style={dietaryTagStyle}>{tag}</span>)}</div>
+                      <div style={textStyle}><strong>Dietary Information:</strong> {meal.dietaryTags.map(tag => <span key={tag} style={{...dietaryTagStyle, fontFamily: formTextFontFamily}}>{tag}</span>)}</div>
                     )}
                   </div>
                 )}
@@ -460,7 +513,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
             {guestCount > 1 && <p style={{fontSize: '0.9em', marginTop: '10px', ...textStyle}}>Total selected for party: {getTotalSelectedMealQuantity()} / {guestCount}</p>}
           </div>
         )}
-        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: selectedTheme.fontFamily}}>{formError}</p>}
+        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: formTextFontFamily}}>{formError}</p>}
         <div style={{textAlign: 'center', marginTop:'25px'}}> 
           <button type="submit" style={finalSubmitButtonStyle}>
             Submit RSVP
