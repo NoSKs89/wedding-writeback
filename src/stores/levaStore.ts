@@ -73,76 +73,48 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   levaSetters: {},
 
   registerControls: (folderName, schema, initialValuesFromLevaSchema, setter) => set(state => {
-    // console.log(`[LevaStore] registerControls for folder: ${folderName}`, { schema, initialValuesFromLevaSchema: JSON.stringify(initialValuesFromLevaSchema) });
+    // console.log(`[LevaStore] registerControls for folder: ${folderName}`, { schemaInput: JSON.stringify(initialValuesFromLevaSchema), existingInitial: JSON.stringify(state.initialControlValues[folderName]), existingControl: JSON.stringify(state.controlValues[folderName]) });
 
-    const schemaIsNewOrChanged = !state.schemas[folderName] || state.schemas[folderName] !== schema;
-    const schemaDefaultsAreNewOrChanged = !state.initialControlValues[folderName] || !shallowCompareObjects(state.initialControlValues[folderName], initialValuesFromLevaSchema);
-    const setterIsNewOrChanged = !state.levaSetters[folderName] || state.levaSetters[folderName] !== setter;
-    
-    const isFirstTimeInitializingControlValues = !state.controlValues[folderName];
-
-    if (!schemaIsNewOrChanged && !schemaDefaultsAreNewOrChanged && !setterIsNewOrChanged && !isFirstTimeInitializingControlValues) {
-      // console.log(`[LevaStore] ${folderName}: No change in schema, defaults, or setter, and controlValues already exist. Skipping registration update.`);
-      return state; 
+    // Determine the effective initial values for this folder.
+    // If initialControlValues for this folder already exist in the store (e.g., from DB load or previous save), use them as the baseline.
+    // Otherwise, this is the first time we're seeing this folder, so use the schema's defaults.
+    let effectiveInitialValuesForFolder = state.initialControlValues[folderName];
+    if (!effectiveInitialValuesForFolder) {
+      effectiveInitialValuesForFolder = { ...initialValuesFromLevaSchema };
     }
 
-    // console.log(`[LevaStore] Proceeding with registration logic for ${folderName}.`);
-
-    const newSchemas = { ...state.schemas, [folderName]: schema };
-    const newLevaSetters = setterIsNewOrChanged ? { ...state.levaSetters, [folderName]: setter } : state.levaSetters;
-    
-    let newInitialControlValues = state.initialControlValues;
-    if (schemaDefaultsAreNewOrChanged) {
-        newInitialControlValues = { ...state.initialControlValues, [folderName]: { ...initialValuesFromLevaSchema } };
-    }
-
-    let finalControlValuesForFolder: Record<string, any>;
-    let newChangedKeysSet = state.changedKeys[folderName] || new Set<string>();
-
-    if (state.controlValues[folderName]) {
-        // Control values already exist (e.g. from DB load or prior interaction). Preserve them.
-        finalControlValuesForFolder = { ...state.controlValues[folderName] };
-        // console.log(`[LevaStore] ${folderName}: controlValues already exist. Preserving them:`, JSON.stringify(finalControlValuesForFolder));
-
-        // If schema defaults *also* changed, we need to re-calculate changedKeys against the *new* schema defaults.
-        if (schemaDefaultsAreNewOrChanged) {
-            // console.log(`[LevaStore] ${folderName}: Schema defaults also changed. Re-calculating changedKeys.`);
-            const tempChangedKeys = new Set<string>();
-            const actualSchemaDefaults = newInitialControlValues[folderName] || initialValuesFromLevaSchema;
-            for (const key in finalControlValuesForFolder) {
-                if (actualSchemaDefaults.hasOwnProperty(key) &&
-                    finalControlValuesForFolder[key] !== actualSchemaDefaults[key]) {
-                    tempChangedKeys.add(key);
-                }
-            }
-            newChangedKeysSet = tempChangedKeys;
-        }
-    } else {
-        // First time controlValues are being set for this folder; initialize with schema defaults.
-        // console.log(`[LevaStore] ${folderName}: Initializing controlValues with schema defaults:`, JSON.stringify(initialValuesFromLevaSchema));
-        finalControlValuesForFolder = { ...initialValuesFromLevaSchema };
-        newChangedKeysSet = new Set<string>(); // No changes from schema defaults yet
+    // Determine the effective control (live) values for this folder.
+    // If controlValues for this folder already exist (e.g., from DB load or user interaction), use them.
+    // Otherwise, initialize them with the effectiveInitialValuesForFolder.
+    let effectiveControlValuesForFolder = state.controlValues[folderName];
+    if (!effectiveControlValuesForFolder) {
+      effectiveControlValuesForFolder = { ...effectiveInitialValuesForFolder };
     }
     
-    // --- ADDED: Call Leva setter if store values (finalControlValuesForFolder) are different from Leva's initial mount values --- 
-    if (!shallowCompareObjects(initialValuesFromLevaSchema, finalControlValuesForFolder)) {
-      // console.log(
-      //   `[LevaStore] ${folderName}: Store values (post-DB/init) differ from Leva's initial. Updating Leva panel.`,
-      //   '\nStore values for Leva:', JSON.stringify(finalControlValuesForFolder),
-      //   '\nLeva\'s initial values:', JSON.stringify(initialValuesFromLevaSchema)
-      // );
-      setter(finalControlValuesForFolder); // This is levaSet
-    }
-    // --- END ADDED SECTION ---
+    // `changedKeys` should be preserved as they are currently in the store.
+    // They are managed by `loadSettingsFromDB` (cleared on load),
+    // `saveSettingsToServer`/`saveMobileSettingsToServer` (cleared on save),
+    // and `updateControlValues` (populated on user edit).
+    // `registerControls` itself doesn't constitute a user change that should populate `changedKeys`.
+    const preservedChangedKeysForFolder = state.changedKeys[folderName] || new Set<string>();
 
-    // console.log(`[LevaStore] State AFTER registration for ${folderName}: InitialSchemaDefaults: ${JSON.stringify(newInitialControlValues[folderName])}, LiveControlValues: ${JSON.stringify(finalControlValuesForFolder)}, ChangedKeys: ${Array.from(newChangedKeysSet).join(', ')}`);
+    // If the Leva panel's current mounted values (initialValuesFromLevaSchema)
+    // differ from what the store believes the control values should be (effectiveControlValuesForFolder, possibly from DB),
+    // then update the Leva panel to reflect the store's state.
+    if (!shallowCompareObjects(initialValuesFromLevaSchema, effectiveControlValuesForFolder)) {
+      // console.log(`[LevaStore RegisterControls] Updating Leva panel for ${folderName}. Store values: ${JSON.stringify(effectiveControlValuesForFolder)}, Leva initial mount values: ${JSON.stringify(initialValuesFromLevaSchema)}`);
+      setter(effectiveControlValuesForFolder);
+    }
     
+    // console.log(`[LevaStore RegisterControls] Finalizing state for ${folderName}. Initial: ${JSON.stringify(effectiveInitialValuesForFolder)}, Control: ${JSON.stringify(effectiveControlValuesForFolder)}, Changed: ${Array.from(preservedChangedKeysForFolder).join(',')}`);
+
     return {
-        schemas: newSchemas,
-        initialControlValues: newInitialControlValues,
-        controlValues: { ...state.controlValues, [folderName]: finalControlValuesForFolder },
-        changedKeys: { ...state.changedKeys, [folderName]: newChangedKeysSet },
-        levaSetters: newLevaSetters,
+      ...state,
+      schemas: { ...state.schemas, [folderName]: schema },
+      initialControlValues: { ...state.initialControlValues, [folderName]: effectiveInitialValuesForFolder },
+      controlValues: { ...state.controlValues, [folderName]: effectiveControlValuesForFolder },
+      changedKeys: { ...state.changedKeys, [folderName]: preservedChangedKeysForFolder },
+      levaSetters: { ...state.levaSetters, [folderName]: setter },
     };
   }),
 
@@ -296,12 +268,31 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   },
 
   saveSettingsToServer: async (weddingId: string) => {
+    const settingsToSave = get().getSettingsForSave(); // Get settings BEFORE the async call
     try {
-      const settingsToSave = get().getSettingsForSave();
       const apiBase = getApiBaseUrl();
       // console.log(`[LevaStore] Saving layout settings for ${weddingId} to ${apiBase}/weddings/${weddingId}/layout-settings`, JSON.stringify(settingsToSave));
       await axios.post(`${apiBase}/weddings/${weddingId}/layout-settings`, settingsToSave);
       // console.log('[LevaStore] Layout settings saved successfully to server.');
+
+      // AFTER successful save, update initialControlValues to reflect the saved state
+      // and reset changedKeys.
+      set(state => {
+        const newInitialValues = JSON.parse(JSON.stringify(settingsToSave)); // What was actually saved
+        const newChangedKeys = { ...state.changedKeys };
+        for (const folderName in newInitialValues) {
+          if (state.schemas.hasOwnProperty(folderName)) { // Ensure folder is known
+            newChangedKeys[folderName] = new Set<string>();
+          }
+        }
+        // console.log('[LevaStore] Save successful. Updated initialControlValues to saved values and reset changedKeys.');
+        return {
+          ...state,
+          initialControlValues: newInitialValues,
+          changedKeys: newChangedKeys,
+        };
+      });
+
     } catch (error) {
       console.error('[LevaStore] Error saving layout settings to server:', error);
       throw error;
@@ -318,12 +309,18 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
       if (typeof response.data === 'string') {
         console.log('[LevaStore PROD LOG] loadSettingsFromServer - response.data is a string. Attempting to decode.');
         try {
-          const decodedString = atob(response.data);
-          console.log('[LevaStore PROD LOG] loadSettingsFromServer - decodedString (after atob):', decodedString);
+          const binaryString = atob(response.data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const decodedString = new TextDecoder('utf-8').decode(bytes);
+          console.log('[LevaStore PROD LOG] loadSettingsFromServer - decodedString (after TextDecoder):', decodedString);
           dataToProcess = JSON.parse(decodedString);
           console.log('[LevaStore PROD LOG] loadSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
         } catch (e) {
           console.error('[LevaStore PROD LOG] loadSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
+          // Fallback or rethrow, depending on desired behavior. Here, we let it try to use original dataToProcess if parsing failed.
         }
       }
       
@@ -342,12 +339,31 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
 
   // ADDED for mobile
   saveMobileSettingsToServer: async (weddingId: string) => {
+    const settingsToSave = get().getSettingsForSave(); // Get settings BEFORE the async call
     try {
-      const settingsToSave = get().getSettingsForSave(); // Still uses the same getter for what's currently in Leva
       const apiBase = getApiBaseUrl();
       console.log(`[LevaStore] Saving MOBILE layout settings for ${weddingId} to ${apiBase}/weddings/${weddingId}/layout-settings-mobile`, JSON.stringify(settingsToSave));
       await axios.post(`${apiBase}/weddings/${weddingId}/layout-settings-mobile`, settingsToSave);
       console.log('[LevaStore] MOBILE layout settings saved successfully to server.');
+
+      // AFTER successful save, update initialControlValues to reflect the saved state
+      // and reset changedKeys.
+      set(state => {
+        const newInitialValues = JSON.parse(JSON.stringify(settingsToSave)); // What was actually saved
+        const newChangedKeys = { ...state.changedKeys };
+        for (const folderName in newInitialValues) {
+          if (state.schemas.hasOwnProperty(folderName)) { // Ensure folder is known
+            newChangedKeys[folderName] = new Set<string>();
+          }
+        }
+        // console.log('[LevaStore] MOBILE Save successful. Updated initialControlValues to saved values and reset changedKeys.');
+        return {
+          ...state,
+          initialControlValues: newInitialValues,
+          changedKeys: newChangedKeys,
+        };
+      });
+
     } catch (error) {
       console.error('[LevaStore] Error saving MOBILE layout settings to server:', error);
       throw error;
@@ -364,12 +380,18 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
       if (typeof response.data === 'string') {
         console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - response.data is a string. Attempting to decode.');
         try {
-          const decodedString = atob(response.data);
-          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - decodedString (after atob):', decodedString);
+          const binaryString = atob(response.data);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const decodedString = new TextDecoder('utf-8').decode(bytes);
+          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - decodedString (after TextDecoder):', decodedString);
           dataToProcess = JSON.parse(decodedString);
           console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
         } catch (e) {
           console.error('[LevaStore PROD LOG] loadMobileSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
+          // Fallback or rethrow.
         }
       }
       
