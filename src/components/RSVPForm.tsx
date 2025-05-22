@@ -3,6 +3,7 @@ import axios from 'axios'; // Make sure to install axios: npm install axios or y
 import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useTrackedControls
 import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
 import { useSetupMode } from '../contexts/SetupModeContext'; // ADDED
+import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes'; // ADDED
 
 // Interface for individual meal options
 interface MealOption {
@@ -36,6 +37,7 @@ interface SelectedMeals {
 
 // Leva controls schema for RSVP Form
 const rsvpFormControlsSchema: LevaFolderSchema = {
+  formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
   formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
@@ -49,17 +51,38 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   // Leva controls now use useTrackedControls, which connects to the Zustand store
   const rsvpStyleControlsHook = useTrackedControls(
     "RSVP Form Style", // Store key & Leva folder title
-    // "rsvpFormControls", // REMOVED: Unique ID
     rsvpFormControlsSchema,
     { collapsed: isSetupMode, hidden: !isSetupMode } // CORRECTED: collapsed when isSetupMode is true
   );
   // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
   const {
+    formThemeName = defaultThemeName,
     formWidth = rsvpFormControlsSchema.formWidth.value,
     formHeight = rsvpFormControlsSchema.formHeight.value,
     formPadding = rsvpFormControlsSchema.formPadding.value,
     stackThreshold = rsvpFormControlsSchema.stackThreshold.value
   } = rsvpStyleControlsHook?.values || {}; // Use schema defaults if rsvpStyleControlsHook.values is null/undefined
+
+  // MODIFIED: Robust theme selection without non-null assertion
+  let themeToUse = formThemes.find(t => t.name === formThemeName);
+  if (!themeToUse) {
+      themeToUse = formThemes.find(t => t.name === defaultThemeName);
+      if (!themeToUse) {
+          // Fallback to the first theme or an emergency theme if defaultThemeName is also not found
+          // This ensures selectedTheme is always of type FormTheme.
+          themeToUse = formThemes[0] || 
+                       { 
+                         name: 'EmergencyFallback', 
+                         backgroundColor: '#ffffff', 
+                         textColor: '#000000', 
+                         fontFamily: 'Arial, sans-serif',
+                         borderColor: '#cccccc',
+                         buttonBackgroundColor: '#007bff',
+                         buttonTextColor: '#ffffff'
+                       };
+      }
+  }
+  const selectedTheme: FormTheme = themeToUse;
 
   // Calculate responsive padding
   const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05);
@@ -214,7 +237,9 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   
   // Inline styles (can be moved to CSS Modules or a separate CSS file if preferred)
   const formStyle: React.CSSProperties = {
-    background: 'white',
+    background: selectedTheme.backgroundColor,
+    color: selectedTheme.textColor,
+    fontFamily: selectedTheme.fontFamily,
     padding: `${actualPadding}px`,
     borderRadius: '10px',
     boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
@@ -225,6 +250,7 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     textAlign: 'left',
     display: 'flex',
     flexDirection: 'column',
+    border: selectedTheme.borderColor ? `1px solid ${selectedTheme.borderColor}` : 'none',
   };
 
   const inputGroupStyle: React.CSSProperties = {
@@ -234,10 +260,13 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
   const inputStyle: React.CSSProperties = {
     width: '100%',
     padding: '10px',
-    border: '1px solid #ddd',
+    border: `1px solid ${selectedTheme.borderColor || '#ddd'}`,
     borderRadius: '5px',
     boxSizing: 'border-box',
     fontSize: '1rem',
+    backgroundColor: selectedTheme.backgroundColor,
+    color: selectedTheme.textColor,
+    fontFamily: selectedTheme.fontFamily,
   };
   
   const nameInputContainerStyle: React.CSSProperties = {
@@ -248,10 +277,11 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
 
   const mealOptionStyle: React.CSSProperties = {
     padding: '10px',
-    border: '1px solid #eee',
+    border: `1px solid ${selectedTheme.borderColor || '#eee'}`,
     borderRadius: '5px',
     marginBottom: '10px',
-    background: '#f9f9f9'
+    background: selectedTheme.backgroundColor === '#FFFFFF' ? '#f9f9f9' : selectedTheme.backgroundColor === '#1A1A1A' ? '#2a2a2a' : selectedTheme.backgroundColor,
+    color: selectedTheme.textColor,
   };
 
   const mealNameStyle: React.CSSProperties = {
@@ -259,22 +289,24 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    cursor: 'pointer'
+    cursor: 'pointer',
+    color: selectedTheme.textColor,
   };
   
   const mealDescriptionStyle: React.CSSProperties = {
-      background: '#fff',
-      border: '1px solid #eee',
+      background: selectedTheme.backgroundColor === '#FFFFFF' ? '#fff' : selectedTheme.backgroundColor === '#1A1A1A' ? '#333' : selectedTheme.backgroundColor,
+      border: `1px solid ${selectedTheme.borderColor || '#eee'}`,
       padding: '10px',
       marginTop: '5px',
       borderRadius: '4px',
-      fontSize: '0.9em'
+      fontSize: '0.9em',
+      color: selectedTheme.textColor,
   };
 
   const dietaryTagStyle: React.CSSProperties = {
     display: 'inline-block',
-    background: '#e0e0e0',
-    color: '#333',
+    background: selectedTheme.textColor === '#000000' ? '#e0e0e0' : '#555',
+    color: selectedTheme.textColor === '#000000' ? '#333' : '#f0f0f0',
     padding: '2px 8px',
     borderRadius: '10px',
     fontSize: '0.8em',
@@ -297,29 +329,55 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     cursor: 'pointer',
     fontSize: '1rem',
     fontWeight: 'bold',
-    flex: 1
+    flex: 1,
+    fontFamily: selectedTheme.fontFamily,
   };
 
-  const backButtonStyle: React.CSSProperties = { background: '#777', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '5px', cursor: 'pointer', fontSize: '0.9rem', marginBottom:'15px' };
-  const finalSubmitButtonStyle: React.CSSProperties = {...buttonStyle, width: 'auto', flex:'none' as 'none', paddingLeft: '30px', paddingRight: '30px'};
+  const backButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    background: selectedTheme.buttonBackgroundColor || '#777',
+    color: selectedTheme.buttonTextColor || 'white',
+    border: 'none',
+    padding: '8px 12px',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+    marginBottom:'15px',
+    flex: 'none',
+  };
+  const finalSubmitButtonStyle: React.CSSProperties = {
+    ...buttonStyle,
+    background: selectedTheme.buttonBackgroundColor || '#5cb85c',
+    color: selectedTheme.buttonTextColor || 'white',
+    width: 'auto',
+    flex:'none' as 'none',
+    paddingLeft: '30px',
+    paddingRight: '30px'
+  };
+
+  // Styles for headings, labels, and paragraphs
+  const textStyle: React.CSSProperties = {
+    color: selectedTheme.textColor,
+    fontFamily: selectedTheme.fontFamily,
+  };
 
   if (isAttending === null) {
     return (
       <div style={formStyle}>
-        <h2 style={{ textAlign: 'center', marginBottom: '25px', color: '#333' }}>RSVP</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: '25px', ...textStyle }}>RSVP</h2>
         <div style={inputGroupStyle}>
-          <label htmlFor="firstName" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Your Name</label>
+          <label htmlFor="firstName" style={{display: 'block', marginBottom: '5px', fontWeight: '500', ...textStyle}}>Your Name</label>
           <div style={nameInputContainerStyle}>
             <input type="text" id="firstName" placeholder="First Name" value={firstName} onChange={(e: ChangeEvent<HTMLInputElement>) => setFirstName(e.target.value)} style={{...inputStyle, flex: 1}} />
             <input type="text" id="lastName" placeholder="Last Name" value={lastName} onChange={(e: ChangeEvent<HTMLInputElement>) => setLastName(e.target.value)} style={{...inputStyle, flex: 1}} />
           </div>
         </div>
         <div style={inputGroupStyle}>
-          <label htmlFor="message" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Message to the Couple (Optional)</label>
+          <label htmlFor="message" style={{display: 'block', marginBottom: '5px', fontWeight: '500', ...textStyle}}>Message to the Couple (Optional)</label>
           <textarea id="message" placeholder="Your message..." value={message} onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setMessage(e.target.value)} rows={3} style={inputStyle} />
         </div>
-        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px'}}>{formError}</p>}
-        <p style={{textAlign:'center', marginBottom:'10px', color:'#555'}}>Can you make it?</p>
+        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: selectedTheme.fontFamily}}>{formError}</p>}
+        <p style={{textAlign:'center', marginBottom:'10px', ...textStyle}}>Can you make it?</p>
         <div style={initialButtonContainerStyle}>
           <button type="button" style={{...buttonStyle, background: '#d9534f', color: 'white'}} onClick={() => handleAttendanceChoice(false)}>
             We Can't Make It! 😥
@@ -334,50 +392,50 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     return (
       <form onSubmit={handleSubmit} style={formStyle}>
         <button type="button" onClick={handleGoBack} style={backButtonStyle}>&larr; Back</button>
-        <h2 style={{ textAlign: 'center', marginBottom: '10px', color: '#333' }}>Glad you can make it!</h2>
-        <p style={{textAlign:'center', marginBottom:'20px', color:'#555', fontSize:'0.95em'}}>Confirming for: <strong>{firstName} {lastName}</strong></p>
+        <h2 style={{ textAlign: 'center', marginBottom: '10px', ...textStyle }}>Glad you can make it!</h2>
+        <p style={{textAlign:'center', marginBottom:'20px', fontSize:'0.95em', ...textStyle}}>Confirming for: <strong style={textStyle}>{firstName} {lastName}</strong></p>
         
         <div style={inputGroupStyle}>
-          <label htmlFor="guestCount" style={{display: 'block', marginBottom: '5px', fontWeight: '500'}}>Number of Guests Attending</label>
+          <label htmlFor="guestCount" style={{display: 'block', marginBottom: '5px', fontWeight: '500', ...textStyle}}>Number of Guests Attending</label>
           <input type="number" id="guestCount" value={guestCount} onChange={handleGuestCountChange} min={1} style={inputStyle} />
         </div>
 
         {isPlated && platedOptions && platedOptions.length > 0 && guestCount > 0 && (
           <div style={inputGroupStyle}>
-            <h3 style={{ marginTop: '20px', marginBottom: '10px', color: '#444', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>Meal Selection</h3>
+            <h3 style={{ marginTop: '20px', marginBottom: '10px', borderBottom: `1px solid ${selectedTheme.borderColor || '#eee'}`, paddingBottom: '5px', ...textStyle }}>Meal Selection</h3>
             {platedOptions.map((meal) => (
               <div key={meal.name} style={mealOptionStyle}>
                 <div style={mealNameStyle} onClick={() => setExpandedMeal(expandedMeal === meal.name ? null : meal.name)}>
-                  <span>{meal.name}</span>
-                  <span style={{ fontSize: '0.8em', color: '#777' }}>{expandedMeal === meal.name ? 'Hide Details [-]' : 'Show Details [+]'}</span>
+                  <span style={textStyle}>{meal.name}</span>
+                  <span style={{ fontSize: '0.8em', color: selectedTheme.textColor === '#000000' ? '#777' : '#ccc', ...textStyle }}>{expandedMeal === meal.name ? 'Hide Details [-]' : 'Show Details [+]'}</span>
                 </div>
                 {expandedMeal === meal.name && meal.description && (
                   <div style={mealDescriptionStyle}>
-                    <p>{meal.description}</p>
+                    <p style={textStyle}>{meal.description}</p>
                     {meal.dietaryTags && meal.dietaryTags.length > 0 && (
-                      <div><strong>Dietary Information:</strong> {meal.dietaryTags.map(tag => <span key={tag} style={dietaryTagStyle}>{tag}</span>)}</div>
+                      <div style={textStyle}><strong>Dietary Information:</strong> {meal.dietaryTags.map(tag => <span key={tag} style={dietaryTagStyle}>{tag}</span>)}</div>
                     )}
                   </div>
                 )}
                 {guestCount === 1 ? (
-                  <label style={{ display: 'block', marginTop: '8px' }}>
+                  <label style={{ display: 'block', marginTop: '8px', ...textStyle }}>
                     <input type="radio" name="singleMealChoice" value={meal.name} checked={singleSelectedMeal === meal.name} onChange={() => handleSingleMealChange(meal.name)} style={{ marginRight: '8px' }} />
                     Select this option
                   </label>
                 ) : (
                   <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <label htmlFor={`meal_${meal.name.replace(/\s+/g, '-')}`} style={{flexShrink: 0}}>Quantity:</label>
+                    <label htmlFor={`meal_${meal.name.replace(/\s+/g, '-')}`} style={{flexShrink: 0, ...textStyle}}>Quantity:</label>
                     <input type="number" id={`meal_${meal.name.replace(/\s+/g, '-')}`} value={selectedMeals[meal.name] || '0'} onChange={(e: ChangeEvent<HTMLInputElement>) => handleMultipleMealQuantityChange(meal.name, e.target.value)} min={0} style={{ ...inputStyle, width: '70px', padding: '8px' }} />
                   </div>
                 )}
               </div>
             ))}
-            {guestCount > 1 && <p style={{fontSize: '0.9em', color: '#666', marginTop: '10px'}}>Total selected for party: {getTotalSelectedMealQuantity()} / {guestCount}</p>}
+            {guestCount > 1 && <p style={{fontSize: '0.9em', marginTop: '10px', ...textStyle}}>Total selected for party: {getTotalSelectedMealQuantity()} / {guestCount}</p>}
           </div>
         )}
-        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px'}}>{formError}</p>}
+        {formError && <p style={{color: 'red', textAlign: 'center', marginBottom: '15px', fontFamily: selectedTheme.fontFamily}}>{formError}</p>}
         <div style={{textAlign: 'center', marginTop:'25px'}}> 
-          <button type="submit" style={{...finalSubmitButtonStyle, background: '#5cb85c', color: 'white'}}>
+          <button type="submit" style={finalSubmitButtonStyle}>
             Submit RSVP
           </button>
         </div>

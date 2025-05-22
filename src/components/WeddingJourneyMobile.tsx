@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useSpring, animated, config as springConfigs } from 'react-spring';
+import { useDrag } from '@use-gesture/react'; // ADD THIS LINE
 import { Leva } from 'leva';
 import { useLocation } from 'react-router-dom';
 import RSVPForm from './RSVPForm';
@@ -663,14 +664,15 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
       height: '0px',
       transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
       position: 'fixed' as any,
-      config: { tension: 220, friction: 22 }, 
+      config: { tension: 250, friction: 26 } // Ensured correct config
   }));
 
   // Animation spring for the info box content
   const infoBoxSpring = useSpring({
       opacity: focusedImage ? 1 : 0,
       transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
-      config: { tension: 250, friction: 26, delay: focusedImage ? 300 : 0 }, // Delay appearance
+      config: { tension: 250, friction: 26 },
+      delay: focusedImage ? 300 : 0 // Matched delay from WeddingJourney.tsx
   });
 
   // NEW HELPER FUNCTION: Calculate target dimensions for focused image
@@ -695,12 +697,15 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
   };
 
   // USER PROVIDED HELPER FUNCTION: Calculate centered position with optional offset
-  function getCenteredPosition(targetWidth: number, targetHeight: number, offsetYvh: number = 0) {
+  function getCenteredPosition(targetWidth: number, targetHeight: number, offsetXvw: number = 0) {
       const vw = typeof window !== 'undefined' ? window.innerWidth : 1920; // Fallback for vw
       const vh = typeof window !== 'undefined' ? window.innerHeight : 1080; // Fallback for vh
       
-      const leftPx = (vw - targetWidth) / 2;
-      const topPx = (vh - targetHeight) / 2 - (vh * offsetYvh / 100);
+      let leftPx = (vw - targetWidth) / 2;
+      const topPx = (vh - targetHeight) / 2;
+
+      // Apply offsetXvw
+      leftPx -= (vw * offsetXvw / 100);
   
       return { top: topPx, left: leftPx };
   }
@@ -793,7 +798,7 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
         typeof window !== 'undefined' ? window.innerWidth : 1920,
         typeof window !== 'undefined' ? window.innerHeight : 1080
       );
-      const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 0);
+      const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 1.5);
       
       // focusedImage.initial* properties are used here for the "from" state
       focusedImageApi.start({
@@ -1063,6 +1068,41 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
     console.log(`[WeddingJourneyMobile] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
   }, [location.pathname, isSetupMode]);
 
+  // DRAG HANDLER FOR FOCUSED IMAGE NAVIGATION (MOVED HERE)
+  const bindFocusedImageDrag = useDrag(({ down, movement: [mx], velocity: [vx], direction: [dx], event, last }) => {
+    event?.stopPropagation();
+    // console.log('[WJM Drag Event]', { down, mx, vx, dx, last, focused: !!focusedImage });
+
+    if (!focusedImage || !last) return; 
+
+    console.log('[WJM Drag End]', { focusedImageNaturalWidth: focusedImage.naturalWidth, mx, vx, dx });
+
+    // Use a fraction of viewport width for distance threshold
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920; // Default for SSR/testing
+    const distanceThreshold = viewportWidth / 4; // Drag 25% of viewport width
+    const velocityThreshold = 0.3; // Velocity threshold for a fling
+
+    console.log('[WJM Drag Thresholds]', { distanceThreshold, velocityThreshold, actualMx: Math.abs(mx), actualVx: Math.abs(vx) });
+
+    if (Math.abs(mx) > distanceThreshold || Math.abs(vx) > velocityThreshold) {
+      console.log('[WJM Drag] Navigation condition MET');
+      if (dx > 0) { // Dragged right (positive X direction) -> Previous Image
+        console.log('[WJM Drag] Attempting handlePreviousImage');
+        const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent;
+        handlePreviousImage(syntheticEvent);
+      } else if (dx < 0) { // Dragged left (negative X direction) -> Next Image
+        console.log('[WJM Drag] Attempting handleNextImage');
+        const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent;
+        handleNextImage(syntheticEvent);
+      }
+    } else {
+      console.log('[WJM Drag] Navigation condition NOT MET (mx:', mx, 'vx:', vx, ')');
+    }
+  }, {
+    axis: 'x',
+    filterTaps: true,
+  });
+
   return (
     <>
       {/* Conditionally configure Leva panel to be hidden or shown based on isSetupMode */}
@@ -1299,9 +1339,11 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
         />
         {(focusedImage || imageReturningToScrapbook) && (
             <animated.div 
+                {...bindFocusedImageDrag()} // APPLY GESTURE BINDER HERE
                 style={{
                     ...focusedImageContainerSpring, 
-                    zIndex: 1001, 
+                    zIndex: 1001,
+                    touchAction: 'none', // PREVENT SCROLL ON TOUCH DEVICES
                 }}
             >
               {(focusedImage || imageReturningToScrapbook) && (

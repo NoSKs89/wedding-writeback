@@ -311,14 +311,28 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   loadSettingsFromServer: async (weddingId: string) => {
     try {
       const apiBase = getApiBaseUrl();
-      // console.log(`[LevaStore] Loading layout settings for ${weddingId} from ${apiBase}/weddings/${weddingId}/layout-settings`);
       const response = await axios.get(`${apiBase}/weddings/${weddingId}/layout-settings`);
-      const loadedSettings = response.data;
+      console.log('[LevaStore PROD LOG] loadSettingsFromServer - raw response.data:', response.data);
+      
+      let dataToProcess = response.data;
+      if (typeof response.data === 'string') {
+        console.log('[LevaStore PROD LOG] loadSettingsFromServer - response.data is a string. Attempting to decode.');
+        try {
+          const decodedString = atob(response.data);
+          console.log('[LevaStore PROD LOG] loadSettingsFromServer - decodedString (after atob):', decodedString);
+          dataToProcess = JSON.parse(decodedString);
+          console.log('[LevaStore PROD LOG] loadSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
+        } catch (e) {
+          console.error('[LevaStore PROD LOG] loadSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
+        }
+      }
+      
+      const loadedSettings = dataToProcess;
+      console.log('[LevaStore PROD LOG] loadSettingsFromServer - final loadedSettings before loadSettingsFromDB:', loadedSettings);
       if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
-        // console.log('[LevaStore] Layout settings loaded from server:', loadedSettings);
         get().loadSettingsFromDB(loadedSettings);
       } else {
-        // console.log('[LevaStore] No layout settings found on server or empty settings object for', weddingId);
+        // console.log('[LevaStore] No layout settings found on server or empty/invalid settings object for', weddingId, 'Processed data:', loadedSettings);
       }
     } catch (error) {
       console.error('[LevaStore] Error loading layout settings from server:', error);
@@ -343,14 +357,29 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   loadMobileSettingsFromServer: async (weddingId: string) => {
     try {
       const apiBase = getApiBaseUrl();
-      console.log(`[LevaStore] Loading MOBILE layout settings for ${weddingId} from ${apiBase}/weddings/${weddingId}/layout-settings-mobile`);
       const response = await axios.get(`${apiBase}/weddings/${weddingId}/layout-settings-mobile`);
-      const loadedSettings = response.data;
+      console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - raw response.data:', response.data);
+
+      let dataToProcess = response.data;
+      if (typeof response.data === 'string') {
+        console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - response.data is a string. Attempting to decode.');
+        try {
+          const decodedString = atob(response.data);
+          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - decodedString (after atob):', decodedString);
+          dataToProcess = JSON.parse(decodedString);
+          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
+        } catch (e) {
+          console.error('[LevaStore PROD LOG] loadMobileSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
+        }
+      }
+      
+      const loadedSettings = dataToProcess;
+      console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - final loadedSettings before loadSettingsFromDB:', loadedSettings);
       if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
         console.log('[LevaStore] MOBILE layout settings loaded from server:', loadedSettings);
-        get().loadSettingsFromDB(loadedSettings); // The existing loadSettingsFromDB can be reused
+        get().loadSettingsFromDB(loadedSettings);
       } else {
-        console.log('[LevaStore] No MOBILE layout settings found on server or empty settings object for', weddingId);
+        console.log('[LevaStore] No MOBILE layout settings found on server or empty/invalid settings object for', weddingId, 'Processed data:', loadedSettings);
       }
     } catch (error) {
       console.error('[LevaStore] Error loading MOBILE layout settings from server:', error);
