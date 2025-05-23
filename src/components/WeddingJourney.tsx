@@ -73,6 +73,20 @@ const levaTheme = {
   // You can add other theme customizations here if needed
 };
 
+// Define the spring configuration presets
+const springConfigPresets = {
+  default: { tension: 170, friction: 26, name: 'Default (react-spring)' },
+  gentle: { tension: 120, friction: 14, name: 'Gentle (react-spring)' },
+  wobbly: { tension: 180, friction: 12, name: 'Wobbly (react-spring)' },
+  stiff: { tension: 210, friction: 20, name: 'Stiff (react-spring)' },
+  slow: { tension: 280, friction: 60, name: 'Slow (react-spring)' },
+  molasses: { tension: 280, friction: 120, name: 'Molasses (react-spring)' },
+  responsive: { tension: 200, friction: 22, name: 'Responsive (Custom)' },
+  snappy: { tension: 250, friction: 18, name: 'Snappy (Custom)' },
+  delicate: { tension: 100, friction: 10, name: 'Delicate (Custom)' },
+  strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
+};
+
 // Helper functions for color manipulation
 function hexToRgb(hex: string): number[] | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -142,10 +156,17 @@ const scrapbookMovementControlsSchema: LevaFolderSchema = {
   movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
 };
 
-// Modify overallControlsSchema slightly for clarity with isSetupMode
+// Modify overallControlsSchemaDefinition slightly for clarity with isSetupMode
 const overallControlsSchemaDefinition = (isSetupModeFromContext: boolean): LevaFolderSchema => ({
   showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' }, // Default based on setup mode
-  toggleGuideLines: { value: isSetupModeFromContext, label: 'Toggle Guide Lines' } // Default based on setup mode
+  toggleGuideLines: { value: isSetupModeFromContext, label: 'Toggle Guide Lines' }, // Default based on setup mode
+  springPreset: { 
+    value: 'default', // Default preset key
+    options: Object.keys(springConfigPresets), // Use keys from our presets
+    label: 'Animation Physics Preset',
+    // Optional: render function to display names if keys are not user-friendly
+    // render: (get) => springConfigPresets[get('springPreset')]?.name || get('springPreset'),
+  }
 });
 
 // Updated generateScrapbookImageStyle to use Leva controls
@@ -370,7 +391,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     { collapsed: isSetupMode, hidden: !isSetupMode }
   );
 
-  const { showHUD: showGlobalHUDEnabled, toggleGuideLines: guideLinesEnabled } = overallControls?.values || {};
+  const { 
+    showHUD: showGlobalHUDEnabled, 
+    toggleGuideLines: guideLinesEnabled,
+    springPreset: selectedSpringPresetKey = 'default' // Default to 'default' if undefined
+  } = overallControls?.values || {};
+
+  // Derive the active spring configuration object
+  const activeSpringConfig = springConfigPresets[selectedSpringPresetKey as keyof typeof springConfigPresets] || springConfigPresets.default;
+  const activeSpringConfigName = activeSpringConfig.name;
 
   // --- Scrapbook Controls ---
   const scrapbookControls = useTrackedControls(
@@ -652,7 +681,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       width: '100vw',
       height: '100vh',
       background: 'rgba(0, 0, 0, 0.7)',
-      config: { tension: 250, friction: 30 },
+      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG
   });
 
   // Animation spring for the focused image container
@@ -664,15 +693,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       height: '0px',
       transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
       position: 'fixed' as any,
-      config: { tension: 250, friction: 26 } // Corrected: Removed erroneous delay
+      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Corrected: Removed erroneous delay
   }));
 
   // Animation spring for the info box content
   const infoBoxSpring = useSpring({
       opacity: focusedImage ? 1 : 0,
       transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
-      config: { tension: 250, friction: 26 }
-      , delay: focusedImage ? 300 : 0 // Delay appearance
+      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG
+      delay: focusedImage ? 300 : 0 // Delay appearance
   });
 
   // DRAG HANDLER FOR FOCUSED IMAGE NAVIGATION (MOVED HERE)
@@ -853,7 +882,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           height: `${targetHeight}px`,
           transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
         },
-        config: springConfigs.gentle, // Explicitly set gentle config for pick-up
+        config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Explicitly set gentle config for pick-up
         onRest: () => {
           // Potentially clear pending states
         }
@@ -889,7 +918,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
             height: `${initialHeightPx}px`,
             transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`,
           },
-          config: springConfigs.gentle, // Slower travel animation for put-down
+          config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Slower travel animation for put-down
         });
 
         // Animate opacity of the "flying" image separately and faster
@@ -1198,7 +1227,7 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
               borderRadius: '4px',
               whiteSpace: 'pre-wrap',
             }}>
-              {`Opacity (BG): ${backgroundOpacity_HUD.toFixed(2)}\nScale (BG): ${currentScale_HUD.toFixed(2)}\nTranslateY (BG): ${currentTranslateY_HUD.toFixed(2)}%\nClipPath (BG): ${calculatedClipPathValue_HUD}`}
+              {`Opacity (BG): ${backgroundOpacity_HUD.toFixed(2)}\nScale (BG): ${currentScale_HUD.toFixed(2)}\nTranslateY (BG): ${currentTranslateY_HUD.toFixed(2)}%\nClipPath (BG): ${calculatedClipPathValue_HUD}\nSpring Preset: ${activeSpringConfigName}`}
             </div>
             {/* Segment 3: Changed tracked controls */}
             {changedKeyDetailsOutput.trim() && (
