@@ -27,30 +27,72 @@ app.use(express.json());
 // app.use(express.static(path.join(__dirname, 'build')));
 
 // Initialize S3 Client
-// Ensure your .env file has AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and AWS_S3_BUCKET_NAME
 // These will be Lambda environment variables in AWS
-const s3Client = new S3Client({}); // SDK infers region and credentials in Lambda
+
+// Lambda and S3 Bucket are in us-east-2
+const S3_REGION = process.env.AWS_REGION_S3 || "us-east-2"; 
+
+// API Gateway and potentially SES are in us-east-1
+const SES_REGION = process.env.AWS_REGION_SES || "us-east-1"; 
+
+const s3Client = new S3Client({ region: S3_REGION });
 
 // Initialize SES Client
-// This will also use Lambda environment variables for credentials and region
-const sesClient = new SESClient({}); // SDK infers region and credentials in Lambda
+const sesClient = new SESClient({ region: SES_REGION });
 
 // MongoDB Connection
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true, // Although deprecated, often included in older examples; Mongoose 6+ handles this by default
-  useUnifiedTopology: true, // Also deprecated, Mongoose 6+ handles this by default
-  serverSelectionTimeoutMS: 30000, // Increase server selection timeout to 30 seconds
-  socketTimeoutMS: 45000, // Increase socket timeout to 45 seconds
-  bufferTimeoutMS: 20000, // Explicitly set bufferTimeoutMS to 20 seconds (default is 10s)
-})
-  .then(() => console.log('MongoDB connected successfully...'))
-  .catch(err => {
-    console.error('MongoDB connection error during initial connect:', err);
-    // process.exit(1); // REMOVED: Avoid exiting process in Lambda for DB connection errors
-    // Instead of exiting, the Lambda will likely fail on requests trying to use the DB,
-    // or Mongoose might keep retrying depending on its configuration.
-    // Proper error handling within request handlers is needed if DB is unavailable.
-  });
+console.log('[DB_CONNECT] Attempting to connect to MongoDB...');
+console.log(`[DB_CONNECT] MONGO_URI: ${process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, process.env.MONGO_URI.indexOf('@') > 0 ? process.env.MONGO_URI.indexOf('@') : 30) + "..." : "MONGO_URI NOT SET"}`);
+console.log(`[DB_CONNECT] Current NODE_ENV: ${process.env.NODE_ENV}`);
+
+try {
+  mongoose.connect(process.env.MONGO_URI, {
+    serverSelectionTimeoutMS: 30000, 
+    socketTimeoutMS: 45000, 
+    bufferTimeoutMS: 20000, 
+    // Adding more robust error handling and logging during connection attempt
+    connectTimeoutMS: 10000, // Added: Timeout for initial connection
+  })
+    .then(() => {
+      console.log('MongoDB connected successfully...');
+      console.log(`[DB_CONNECT] Successfully connected to MongoDB. Host: ${mongoose.connection.host}, Port: ${mongoose.connection.port}, DB Name: ${mongoose.connection.name}`);
+    })
+    .catch(err => {
+      console.error('MongoDB connection error during initial connect. URI used:', process.env.MONGO_URI ? process.env.MONGO_URI.substring(0, process.env.MONGO_URI.indexOf('@') > 0 ? process.env.MONGO_URI.indexOf('@') : 30) + '...' : 'URI NOT SET');
+      console.error('[DB_CONNECT] Error Details:', err);
+      console.error(`[DB_CONNECT] Full error object: ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
+      if (err.reason && err.reason.type === 'ReplicaSetNoPrimary') {
+        console.error('[DB_CONNECT] ReplicaSetNoPrimary error: Ensure your replica set is properly configured and a primary is available.');
+      }
+    });
+  console.log('[DB_CONNECT] mongoose.connect() call initiated (promise pending).');
+} catch (syncError) {
+  console.error('[DB_CONNECT] Synchronous error during mongoose.connect() call setup:', syncError);
+}
+
+// mongoose.connection.on('connecting', () => {
+//   console.log('[DB_CONNECT] Mongoose is connecting...');
+// });
+
+// mongoose.connection.on('connected', () => {
+//   console.log(`[DB_CONNECT] Mongoose connected to: ${mongoose.connection.host}:${mongoose.connection.port}/${mongoose.connection.name}`);
+// });
+
+mongoose.connection.on('error', (err) => {
+  console.error(`[DB_CONNECT] Mongoose connection error event: ${JSON.stringify(err, Object.getOwnPropertyNames(err))}`);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.warn('[DB_CONNECT] Mongoose disconnected.');
+});
+
+mongoose.connection.on('reconnected', () => {
+  console.log('[DB_CONNECT] Mongoose reconnected.');
+});
+
+mongoose.connection.on('close', () => {
+  console.log('[DB_CONNECT] Mongoose connection closed.');
+});
 
 // Import Item model
 const Item = require('./models/Item');
@@ -172,56 +214,24 @@ app.post('/api/weddings/:customId/layout-settings', async (req, res) => {
 
 // --- END: Endpoints for Layout Settings ---
 
-// --- NEW: Endpoints for MOBILE Layout Settings ---
-
-// GET MOBILE layout settings for a wedding
-app.get('/api/weddings/:customId/layout-settings-mobile', async (req, res) => {
-  try {
-    const wedding = await WeddingData.findOne({ customId: req.params.customId }).select('layoutSettingsMobile customId');
-    if (!wedding) {
-      return res.status(404).json({ message: 'Wedding data not found' });
-    }
-    res.json(wedding.layoutSettingsMobile || {}); // Return mobile settings or an empty object
-  } catch (err) {
-    console.error('Error fetching mobile layout settings:', err.message);
-    res.status(500).json({ message: 'Error fetching mobile layout settings', error: err.message });
-  }
-});
-
-// POST (save/update) MOBILE layout settings for a wedding
-app.post('/api/weddings/:customId/layout-settings-mobile', async (req, res) => {
-  try {
-    const { customId } = req.params;
-    const newLayoutSettingsMobile = req.body;
-
-    if (typeof newLayoutSettingsMobile !== 'object' || newLayoutSettingsMobile === null) {
-        return res.status(400).json({ message: 'Invalid mobile layout settings format. Expected an object.' });
-    }
-
-    const wedding = await WeddingData.findOneAndUpdate(
-      { customId },
-      { $set: { layoutSettingsMobile: newLayoutSettingsMobile } },
-      { new: true, runValidators: true, select: 'layoutSettingsMobile customId' }
-    );
-
-    if (!wedding) {
-      return res.status(404).json({ message: 'Wedding data not found to update mobile settings for.' });
-    }
-
-    res.status(200).json({ message: 'Mobile layout settings saved successfully.', layoutSettingsMobile: wedding.layoutSettingsMobile });
-  } catch (err) {
-    console.error('Error saving mobile layout settings:', err.message);
-    res.status(500).json({ message: 'Error saving mobile layout settings', error: err.message });
-  }
-});
-
-// --- END: Endpoints for MOBILE Layout Settings ---
-
 // New endpoint to generate a pre-signed URL for S3
 app.post('/api/s3/presigned-url', async (req, res) => {
   try {
-    const { fileName, fileType, weddingId, imageType } = req.body;
+    let requestBody = req.body;
+    // Check if body is a buffer and content type is JSON, then parse it
+    if (Buffer.isBuffer(req.body) && req.headers['content-type'] && req.headers['content-type'].includes('application/json')) {
+      console.log('[presigned-url] Request body is a buffer. Parsing JSON.');
+      try {
+        requestBody = JSON.parse(req.body.toString());
+      } catch (parseError) {
+        console.error('[presigned-url] Error parsing JSON from buffer:', parseError);
+        return res.status(400).json({ message: 'Invalid JSON format in request body.' });
+      }
+    }
+
+    const { fileName, fileType, weddingId, imageType } = requestBody; // Use the potentially parsed requestBody
     if (!fileName || !fileType || !weddingId || !imageType) {
+      console.log('[presigned-url] Missing required parameters:', { fileName, fileType, weddingId, imageType });
       return res.status(400).json({ message: 'fileName, fileType, weddingId, and imageType are required.' });
     }
 
@@ -244,12 +254,21 @@ app.post('/api/s3/presigned-url', async (req, res) => {
     const command = new PutObjectCommand({
       Bucket: bucketName,
       Key: uniqueFileName,
-      ContentType: fileType,
-      ACL: 'public-read' // Make uploaded object publicly readable
+      ContentType: fileType
+      // ACL: 'public-read' // REMOVED because Object Ownership = Bucket Owner Enforced (ACLs disabled)
+      // ChecksumAlgorithm: 'CRC32' // REMOVED to simplify - client will not send CRC32 headers
     });
 
-    const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
-    const publicUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${uniqueFileName}`;
+    console.log('[SERVER - presigned-url] PutObjectCommand params (NO ACL, NO ChecksumAlgorithm):', command.input);
+
+    let presignedUrl = await getSignedUrl(s3Client, command, {
+      expiresIn: 3600
+      // signableHeaders: new Set(['host', 'content-type']) // Let SDK use defaults
+    });
+
+    console.log('[SERVER - presigned-url] URL from getSignedUrl (Simplified - NO Checksum, NO ACL):', presignedUrl);
+
+    const publicUrl = `https://${bucketName}.s3.${process.env.AWS_REGION_S3 || S3_REGION}.amazonaws.com/${uniqueFileName}`;
 
     res.json({ presignedUrl, publicUrl, key: uniqueFileName });
   } catch (error) {
@@ -562,7 +581,8 @@ app.use((err, req, res, next) => {
 });
 
 // Conditionally start the server for local development
-if (process.env.NODE_ENV !== 'production') { // Or any other condition that signifies local dev
+// Ensure NODE_ENV is set to 'production' in your Lambda environment
+if (process.env.NODE_ENV !== 'production' && !process.env.AWS_LAMBDA_FUNCTION_NAME) {
   app.listen(port, () => {
     console.log(`Server running locally on port ${port}`);
   });

@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios'; // Import axios
+import { Crc32 } from '@aws-crypto/crc32'; // <--- ADD THIS IMPORT
 import { useParams } from 'react-router-dom'; // Import useParams to get weddingId
 import { getApiBaseUrl } from '../../config/apiConfig'; // Import centralized API config
 // import { useSetupAuth } from './SetupLayout'; // If you need auth status here
@@ -46,10 +47,20 @@ const ImageUploadSetup = () => {
       });
       
       const { presignedUrl, publicUrl, key: s3Key } = presignedUrlResponse.data;
+      console.log('[ImageUploadSetup] Generated S3 Presigned URL:', presignedUrl);
 
       setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], status: 'Uploading to S3...' } }));
-      await axios.put(presignedUrl, file, {
-        headers: { 'Content-Type': file.type },
+
+      // Convert file to ArrayBuffer
+      const fileBuffer = await file.arrayBuffer();
+
+      console.log('[ImageUploadSetup] Uploading to:', presignedUrl);
+      console.log('[ImageUploadSetup] With Content-Type:', file.type);
+
+      await axios.put(presignedUrl, fileBuffer, {
+        headers: { 
+          'Content-Type': file.type
+        },
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setUploadProgress(prev => ({ ...prev, [progressKey]: { ...prev[progressKey], progress: percentCompleted } }));
