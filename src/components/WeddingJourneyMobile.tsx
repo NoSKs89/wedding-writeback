@@ -156,6 +156,17 @@ const scrapbookMovementControlsSchema: LevaFolderSchema = {
   movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
 };
 
+// NEW: Schema for Intro Image Leva controls (Copied from WeddingJourney.tsx)
+const introImageControlsSchema: LevaFolderSchema = {
+  introImageScaleStart: { value: 1, min: 0.1, max: 5, step: 0.05, label: 'Start Scale' },
+  introImageScaleEnd: { value: 1.2, min: 0.1, max: 5, step: 0.05, label: 'End Scale (at Effect End Y)' },
+  introImageYOffsetStartPx: { value: 0, min: -500, max: 500, step: 1, label: 'Start Y Offset (px)' },
+  introImageYOffsetEndPx: { value: 50, min: -500, max: 500, step: 1, label: 'End Y Offset (px, at Effect End Y)' },
+  introImageOpacityStartScroll: { value: 0, min: 0, max: 3000, step: 10, label: 'Opacity Fade Start Y (scroll)' },
+  introImageOpacityEndScroll: { value: 500, min: 0, max: 3000, step: 10, label: 'Opacity Fade End Y (scroll)' },
+  introImageEffectEndScroll: { value: 1000, min: 0, max: 5000, step: 10, label: 'Scale/Y Effect End Y (scroll)' },
+};
+
 // Modify overallControlsSchemaDefinition slightly for clarity with isSetupMode
 const overallControlsSchemaDefinition = (isSetupModeFromContext: boolean): LevaFolderSchema => ({
   showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' }, // Default based on setup mode
@@ -1142,6 +1153,56 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
     filterTaps: true,
   });
 
+  // Intro Image Controls (Mirroring WeddingJourney.tsx)
+  const introImageControls = useTrackedControls(
+    'Intro Image Controls', // Using the same key as desktop for now
+    introImageControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
+
+  // --- Values from Intro Image Controls ---
+  const introImageCtrlValues = introImageControls?.values || {};
+  const {
+    introImageScaleStart = introImageControlsSchema.introImageScaleStart.value,
+    introImageScaleEnd = introImageControlsSchema.introImageScaleEnd.value,
+    introImageYOffsetStartPx = introImageControlsSchema.introImageYOffsetStartPx.value,
+    introImageYOffsetEndPx = introImageControlsSchema.introImageYOffsetEndPx.value,
+    introImageOpacityStartScroll = introImageControlsSchema.introImageOpacityStartScroll.value,
+    introImageOpacityEndScroll = introImageControlsSchema.introImageOpacityEndScroll.value,
+    introImageEffectEndScroll = introImageControlsSchema.introImageEffectEndScroll.value,
+  } = introImageCtrlValues;
+
+  // --- Calculations for Intro Image ---
+  const introImageScrollProgress = introImageEffectEndScroll > 0 ? Math.min(1, Math.max(0, scrollY / introImageEffectEndScroll)) : 0;
+  const currentIntroImageScale = introImageScaleStart + (introImageScaleEnd - introImageScaleStart) * introImageScrollProgress;
+  const currentIntroImageYOffset = introImageYOffsetStartPx + (introImageYOffsetEndPx - introImageYOffsetStartPx) * introImageScrollProgress;
+  let currentIntroImageOpacity = 1;
+  if (scrollY >= introImageOpacityStartScroll && scrollY <= introImageOpacityEndScroll && introImageOpacityEndScroll > introImageOpacityStartScroll) {
+    const opacityScrollRange = introImageOpacityEndScroll - introImageOpacityStartScroll;
+    const scrollWithinOpacityRange = scrollY - introImageOpacityStartScroll;
+    currentIntroImageOpacity = 1 - (scrollWithinOpacityRange / opacityScrollRange);
+  } else if (scrollY > introImageOpacityEndScroll) {
+    currentIntroImageOpacity = 0;
+  } else if (scrollY < introImageOpacityStartScroll) {
+    currentIntroImageOpacity = 1;
+  }
+  currentIntroImageOpacity = Math.min(1, Math.max(0, currentIntroImageOpacity)); // Clamp opacity
+
+  // Log values for debugging intro image controls on mobile (Corrected Placement)
+  console.log('[WJM Intro Img Debug]', {
+    scrollY,
+    introImageScaleStart,
+    introImageScaleEnd,
+    introImageEffectEndScroll,
+    introImageScrollProgress,
+    currentIntroImageScale,
+    currentIntroImageYOffset,
+    currentIntroImageOpacity
+  });
+
+  // Derive the active spring configuration object
+  // ... existing code ...
+
   return (
     <>
       {/* Conditionally configure Leva panel to be hidden or shown based on isSetupMode */}
@@ -1272,7 +1333,13 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
           <ParallaxLayer
             offset={0.3}
             speed={0.4}
-            style={{ ...centerStyle, zIndex: 1 }}
+            style={{ 
+              ...centerStyle, 
+              zIndex: 1,
+              // Apply dynamic opacity and transform based on scroll and Leva controls
+              opacity: currentIntroImageOpacity,
+              transform: `translateY(${currentIntroImageYOffset}px) scale(${currentIntroImageScale})` 
+            }}
           >
             <img src={introCouple} alt="Couple" className="introCoupleImage" />
           </ParallaxLayer>

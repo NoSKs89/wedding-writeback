@@ -156,6 +156,17 @@ const scrapbookMovementControlsSchema: LevaFolderSchema = {
   movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
 };
 
+// NEW: Schema for Intro Image Leva controls
+const introImageControlsSchema: LevaFolderSchema = {
+  introImageScaleStart: { value: 1, min: 0.1, max: 5, step: 0.05, label: 'Start Scale' },
+  introImageScaleEnd: { value: 1.2, min: 0.1, max: 5, step: 0.05, label: 'End Scale (at Effect End Y)' },
+  introImageYOffsetStartPx: { value: 0, min: -500, max: 500, step: 1, label: 'Start Y Offset (px)' },
+  introImageYOffsetEndPx: { value: 50, min: -500, max: 500, step: 1, label: 'End Y Offset (px, at Effect End Y)' },
+  introImageOpacityStartScroll: { value: 0, min: 0, max: 3000, step: 10, label: 'Opacity Fade Start Y (scroll)' },
+  introImageOpacityEndScroll: { value: 500, min: 0, max: 3000, step: 10, label: 'Opacity Fade End Y (scroll)' },
+  introImageEffectEndScroll: { value: 1000, min: 0, max: 5000, step: 10, label: 'Scale/Y Effect End Y (scroll)' },
+};
+
 // Modify overallControlsSchemaDefinition slightly for clarity with isSetupMode
 const overallControlsSchemaDefinition = (isSetupModeFromContext: boolean): LevaFolderSchema => ({
   showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' }, // Default based on setup mode
@@ -391,13 +402,15 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     { collapsed: isSetupMode, hidden: !isSetupMode }
   );
 
+  // overallControls?.values needs to be defined before this block
+  const overallControlsValues = overallControls?.values || {};
   const { 
-    showHUD: showGlobalHUDEnabled, 
-    toggleGuideLines: guideLinesEnabled,
-    springPreset: selectedSpringPresetKey = 'default' // Default to 'default' if undefined
-  } = overallControls?.values || {};
+    showHUD: showGlobalHUDEnabled = overallControlsSchemaDefinition(isSetupMode).showHUD.value, 
+    toggleGuideLines: guideLinesEnabled = overallControlsSchemaDefinition(isSetupMode).toggleGuideLines.value,
+    springPreset: selectedSpringPresetKey = overallControlsSchemaDefinition(isSetupMode).springPreset.value
+  } = overallControlsValues;
 
-  // Derive the active spring configuration object
+  // Derive the active spring configuration object (MOVED EARLIER)
   const activeSpringConfig = springConfigPresets[selectedSpringPresetKey as keyof typeof springConfigPresets] || springConfigPresets.default;
   const activeSpringConfigName = activeSpringConfig.name;
 
@@ -425,6 +438,13 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const backgroundColorControls = useTrackedControls(
     'Background Colors',
     backgroundColorControlsSchema,
+    { collapsed: isSetupMode, hidden: !isSetupMode }
+  );
+
+  // NEW: Intro Image Controls
+  const introImageControls = useTrackedControls(
+    'Intro Image Controls',
+    introImageControlsSchema,
     { collapsed: isSetupMode, hidden: !isSetupMode }
   );
 
@@ -1141,6 +1161,66 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     // Add cleanup or logic to reset Leva if weddingId changes or setupMode turns off, if necessary
   }, [currentWeddingId, isSetupMode]);
 
+  // Background Animation Controls Values
+  const backgroundAnimValues = backgroundAnimControls?.values || {};
+  const {
+    opacityGentleEnd = backgroundAnimationSchema.opacityGentleEnd.value,
+    opacityTargetAtGentleEnd = backgroundAnimationSchema.opacityTargetAtGentleEnd.value,
+    opacityDrasticStartPixels = backgroundAnimationSchema.opacityDrasticStartPixels.value,
+    opacityTargetAtDrasticStart = backgroundAnimationSchema.opacityTargetAtDrasticStart.value,
+    opacityFullTransparent = backgroundAnimationSchema.opacityFullTransparent.value,
+    translateYThreshold = backgroundAnimationSchema.translateYThreshold.value,
+    translateYMultiplier = backgroundAnimationSchema.translateYMultiplier.value,
+    scaleInitialRate = backgroundAnimationSchema.scaleInitialRate.value,
+    scaleDrasticStartPx = backgroundAnimationSchema.scaleDrasticStartPx.value,
+    scaleDrasticRate = backgroundAnimationSchema.scaleDrasticRate.value,
+    borderRadiusStartScrollY = backgroundAnimationSchema.borderRadiusStartScrollY.value,
+    clipPathVanishScrollY = backgroundAnimationSchema.clipPathVanishScrollY.value
+  } = backgroundAnimValues;
+
+  // Background Color Controls Values
+  const backgroundColorValues = backgroundColorControls?.values || {};
+  const {
+    colorStop1_Bottom = backgroundColorControlsSchema.colorStop1_Bottom.value,
+    colorStop1_Top = backgroundColorControlsSchema.colorStop1_Top.value,
+    colorStop2_Bottom = backgroundColorControlsSchema.colorStop2_Bottom.value,
+    colorStop2_Top = backgroundColorControlsSchema.colorStop2_Top.value,
+    colorStop3_Bottom = backgroundColorControlsSchema.colorStop3_Bottom.value,
+    colorStop3_Top = backgroundColorControlsSchema.colorStop3_Top.value,
+    colorStop4_Bottom = backgroundColorControlsSchema.colorStop4_Bottom.value,
+    colorStop4_Top = backgroundColorControlsSchema.colorStop4_Top.value,
+    colorStop5_Bottom = backgroundColorControlsSchema.colorStop5_Bottom.value,
+    colorStop5_Top = backgroundColorControlsSchema.colorStop5_Top.value
+  } = backgroundColorValues;
+
+  // Intro Image Controls Values (Moved and corrected)
+  const introImageCtrlValues = introImageControls?.values || {};
+  const {
+    introImageScaleStart = introImageControlsSchema.introImageScaleStart.value,
+    introImageScaleEnd = introImageControlsSchema.introImageScaleEnd.value,
+    introImageYOffsetStartPx = introImageControlsSchema.introImageYOffsetStartPx.value,
+    introImageYOffsetEndPx = introImageControlsSchema.introImageYOffsetEndPx.value,
+    introImageOpacityStartScroll = introImageControlsSchema.introImageOpacityStartScroll.value,
+    introImageOpacityEndScroll = introImageControlsSchema.introImageOpacityEndScroll.value,
+    introImageEffectEndScroll = introImageControlsSchema.introImageEffectEndScroll.value,
+  } = introImageCtrlValues;
+
+  // Calculations for Intro Image based on scrollY and Leva controls (using destructured values)
+  const introImageScrollProgress = introImageEffectEndScroll > 0 ? Math.min(1, Math.max(0, scrollY / introImageEffectEndScroll)) : 0;
+  const currentIntroImageScale = introImageScaleStart + (introImageScaleEnd - introImageScaleStart) * introImageScrollProgress;
+  const currentIntroImageYOffset = introImageYOffsetStartPx + (introImageYOffsetEndPx - introImageYOffsetStartPx) * introImageScrollProgress;
+  let currentIntroImageOpacity = 1;
+  if (scrollY >= introImageOpacityStartScroll && scrollY <= introImageOpacityEndScroll && introImageOpacityEndScroll > introImageOpacityStartScroll) {
+    const opacityScrollRange = introImageOpacityEndScroll - introImageOpacityStartScroll;
+    const scrollWithinOpacityRange = scrollY - introImageOpacityStartScroll;
+    currentIntroImageOpacity = 1 - (scrollWithinOpacityRange / opacityScrollRange);
+  } else if (scrollY > introImageOpacityEndScroll) {
+    currentIntroImageOpacity = 0;
+  } else if (scrollY < introImageOpacityStartScroll) {
+    currentIntroImageOpacity = 1;
+  }
+  currentIntroImageOpacity = Math.min(1, Math.max(0, currentIntroImageOpacity)); // Clamp opacity
+
   return (
     <>
       {/* Conditionally configure Leva panel to be hidden or shown based on isSetupMode */}
@@ -1153,24 +1233,24 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           height: '100vh', 
           // Dynamically construct background from Leva controls or defaults
           background: `linear-gradient(to top, 
-                        ${backgroundColorControls?.values?.colorStop1_Bottom || '#ff3c00'}, 
-                        ${backgroundColorControls?.values?.colorStop1_Top || '#ff7e33'}
+                        ${colorStop1_Bottom}, 
+                        ${colorStop1_Top}
                       ), 
                       linear-gradient(to bottom, 
-                        ${backgroundColorControls?.values?.colorStop2_Bottom || '#ff5a00'}, 
-                        ${backgroundColorControls?.values?.colorStop2_Top || '#ff9966'}
+                        ${colorStop2_Bottom}, 
+                        ${colorStop2_Top}
                       ), 
                       linear-gradient(to top, 
-                        ${backgroundColorControls?.values?.colorStop3_Bottom || '#ff7043'}, 
-                        ${backgroundColorControls?.values?.colorStop3_Top || '#ffc107'}
+                        ${colorStop3_Bottom}, 
+                        ${colorStop3_Top}
                       ), 
                       linear-gradient(to bottom, 
-                        ${backgroundColorControls?.values?.colorStop4_Bottom || '#ff5722'}, 
-                        ${backgroundColorControls?.values?.colorStop4_Top || '#ffab91'}
+                        ${colorStop4_Bottom}, 
+                        ${colorStop4_Top}
                       ), 
                       linear-gradient(to top, 
-                        ${backgroundColorControls?.values?.colorStop5_Bottom || '#ff3c00'}, 
-                        ${backgroundColorControls?.values?.colorStop5_Top || '#ff7e33'}
+                        ${colorStop5_Bottom}, 
+                        ${colorStop5_Top}
                       )`,
         }}
       >
@@ -1270,8 +1350,13 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
           {/* Intro Couple Image Layer */}
           <ParallaxLayer
             offset={0.3}
-            speed={0.4}
-            style={{ ...centerStyle, zIndex: 1 }}
+            speed={0.4} // Keep speed for initial parallax effect before scroll-based transform takes over
+            style={{ 
+              ...centerStyle, 
+              zIndex: 1,
+              opacity: currentIntroImageOpacity,
+              transform: `translateY(${currentIntroImageYOffset}px) scale(${currentIntroImageScale})` 
+            }}
           >
             <img src={introCouple} alt="Couple" className="introCoupleImage" />
           </ParallaxLayer>
