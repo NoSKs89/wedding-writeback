@@ -1213,6 +1213,7 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
         style={{ 
           width: '100%', 
           height: '100vh', 
+          overflow: 'hidden', // ADDED THIS LINE
           // Dynamically construct background from Leva controls or defaults
           background: `linear-gradient(to top, 
                         ${backgroundColorControls?.values?.colorStop1_Bottom || '#ff3c00'}, 
