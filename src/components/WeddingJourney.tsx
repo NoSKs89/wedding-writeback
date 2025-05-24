@@ -1099,29 +1099,20 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
       alert("Error: Cannot save layout, wedding ID is missing.");
       return;
     }
-    // Get settings from Zustand store - This line was correctly commented out by the user previously as it's implicitly handled by saveSettingsToServer.
-    // const layoutSettingsToSave = useLevaStore.getState().getSettingsForSave();
-
-    // REMOVE these console logs and alert
-    // console.log("[WeddingJourney] Layout Settings to Save for weddingId:", currentWeddingId);
-    // console.log(JSON.stringify(layoutSettingsToSave, null, 2)); // Pretty print JSON
-    // alert('Layout settings logged to console! Check the developer tools.');
-
-    // UNCOMMENT this try/catch block
     try {
-      console.log(`[WeddingJourney] Attempting to save layout for weddingId: ${currentWeddingId}`);
-      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId));
-      alert('Layout settings saved successfully!');
-      console.log('[WeddingJourney] Layout settings save call completed.');
+      console.log(`[WeddingJourney] Attempting to save DESKTOP layout for weddingId: ${currentWeddingId}`);
+      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId), 'desktop'); // Corrected: Added 'desktop'
+      alert('Desktop layout settings saved successfully!');
+      console.log('[WeddingJourney] Desktop layout settings save call completed.');
     } catch (error) {
-      console.error('[WeddingJourney] Failed to save layout settings:', error);
+      console.error('[WeddingJourney] Failed to save desktop layout settings:', error);
       let errorMessage = 'Unknown error';
       if (error instanceof Error) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
       }
-      alert(`Error saving layout settings: ${errorMessage}`);
+      alert(`Error saving desktop layout settings: ${errorMessage}`);
     }
   };
 
@@ -1139,6 +1130,16 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   useEffect(() => {
     console.log(`[WeddingJourney] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
   }, [location.pathname, isSetupMode]);
+
+  // Load settings on mount or when weddingId/setupMode changes
+  useEffect(() => {
+    if (currentWeddingId && isSetupMode) {
+      console.log(`[WeddingJourney] Attempting to load DESKTOP layout settings for ${currentWeddingId}`);
+      useLevaStore.getState().loadSettingsFromServer(String(currentWeddingId), 'desktop')
+        .catch(error => console.error('[WeddingJourney] Error during loadSettingsFromServer (desktop):', error));
+    }
+    // Add cleanup or logic to reset Leva if weddingId changes or setupMode turns off, if necessary
+  }, [currentWeddingId, isSetupMode]);
 
   return (
     <>

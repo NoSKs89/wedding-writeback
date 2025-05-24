@@ -167,9 +167,15 @@ exports.handler = async (event, context) => {
     const getLayoutSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layout-settings$/);
     if (httpMethod === "GET" && getLayoutSettingsMatch) {
         const customId = getLayoutSettingsMatch[1];
-        const wedding = await WeddingData.findOne({ customId }).select('layoutSettings customId');
+        const view = event.queryStringParameters?.view || 'desktop'; // Default to 'desktop'
+        const fieldToSelect = view === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+        
+        console.log(`[GET /layout-settings] customId: ${customId}, view: ${view}, selecting: ${fieldToSelect}`);
+
+        const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
         if (!wedding) return createResponse(404, { message: 'Wedding data not found' });
-        return createResponse(200, wedding.layoutSettings || {});
+        
+        return createResponse(200, wedding[fieldToSelect] || {});
     }
 
     // POST /api/weddings/:customId/layout-settings
@@ -177,19 +183,29 @@ exports.handler = async (event, context) => {
     if (httpMethod === "POST" && postLayoutSettingsMatch) {
         const customId = postLayoutSettingsMatch[1];
         const newLayoutSettings = body;
+        const view = event.queryStringParameters?.view || 'desktop'; // Default to 'desktop'
+        const fieldToUpdate = view === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+
+        console.log(`[POST /layout-settings] customId: ${customId}, view: ${view}, updating: ${fieldToUpdate}`);
+
         if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
             return createResponse(400, { message: 'Invalid layout settings. Expected an object.' });
         }
+        
+        const updateQuery = { $set: { [fieldToUpdate]: newLayoutSettings } };
         const wedding = await WeddingData.findOneAndUpdate(
-            { customId }, { $set: { layoutSettings: newLayoutSettings } },
-            { new: true, runValidators: true, select: 'layoutSettings customId' }
+            { customId }, 
+            updateQuery,
+            { new: true, runValidators: true, select: `${fieldToUpdate} customId` }
         );
         if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' });
-        return createResponse(200, { message: 'Layout settings saved.', layoutSettings: wedding.layoutSettings });
+        
+        return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] });
     }
     
     // POST /api/s3/presigned-url
-    if (httpMethod === "POST" && routePath === "/api/s3/presigned-url") {
+    const presignedUrlMatch = routePath.match(/^\/api\/s3\/presigned-url$/);
+    if (httpMethod === "POST" && presignedUrlMatch) {
         const { fileName, fileType, weddingId, imageType } = body;
         if (!fileName || !fileType || !weddingId || !imageType) {
             return createResponse(400, { message: 'fileName, fileType, weddingId, and imageType are required.' });

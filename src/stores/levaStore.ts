@@ -46,11 +46,10 @@ export interface LevaStoreState {
   getSettingsForSave: () => { [folderName: string]: Record<string, any> };
   loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }) => void;
   getDisplayDataForHUD: () => Array<{ folderName: string; key: string; label: string; value: any; isChanged: boolean }>;
-  saveSettingsToServer: (weddingId: string) => Promise<void>;
-  loadSettingsFromServer: (weddingId: string) => Promise<void>;
-  // ADDED for mobile
-  saveMobileSettingsToServer: (weddingId: string) => Promise<void>;
-  loadMobileSettingsFromServer: (weddingId: string) => Promise<void>;
+  
+  // Consolidated load and save functions
+  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile') => Promise<void>; 
+  loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile') => Promise<void>;
 }
 
 // Explicitly define the type for the store hook if direct create is problematic
@@ -267,25 +266,23 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
     return displayData;
   },
 
-  saveSettingsToServer: async (weddingId: string) => {
+  saveSettingsToServer: async (weddingId: string, viewType: 'desktop' | 'mobile' = 'desktop') => {
     const settingsToSave = get().getSettingsForSave(); // Get settings BEFORE the async call
     try {
       const apiBase = getApiBaseUrl();
-      // console.log(`[LevaStore] Saving layout settings for ${weddingId} to ${apiBase}/weddings/${weddingId}/layout-settings`, JSON.stringify(settingsToSave));
-      await axios.post(`${apiBase}/weddings/${weddingId}/layout-settings`, settingsToSave);
-      // console.log('[LevaStore] Layout settings saved successfully to server.');
+      const endpoint = `${apiBase}/weddings/${weddingId}/layout-settings?view=${viewType}`;
+      console.log(`[LevaStore] Saving ${viewType} layout settings for ${weddingId} to ${endpoint}`, JSON.stringify(settingsToSave));
+      await axios.post(endpoint, settingsToSave);
+      console.log(`[LevaStore] ${viewType} layout settings saved successfully to server.`);
 
-      // AFTER successful save, update initialControlValues to reflect the saved state
-      // and reset changedKeys.
       set(state => {
-        const newInitialValues = JSON.parse(JSON.stringify(settingsToSave)); // What was actually saved
+        const newInitialValues = JSON.parse(JSON.stringify(settingsToSave));
         const newChangedKeys = { ...state.changedKeys };
         for (const folderName in newInitialValues) {
-          if (state.schemas.hasOwnProperty(folderName)) { // Ensure folder is known
+          if (state.schemas.hasOwnProperty(folderName)) {
             newChangedKeys[folderName] = new Set<string>();
           }
         }
-        // console.log('[LevaStore] Save successful. Updated initialControlValues to saved values and reset changedKeys.');
         return {
           ...state,
           initialControlValues: newInitialValues,
@@ -294,20 +291,22 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
       });
 
     } catch (error) {
-      console.error('[LevaStore] Error saving layout settings to server:', error);
+      console.error(`[LevaStore] Error saving ${viewType} layout settings to server:`, error);
       throw error;
     }
   },
 
-  loadSettingsFromServer: async (weddingId: string) => {
+  loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile' = 'desktop') => {
     try {
       const apiBase = getApiBaseUrl();
-      const response = await axios.get(`${apiBase}/weddings/${weddingId}/layout-settings`);
-      console.log('[LevaStore PROD LOG] loadSettingsFromServer - raw response.data:', response.data);
+      const endpoint = `${apiBase}/weddings/${weddingId}/layout-settings?view=${viewType}`;
+      console.log(`[LevaStore] Loading ${viewType} layout settings for ${weddingId} from ${endpoint}`);
+      const response = await axios.get(endpoint);
+      console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - raw response.data:`, response.data);
       
       let dataToProcess = response.data;
       if (typeof response.data === 'string') {
-        console.log('[LevaStore PROD LOG] loadSettingsFromServer - response.data is a string. Attempting to decode.');
+        console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - response.data is a string. Attempting to decode.`);
         try {
           const binaryString = atob(response.data);
           const bytes = new Uint8Array(binaryString.length);
@@ -315,96 +314,36 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
             bytes[i] = binaryString.charCodeAt(i);
           }
           const decodedString = new TextDecoder('utf-8').decode(bytes);
-          console.log('[LevaStore PROD LOG] loadSettingsFromServer - decodedString (after TextDecoder):', decodedString);
+          console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - decodedString (after TextDecoder):`, decodedString);
           dataToProcess = JSON.parse(decodedString);
-          console.log('[LevaStore PROD LOG] loadSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
+          console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - dataToProcess (after JSON.parse):`, dataToProcess);
         } catch (e) {
-          console.error('[LevaStore PROD LOG] loadSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
-          // Fallback or rethrow, depending on desired behavior. Here, we let it try to use original dataToProcess if parsing failed.
+          console.error(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - Failed to decode/parse base64. Error:`, e, 'Raw data:', response.data);
+          // If it's not JSON, and not an empty object (which can be valid), it might be an error message from server
+          // or an empty response that means no settings are stored yet.
+          // If it's an error string, it might be better to throw or handle it.
+          // For now, if it's not parseable to an object, treat as no settings.
+          if (typeof dataToProcess !== 'object' || dataToProcess === null) {
+            dataToProcess = {}; 
+          }
         }
       }
       
       const loadedSettings = dataToProcess;
-      console.log('[LevaStore PROD LOG] loadSettingsFromServer - final loadedSettings before loadSettingsFromDB:', loadedSettings);
+      console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - final loadedSettings before loadSettingsFromDB:`, loadedSettings);
       if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
         get().loadSettingsFromDB(loadedSettings);
       } else {
-        // console.log('[LevaStore] No layout settings found on server or empty/invalid settings object for', weddingId, 'Processed data:', loadedSettings);
+        console.log(`[LevaStore] No ${viewType} layout settings found on server or empty/invalid settings object for`, weddingId, 'Processed data:', loadedSettings);
+        // If no settings are found, explicitly reset/clear Leva for the current view context if necessary
+        // This might involve calling loadSettingsFromDB with an empty object or a specific reset action.
+        // For now, loadSettingsFromDB with an empty object will effectively clear values if schemas are registered.
+        get().loadSettingsFromDB({}); 
       }
     } catch (error) {
-      console.error('[LevaStore] Error loading layout settings from server:', error);
-      throw error;
-    }
-  },
-
-  // ADDED for mobile
-  saveMobileSettingsToServer: async (weddingId: string) => {
-    const settingsToSave = get().getSettingsForSave(); // Get settings BEFORE the async call
-    try {
-      const apiBase = getApiBaseUrl();
-      console.log(`[LevaStore] Saving MOBILE layout settings for ${weddingId} to ${apiBase}/weddings/${weddingId}/layout-settings-mobile`, JSON.stringify(settingsToSave));
-      await axios.post(`${apiBase}/weddings/${weddingId}/layout-settings-mobile`, settingsToSave);
-      console.log('[LevaStore] MOBILE layout settings saved successfully to server.');
-
-      // AFTER successful save, update initialControlValues to reflect the saved state
-      // and reset changedKeys.
-      set(state => {
-        const newInitialValues = JSON.parse(JSON.stringify(settingsToSave)); // What was actually saved
-        const newChangedKeys = { ...state.changedKeys };
-        for (const folderName in newInitialValues) {
-          if (state.schemas.hasOwnProperty(folderName)) { // Ensure folder is known
-            newChangedKeys[folderName] = new Set<string>();
-          }
-        }
-        // console.log('[LevaStore] MOBILE Save successful. Updated initialControlValues to saved values and reset changedKeys.');
-        return {
-          ...state,
-          initialControlValues: newInitialValues,
-          changedKeys: newChangedKeys,
-        };
-      });
-
-    } catch (error) {
-      console.error('[LevaStore] Error saving MOBILE layout settings to server:', error);
-      throw error;
-    }
-  },
-
-  loadMobileSettingsFromServer: async (weddingId: string) => {
-    try {
-      const apiBase = getApiBaseUrl();
-      const response = await axios.get(`${apiBase}/weddings/${weddingId}/layout-settings-mobile`);
-      console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - raw response.data:', response.data);
-
-      let dataToProcess = response.data;
-      if (typeof response.data === 'string') {
-        console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - response.data is a string. Attempting to decode.');
-        try {
-          const binaryString = atob(response.data);
-          const bytes = new Uint8Array(binaryString.length);
-          for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const decodedString = new TextDecoder('utf-8').decode(bytes);
-          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - decodedString (after TextDecoder):', decodedString);
-          dataToProcess = JSON.parse(decodedString);
-          console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - dataToProcess (after JSON.parse):', dataToProcess);
-        } catch (e) {
-          console.error('[LevaStore PROD LOG] loadMobileSettingsFromServer - Failed to decode/parse base64. Error:', e, 'Raw data:', response.data);
-          // Fallback or rethrow.
-        }
-      }
-      
-      const loadedSettings = dataToProcess;
-      console.log('[LevaStore PROD LOG] loadMobileSettingsFromServer - final loadedSettings before loadSettingsFromDB:', loadedSettings);
-      if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
-        console.log('[LevaStore] MOBILE layout settings loaded from server:', loadedSettings);
-        get().loadSettingsFromDB(loadedSettings);
-      } else {
-        console.log('[LevaStore] No MOBILE layout settings found on server or empty/invalid settings object for', weddingId, 'Processed data:', loadedSettings);
-      }
-    } catch (error) {
-      console.error('[LevaStore] Error loading MOBILE layout settings from server:', error);
+      console.error(`[LevaStore] Error loading ${viewType} layout settings from server:`, error);
+      // It's important to still clear/reset Leva if the load fails, to avoid stale data.
+      get().loadSettingsFromDB({}); 
       throw error;
     }
   },

@@ -94,6 +94,10 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
   const [fallbackId, setFallbackId] = useState('erickson2025'); // Default fallback ID
   const isMobile = useIsMobile(); // ADDED
 
+  // useEffect(() => {
+  //   alert(`WeddingPageController: isMobile = ${isMobile}. Loading ${isMobile ? 'Mobile' : 'Desktop'} version for weddingId: ${weddingId}`);
+  // }, [isMobile, weddingId]);
+
   useEffect(() => {
     const fetchWeddingData = async () => {
       if (!weddingId) return;
@@ -120,11 +124,9 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
           // ADDED: Attempt to load layout settings for the regular wedding page view
           try {
             console.log(`[App.js] WeddingPageController: Attempting to load ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}`);
-            if (isMobile) {
-              await useLevaStore.getState().loadMobileSettingsFromServer(weddingId);
-            } else {
-              await useLevaStore.getState().loadSettingsFromServer(weddingId);
-            }
+            // MODIFIED: Use consolidated loadSettingsFromServer with viewType
+            const viewType = isMobile ? 'mobile' : 'desktop';
+            await useLevaStore.getState().loadSettingsFromServer(weddingId, viewType);
             console.log(`[App.js] WeddingPageController: Layout settings load attempt complete for ${weddingId}`);
           } catch (layoutError) {
             console.error(`[App.js] WeddingPageController: Error loading ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}:`, layoutError);
@@ -354,11 +356,9 @@ const WeddingJourneyWrapperForSetup = () => {
       // If core data loaded successfully, proceed to load layout settings
       try {
         console.log(`[App.js] WeddingJourneyWrapper: Attempting to load ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}`);
-        if (isMobile) {
-          await useLevaStore.getState().loadMobileSettingsFromServer(weddingId);
-        } else {
-          await useLevaStore.getState().loadSettingsFromServer(weddingId);
-        }
+        // MODIFIED: Use consolidated loadSettingsFromServer with viewType
+        const viewType = isMobile ? 'mobile' : 'desktop';
+        await useLevaStore.getState().loadSettingsFromServer(weddingId, viewType);
         console.log('[App.js] WeddingJourneyWrapper: Layout settings loaded.');
       } catch (layoutError) {
         console.error(`[App.js] WeddingJourneyWrapper: Error loading ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings:`, layoutError);

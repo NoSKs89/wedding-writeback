@@ -1066,8 +1066,8 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
     }
     try {
       console.log(`[WeddingJourneyMobile] Attempting to save MOBILE layout for weddingId: ${currentWeddingId}`);
-      // MODIFIED TO SAVE MOBILE SETTINGS
-      await useLevaStore.getState().saveMobileSettingsToServer(String(currentWeddingId));
+      // MODIFIED TO SAVE MOBILE SETTINGS using the consolidated function
+      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId), 'mobile');
       alert('Mobile layout settings saved successfully!');
       console.log('[WeddingJourneyMobile] Mobile layout settings save call completed.');
     } catch (error) {
@@ -1096,6 +1096,16 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
   useEffect(() => {
     console.log(`[WeddingJourneyMobile] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
   }, [location.pathname, isSetupMode]);
+
+  // Load settings on mount or when weddingId/setupMode changes
+  useEffect(() => {
+    if (currentWeddingId && isSetupMode) {
+      console.log(`[WeddingJourneyMobile] Attempting to load MOBILE layout settings for ${currentWeddingId}`);
+      useLevaStore.getState().loadSettingsFromServer(String(currentWeddingId), 'mobile')
+        .catch(error => console.error('[WeddingJourneyMobile] Error during loadSettingsFromServer (mobile):', error));
+    }
+    // Add cleanup or logic to reset Leva if weddingId changes or setupMode turns off, if necessary
+  }, [currentWeddingId, isSetupMode]);
 
   // DRAG HANDLER FOR FOCUSED IMAGE NAVIGATION (MOVED HERE)
   const bindFocusedImageDrag = useDrag(({ down, movement: [mx], velocity: [vx], direction: [dx], event, last }) => {
