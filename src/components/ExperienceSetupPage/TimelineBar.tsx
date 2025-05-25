@@ -15,24 +15,32 @@ interface DraggableTimelineMarkerProps {
   barWidth: number;
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
   previewImageUrl?: string;
+  timelineRef: React.RefObject<HTMLDivElement>;
 }
 
-const DRAGGABLE_ITEM_TYPE = 'TIMELINE_MARKER';
+export const DRAGGABLE_TIMELINE_MARKER_TYPE = 'TIMELINE_MARKER';
 
-const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, previewImageUrl }) => {
+const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, previewImageUrl, timelineRef }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
-    type: DRAGGABLE_ITEM_TYPE,
-    item: { id: marker.id, type: DRAGGABLE_ITEM_TYPE, originalPosition: marker.position },
+    type: DRAGGABLE_TIMELINE_MARKER_TYPE,
+    item: { id: marker.id, type: DRAGGABLE_TIMELINE_MARKER_TYPE, originalPosition: marker.position },
     collect: (monitor: DragSourceMonitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
-    end: (item: { id: string; type: string; originalPosition: number }, monitor: DragSourceMonitor<any, { newPositionProportion: number }>) => {
-      const dropResult = monitor.getDropResult(); // Type is inferred from DragSourceMonitor now
-      if (item && dropResult) {
-        onUpdateMarkerPosition(item.id, dropResult.newPositionProportion);
+    end: (item: { id: string; type: string; originalPosition: number }, monitor: DragSourceMonitor) => {
+      const clientOffset = monitor.getSourceClientOffset();
+      const timelineElement = timelineRef.current;
+
+      if (item && clientOffset && timelineElement) {
+        const barRect = timelineElement.getBoundingClientRect();
+        const positionInBar = clientOffset.x - barRect.left;
+        let newPositionProportion = positionInBar / barRect.width;
+        newPositionProportion = Math.max(0, Math.min(1, newPositionProportion));
+
+        onUpdateMarkerPosition(item.id, newPositionProportion);
       }
     },
-  }), [marker.id, marker.position, barWidth, onUpdateMarkerPosition]);
+  }), [marker.id, marker.position, barWidth, onUpdateMarkerPosition, timelineRef]);
 
   const leftPosition = marker.position * barWidth;
 
@@ -95,7 +103,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
   const timelineRef = React.useRef<HTMLDivElement | null>(null);
 
   const [{ isOver }, drop] = useDrop(() => ({
-    accept: DRAGGABLE_ITEM_TYPE,
+    accept: DRAGGABLE_TIMELINE_MARKER_TYPE,
     drop: (item: { id: string; type: string; originalPosition: number }, monitor: DropTargetMonitor) => {
       const offset = monitor.getClientOffset();
       if (offset && timelineRef.current) {
@@ -204,6 +212,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
             barWidth={length}
             onUpdateMarkerPosition={onUpdateMarkerPosition}
             previewImageUrl={marker.type === 'start' ? marker.previewImageUrl : undefined}
+            timelineRef={timelineRef}
           />
         ))}
       </div>
