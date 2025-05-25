@@ -15,12 +15,13 @@ import WeddingJourneyMobile from './components/WeddingJourneyMobile';
 // import weddingDataJson from './testData.json'; // No longer directly import testData.json
 import axios from 'axios'; // Import axios
 import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
-import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Import ImageUploadSetup
+import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Ensure this is the correct path and component name
 import { SetupModeProvider, useSetupMode } from './contexts/SetupModeContext'; // UPDATED: Added useSetupMode
 import { useLevaStore } from './stores/levaStore'; // Ensure useLevaStore is imported
 import { getApiBaseUrl } from './config/apiConfig'; // Import the centralized helper
 import { useIsMobile } from './utils/deviceDetect'; // ADDED
 import FontGrabber from './components/FontGrabber'; // ADDED
+import AccountSetupPage from './components/SetupPage/AccountSetupPage';
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -214,6 +215,7 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
 // Define MainAppContent to use useLocation
 const MainAppContent = () => {
   const location = useLocation(); // Get location here
+  const isMobile = useIsMobile(); // ADDED: Define isMobile here
   // const [showGuideLines, setShowGuideLines] = useState(true); // REMOVED: This state is controlled by WeddingJourney
   const [defaultWeddingIdToUse, setDefaultWeddingIdToUse] = useState('erickson2025');
 
@@ -262,8 +264,10 @@ const MainAppContent = () => {
               <Route path="/" element={<div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading default wedding...</div>} />
         )}
         <Route path="/:weddingId/setup" element={<SetupLayout />}>
-          <Route path="layout" element={<WeddingJourneyWrapperForSetup />} />
+          <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
+          <Route path="layout" element={<WeddingJourneyWrapperForSetup />} />
+          <Route path="account" element={<AccountSetupPage />} />
         </Route>
       </Routes>
     </div>

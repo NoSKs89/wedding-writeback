@@ -7,6 +7,7 @@ const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 // Models (ensure paths are correct if handler.js is in a different location than server.js was)
 const Item = require('./models/Item');
@@ -91,6 +92,7 @@ exports.handler = async (event, context) => {
 
   // --- Handle API Routes ---
   if (routePath.startsWith('/api/')) {
+    console.log(`[API_HANDLER] Received API call. Method: ${httpMethod}, Path: ${routePath}`);
     // Ensure database connection FOR API calls
     try {
       await connectToDatabase();
@@ -157,8 +159,29 @@ exports.handler = async (event, context) => {
           if (!weddingPayload.customId) {
               return createResponse(400, { message: 'customId is required' });
           }
+
+          // Hash password if provided
+          if (weddingPayload.setupPassword) {
+              const salt = await bcrypt.genSalt(10);
+              weddingPayload.setupPassword = await bcrypt.hash(weddingPayload.setupPassword, salt);
+          }
+          
+          // Handle special debug case for erickson2025
+          if (weddingPayload.customId === 'erickson2025' && weddingPayload.email === '1' && body.setupPassword === '1') {
+             // The password '1' was already hashed above if provided in body.setupPassword
+             // Ensure accountStatus is set if this is the erickson2025 debug case
+             weddingPayload.accountStatus = 'free';
+          }
+
           const wedding = await WeddingData.findOneAndUpdate(
-              { customId: weddingPayload.customId }, weddingPayload,
+              { customId: weddingPayload.customId }, 
+              { 
+                ...weddingPayload,
+                // Explicitly set email and accountStatus if they are part of the payload
+                // or rely on defaults/previous values if not provided.
+                ...(weddingPayload.email && { email: weddingPayload.email }),
+                ...(weddingPayload.accountStatus && { accountStatus: weddingPayload.accountStatus })
+              },
               { new: true, upsert: true, runValidators: true }
           );
           return createResponse(wedding ? 201 : 400, wedding || { message: "Failed to create/update wedding" });
@@ -328,11 +351,51 @@ exports.handler = async (event, context) => {
           const customId = verifyPasswordMatch[1];
           const { password } = body;
           if (!password) return createResponse(400, { message: 'Password is required for verification.' });
-          const wedding = await WeddingData.findOne({ customId }).select('setupPassword');
+          
+          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword'); // Ensure password is selected
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for password verification.' });
           if (!wedding.setupPassword) return createResponse(401, { message: 'Setup password not configured for this wedding.' });
-          if (password === wedding.setupPassword) return createResponse(200, { success: true, message: 'Password verified.' });
+
+          const isMatch = await bcrypt.compare(password, wedding.setupPassword);
+          if (isMatch) return createResponse(200, { success: true, message: 'Password verified.' });
+          
           return createResponse(401, { success: false, message: 'Invalid password.' });
+      }
+
+      // PUT /api/weddings/:customId/change-password
+      const changePasswordMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/change-password$/);
+      if (httpMethod === "PUT" && changePasswordMatch) {
+          const customId = changePasswordMatch[1];
+          const { currentPassword, newPassword, confirmNewPassword } = body;
+
+          if (!currentPassword || !newPassword || !confirmNewPassword) {
+              return createResponse(400, { message: 'Current password, new password, and confirmation are required.' });
+          }
+          if (newPassword !== confirmNewPassword) {
+              return createResponse(400, { message: 'New password and confirmation do not match.' });
+          }
+          if (newPassword.length < 1) { // Basic validation, can be made more robust
+              return createResponse(400, { message: 'New password is too short.' });
+          }
+
+          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword');
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding data not found.' });
+          }
+          if (!wedding.setupPassword) {
+              return createResponse(401, { message: 'Setup password not configured. Cannot change.' });
+          }
+
+          const isMatch = await bcrypt.compare(currentPassword, wedding.setupPassword);
+          if (!isMatch) {
+              return createResponse(401, { message: 'Incorrect current password.' });
+          }
+
+          const salt = await bcrypt.genSalt(10);
+          wedding.setupPassword = await bcrypt.hash(newPassword, salt);
+          await wedding.save();
+
+          return createResponse(200, { success: true, message: 'Password changed successfully.' });
       }
 
       // Fallback for unhandled API routes

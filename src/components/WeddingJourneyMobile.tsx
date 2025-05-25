@@ -958,7 +958,8 @@ const WeddingJourneyMobile: React.FC<WeddingJourneyProps> = ({ weddingData, reso
     displayedImagesAndTheirData, // Added: provides target style and sensitivities
     scrollY, // Added: for dynamic angle recalculation
     scrapbookControls?.values?.scrollAngleSensitivityMin, // Kept for fallback if data not found (shouldn't happen)
-    scrapbookControls?.values?.scrollAngleSensitivityMax  // Kept for fallback
+    scrapbookControls?.values?.scrollAngleSensitivityMax,  // Kept for fallback
+    activeSpringConfig // ADDED
   ]);
 
   // NEW: Handler for closing the focused image

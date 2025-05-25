@@ -48,6 +48,8 @@ const WeddingDataSchema = new mongoose.Schema({
   layoutSettingsMobile: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId
+  email: { type: String },
+  accountStatus: { type: String, default: 'free' },
   setupPassword: {
     type: String,
     // Production TODO: In a real application, this should be selected: false by default

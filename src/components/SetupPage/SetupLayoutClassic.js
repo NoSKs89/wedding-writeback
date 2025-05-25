@@ -120,7 +120,6 @@ const SetupLayout = () => {
             <h2>Wedding Setup: {weddingId}</h2>
             <nav className={styles.nav}>
               <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
-              <button onClick={() => navigate(`/${weddingId}/setup/account`)} style={{marginRight: '10px'}}>Account Settings</button>
               <Link to="/admin/dashboard" className={styles.navLink}>Admin Dashboard</Link>
               {/* Add other setup navigation links here if needed */}
               <hr style={{margin: '15px 0'}} />
