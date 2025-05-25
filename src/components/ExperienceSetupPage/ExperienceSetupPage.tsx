@@ -1,22 +1,24 @@
 // ExperienceSetupPage.tsx
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import TimelineBar from './TimelineBar'; // Component for the timeline
 import ElementSlot from './ElementSlot'; // Component for each element configuration
 import { DndProvider } from 'react-dnd'; // For drag and drop of timeline markers
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 
 // --- Interfaces ---
 
 export interface TimelineMarker {
   id: string; // Unique ID for the marker (e.g., `element-${elementId}-start`)
-  elementId: number;
+  elementId: number; // Now 1-8
   type: 'start' | 'end';
   position: number; // Percentage (0 to 1) or absolute value along the timeline
   color: string;
+  previewImageUrl?: string; // Optional: for photo elements on start markers
 }
 
 export interface ElementConfig {
-  id: number;
+  id: number; // Now 1-8
   type: 'empty' | 'photo' | 'text' | 'component';
   content: string | File | React.ComponentType<any> | null; // URL for photo, text content, or component type
   name?: string; // e.g., 'RSVPForm' or uploaded file name
@@ -26,16 +28,26 @@ export interface ElementConfig {
 
 const INITIAL_ELEMENT_COUNT = 8;
 const INITIAL_TIMELINE_LENGTH = 1000; // Arbitrary unit for timeline length (e.g., pixels or virtual units)
-const ELEMENT_COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FED766', '#2AB7CA', '#F0B67F', '#8A6FBF', '#D9534F']; // Predefined colors for elements
+// Updated color palette based on user's new list
+const ELEMENT_COLORS = [
+  '#FFFFFF', // Pure White (Element 1)
+  '#FFF176', // Light Yellow (Element 2)
+  '#FFB74D', // Light Orange (Element 3)
+  '#EF5350', // Coral Red (Element 4)
+  '#AB47BC', // Deep Magenta (Element 5)
+  '#5C6BC0', // Royal Blue (Element 6)
+  '#00897B', // Deep Teal (Element 7)
+  '#000000'  // Pure Black (Element 8)
+];
 
 const ExperienceSetupPage: React.FC = () => {
   const [timelineLength, setTimelineLength] = useState<number>(INITIAL_TIMELINE_LENGTH);
   const [elements, setElements] = useState<ElementConfig[]>(
     Array.from({ length: INITIAL_ELEMENT_COUNT }, (_, i) => ({
-      id: i,
+      id: i + 1, // Changed to 1-based ID
       type: 'empty',
       content: null,
-      timelineColor: ELEMENT_COLORS[i % ELEMENT_COLORS.length],
+      timelineColor: ELEMENT_COLORS[i % ELEMENT_COLORS.length], // Keep 0-based for color array
     }))
   );
   const [markers, setMarkers] = useState<TimelineMarker[]>([]);
@@ -54,7 +66,7 @@ const ExperienceSetupPage: React.FC = () => {
           // Default start position (e.g., based on element index)
           // For simplicity, let's distribute them initially if not set
           // A more robust solution would be to store these positions persistently
-          const defaultStartPosition = (index / INITIAL_ELEMENT_COUNT) * 0.8; // Example: 80% of timeline
+          const defaultStartPosition = ((el.id -1) / INITIAL_ELEMENT_COUNT) * 0.8; // Use (el.id - 1) for 0-based calculation
           startMarker = {
             id: `element-${el.id}-start`,
             elementId: el.id,
@@ -161,47 +173,73 @@ const ExperienceSetupPage: React.FC = () => {
           const updatedEl = { ...el, ...newConfig };
 
           if (wasEmpty && isNowNotEmpty) {
-            // Add default markers for new content
             const existingStart = activeMarkers.find(m => m.elementId === id && m.type === 'start');
             const existingEnd = activeMarkers.find(m => m.elementId === id && m.type === 'end');
 
             if (!existingStart) {
-              // Add a new start marker, e.g., at a default position or last known
-              // For simplicity, let's add it near the beginning or based on index
-              const defaultStartPos = (id / elements.length) * 0.5;
+              const defaultStartPos = ((id - 1) / elements.length) * 0.5;
               handleAddOrUpdateElementMarker(id, 'start', defaultStartPos);
             }
             if (!existingEnd) {
-                const startPos = existingStart?.position || (id / elements.length) * 0.5;
+                const startPos = existingStart?.position || ((id - 1) / elements.length) * 0.5;
               handleAddOrUpdateElementMarker(id, 'end', Math.min(startPos + 0.1, 1));
             }
           } else if (newConfig.type === 'empty') {
             handleRemoveElementMarkers(id);
+            // When an element is emptied, ensure its start marker's previewImageUrl is cleared
+            setMarkers(prevMarkers => 
+                prevMarkers.map(m => 
+                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined } : m
+                )
+            );
           }
           return updatedEl;
         }
         return el;
       })
     );
+
+    // After elements state is set, update the markers state for previewImageUrl
+    setMarkers(prevMarkers => prevMarkers.map(m => {
+        if (m.elementId === id && m.type === 'start') {
+            if (newConfig.type === 'photo' && typeof newConfig.content === 'string') {
+                return { ...m, previewImageUrl: newConfig.content };
+            }
+            // Clear preview if not a photo with a string URL, or if type/content changes away from it
+            return { ...m, previewImageUrl: undefined }; 
+        }
+        return m;
+    }));
+
   }, [activeMarkers, elements.length, handleAddOrUpdateElementMarker, handleRemoveElementMarkers]);
 
 
   // --- Z-index Visualization ---
   // Lower index in `elements` array means higher z-index.
   // We can depict this via brightness/opacity of the element slots.
-  const getElementSlotStyle = (index: number): React.CSSProperties => {
+  const getElementSlotStyle = (element: ElementConfig): React.CSSProperties => {
     const maxBrightness = 1;
     const minBrightness = 0.6; // Adjust as needed
-    // Higher z-index (lower array index) = brighter
-    const brightness = maxBrightness - (index / (INITIAL_ELEMENT_COUNT -1)) * (maxBrightness - minBrightness);
+    // Higher z-index (lower array index / lower element.id for 1-based) = brighter
+    const brightness = maxBrightness - ((element.id - 1) / (INITIAL_ELEMENT_COUNT -1)) * (maxBrightness - minBrightness);
+    
+    let borderStyle = `3px solid ${element.timelineColor}`;
+    if (element.timelineColor === '#FFFFFF') {
+      borderStyle = `3px solid #DDDDDD`; // Light grey border for white slot
+    }
+
     return {
       // Example: Adjust opacity or a background color brightness
       // backgroundColor: `rgba(200, 200, 250, ${brightness})`, // Or use HSL for brightness
       filter: `brightness(${brightness * 100}%)`,
-      border: `3px solid ${elements[index].timelineColor}`,
-      marginBottom: '10px',
-      padding: '10px',
+      border: borderStyle, // Use the conditional border style
+      // marginBottom: '10px', // Remove margin for horizontal stacking
+      // padding: '10px', // ElementSlot will handle its own padding
       borderRadius: '8px',
+      // Add flex properties for horizontal stacking
+      margin: '5px', // Add some margin between slots
+      minWidth: '200px', // Ensure slots have a minimum width
+      flex: '0 0 auto', // Prevent shrinking, allow growing based on content if needed
     };
   };
 
@@ -243,44 +281,93 @@ const ExperienceSetupPage: React.FC = () => {
     }).filter(Boolean);
   }, [elements, activeMarkers, timelineLength]);
 
+  useEffect(() => {
+    // Initialize elements with default timeline colors and random start/end positions
+    setElements(
+      Array.from({ length: INITIAL_ELEMENT_COUNT }, (_, i) => ({
+        id: i + 1, // 1-based ID
+        type: 'empty',
+        content: null,
+        timelineColor: ELEMENT_COLORS[i % ELEMENT_COLORS.length],
+      }))
+    );
+
+    // Initialize markers (example)
+    const initialMarkers: TimelineMarker[] = [];
+    ELEMENT_COLORS.forEach((color, index) => {
+      const elementId = index + 1;
+      initialMarkers.push({
+        id: `element-${elementId}-start`,
+        elementId: elementId,
+        type: 'start',
+        position: Math.random() * 0.3, // Random start position (0 to 0.3)
+        color: color,
+        // previewImageUrl: undefined // Initially no preview
+      });
+      initialMarkers.push({
+        id: `element-${elementId}-end`,
+        elementId: elementId,
+        type: 'end',
+        position: Math.random() * 0.3 + 0.4, // Random end position (0.4 to 0.7)
+        color: color,
+      });
+    });
+    setMarkers(initialMarkers);
+  }, []);
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <h2>Experience Setup</h2>
 
-        {/* Overall Timeline Length Control */}
-        <div style={{ margin: '20px 0' }}>
-          <label htmlFor="timelineLength">Overall Timeline Length: </label>
+        <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
+          <label htmlFor="timelineLength" style={{ marginRight: '10px' }}>Overall Timeline Length:</label>
           <input
             type="number"
             id="timelineLength"
             value={timelineLength}
-            onChange={(e) => handleTimelineLengthChange(Math.max(100, parseInt(e.target.value, 10) || INITIAL_TIMELINE_LENGTH))}
-            style={{ width: '100px', marginLeft: '10px' }}
+            onChange={(e) => handleTimelineLengthChange(parseInt(e.target.value, 10) || 0)}
+            style={{ width: '100px', padding: '5px' }}
           />
-          <span style={{marginLeft: '5px'}}>units</span>
+          <span style={{ marginLeft: '10px' }}>units</span>
         </div>
 
-        {/* Timeline Bar */}
         <TimelineBar
           markers={activeMarkers}
           onUpdateMarkerPosition={handleUpdateMarkerPosition}
           length={timelineLength} // Visual length of the bar
+          maxElements={INITIAL_ELEMENT_COUNT} // Pass maxElements for calculations in TimelineBar
         />
 
         {/* Element Slots */}
-        <div style={{ marginTop: '30px' }}>
-          <h3>Elements (Slot 0 is on Top)</h3>
-          {elements.map((el, index) => (
-            <div key={el.id} style={getElementSlotStyle(index)}>
-                <ElementSlot
-                  element={el}
-                  onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
-                  onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
-                />
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginTop: '20px', width: '100%' }}>
+          {elements.map((el) => (
+            <div key={el.id} style={getElementSlotStyle(el)}>
+              <ElementSlot
+                element={el}
+                onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
+                onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
+              />
             </div>
           ))}
+        </div>
+
+        {/* Save Button */}
+        <div style={{ marginTop: '30px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={() => console.log('Save Configuration clicked. Current state:', { elements, timelineLength })}
+            style={{
+              padding: '10px 20px',
+              fontSize: '1rem',
+              color: 'white',
+              backgroundColor: '#007bff',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+            }}
+          >
+            Save Configuration
+          </button>
         </div>
 
         {/* Preview Area (Optional) */}
