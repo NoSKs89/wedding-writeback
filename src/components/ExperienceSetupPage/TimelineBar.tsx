@@ -15,12 +15,13 @@ interface DraggableTimelineMarkerProps {
   barWidth: number;
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
   previewImageUrl?: string;
+  textPreview?: string;
   timelineRef: React.RefObject<HTMLDivElement>;
 }
 
 export const DRAGGABLE_TIMELINE_MARKER_TYPE = 'TIMELINE_MARKER';
 
-const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, previewImageUrl, timelineRef }) => {
+const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, timelineRef }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DRAGGABLE_TIMELINE_MARKER_TYPE,
     item: { id: marker.id, type: DRAGGABLE_TIMELINE_MARKER_TYPE, originalPosition: marker.position },
@@ -83,6 +84,22 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     border: '1px solid #ccc',
     borderRadius: '3px',
     zIndex: 21, // Above the marker itself
+    backgroundColor: 'white', // Added for better visibility if image is transparent
+  };
+
+  // Style for the text preview
+  const textPreviewStyle: React.CSSProperties = {
+    position: 'absolute',
+    bottom: `${markerBaseSize + 12}px`, // Position above the start marker's point
+    left: '50%',
+    transform: 'translateX(-50%)',
+    padding: '1px 3px',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    color: 'white',
+    fontSize: '9px',
+    borderRadius: '2px',
+    whiteSpace: 'nowrap',
+    zIndex: 21, // Above the marker itself
   };
 
   return (
@@ -93,6 +110,9 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     >
       {marker.type === 'start' && marker.previewImageUrl && (
         <img src={marker.previewImageUrl} alt={`Preview Elem ${marker.elementId}`} style={previewImageStyle} />
+      )}
+      {marker.type === 'start' && marker.textPreview && !marker.previewImageUrl && ( // Only show text if no image
+        <div style={textPreviewStyle}>{marker.textPreview}</div>
       )}
     </div>
   );
@@ -211,7 +231,6 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
             marker={marker}
             barWidth={length}
             onUpdateMarkerPosition={onUpdateMarkerPosition}
-            previewImageUrl={marker.type === 'start' ? marker.previewImageUrl : undefined}
             timelineRef={timelineRef}
           />
         ))}

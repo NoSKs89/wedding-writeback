@@ -15,6 +15,7 @@ export interface TimelineMarker {
   position: number; // Percentage (0 to 1) or absolute value along the timeline
   color: string;
   previewImageUrl?: string; // Optional: for photo elements on start markers
+  textPreview?: string; // Optional: for text elements on start markers
 }
 
 export interface ElementConfig {
@@ -57,24 +58,36 @@ const ExperienceSetupPage: React.FC = () => {
   const activeMarkers = useMemo(() => {
     const newMarkers: TimelineMarker[] = [];
     elements.forEach((el, index) => {
-      // Find existing markers for this element or create new ones
       let startMarker = markers.find(m => m.elementId === el.id && m.type === 'start');
       let endMarker = markers.find(m => m.elementId === el.id && m.type === 'end');
 
       if (el.type !== 'empty') {
+        let textPreviewContent: string | undefined = undefined;
+        if (el.type === 'text' && typeof el.content === 'string' && el.content.trim()) {
+          const fullText = el.content.trim();
+          textPreviewContent = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
+        }
+
         if (!startMarker) {
-          // Default start position (e.g., based on element index)
-          // For simplicity, let's distribute them initially if not set
-          // A more robust solution would be to store these positions persistently
-          const defaultStartPosition = ((el.id -1) / INITIAL_ELEMENT_COUNT) * 0.8; // Use (el.id - 1) for 0-based calculation
+          const defaultStartPosition = ((el.id -1) / INITIAL_ELEMENT_COUNT) * 0.8;
           startMarker = {
             id: `element-${el.id}-start`,
             elementId: el.id,
             type: 'start',
             position: defaultStartPosition,
             color: el.timelineColor,
+            previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
+            textPreview: textPreviewContent,
+          };
+        } else {
+          // Update existing start marker's previews if necessary
+          startMarker = {
+            ...startMarker,
+            previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
+            textPreview: textPreviewContent,
           };
         }
+
         if (!endMarker) {
           const defaultEndPosition = startMarker.position + 0.1; // Example: 10% duration
           endMarker = {
@@ -186,10 +199,10 @@ const ExperienceSetupPage: React.FC = () => {
             }
           } else if (newConfig.type === 'empty') {
             handleRemoveElementMarkers(id);
-            // When an element is emptied, ensure its start marker's previewImageUrl is cleared
-            setMarkers(prevMarkers => 
-                prevMarkers.map(m => 
-                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined } : m
+            // When an element is emptied, ensure its start marker's previewImageUrl and textPreview are cleared
+            setMarkers(prevMarkers =>
+                prevMarkers.map(m =>
+                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined, textPreview: undefined } : m
                 )
             );
           }
@@ -199,14 +212,20 @@ const ExperienceSetupPage: React.FC = () => {
       })
     );
 
-    // After elements state is set, update the markers state for previewImageUrl
+    // After elements state is set, update the markers state for previewImageUrl and textPreview
     setMarkers(prevMarkers => prevMarkers.map(m => {
         if (m.elementId === id && m.type === 'start') {
+            let previewImageUrl: string | undefined = undefined;
+            let textPreview: string | undefined = undefined;
+
             if (newConfig.type === 'photo' && typeof newConfig.content === 'string') {
-                return { ...m, previewImageUrl: newConfig.content };
+                previewImageUrl = newConfig.content;
+            } else if (newConfig.type === 'text' && typeof newConfig.content === 'string' && newConfig.content.trim()) {
+                const fullText = newConfig.content.trim();
+                textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
             }
-            // Clear preview if not a photo with a string URL, or if type/content changes away from it
-            return { ...m, previewImageUrl: undefined }; 
+            // Clear previews if not the correct type or content is unsuitable
+            return { ...m, previewImageUrl, textPreview };
         }
         return m;
     }));
@@ -296,6 +315,7 @@ const ExperienceSetupPage: React.FC = () => {
     const initialMarkers: TimelineMarker[] = [];
     ELEMENT_COLORS.forEach((color, index) => {
       const elementId = index + 1;
+      // For initial markers, textPreview will be undefined as elements start empty
       initialMarkers.push({
         id: `element-${elementId}-start`,
         elementId: elementId,
@@ -303,6 +323,7 @@ const ExperienceSetupPage: React.FC = () => {
         position: Math.random() * 0.3, // Random start position (0 to 0.3)
         color: color,
         // previewImageUrl: undefined // Initially no preview
+        // textPreview: undefined // Initially no preview
       });
       initialMarkers.push({
         id: `element-${elementId}-end`,
