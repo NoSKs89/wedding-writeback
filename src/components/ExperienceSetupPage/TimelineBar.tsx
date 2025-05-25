@@ -14,8 +14,6 @@ interface DraggableTimelineMarkerProps {
   marker: TimelineMarker;
   barWidth: number;
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
-  previewImageUrl?: string;
-  textPreview?: string;
   timelineRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -102,6 +100,17 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     zIndex: 21, // Above the marker itself
   };
 
+  // Style for the icon preview
+  const iconPreviewStyle: React.CSSProperties = {
+    position: 'absolute',
+    bottom: `${markerBaseSize + 10}px`, // Adjusted position slightly
+    left: '50%',
+    transform: 'translateX(-50%)',
+    fontSize: '14px', // Larger size for an icon/emoji
+    zIndex: 21,
+    // No background, relying on icon/emoji visual
+  };
+
   return (
     <div
       ref={drag}
@@ -111,8 +120,12 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
       {marker.type === 'start' && marker.previewImageUrl && (
         <img src={marker.previewImageUrl} alt={`Preview Elem ${marker.elementId}`} style={previewImageStyle} />
       )}
-      {marker.type === 'start' && marker.textPreview && !marker.previewImageUrl && ( // Only show text if no image
+      {marker.type === 'start' && marker.textPreview && !marker.previewImageUrl && !marker.previewIcon && (
         <div style={textPreviewStyle}>{marker.textPreview}</div>
+      )}
+      {marker.type === 'start' && marker.previewIcon && !marker.previewImageUrl && !marker.textPreview && (
+        // Using a gear emoji for 'settings' icon placeholder
+        <div style={iconPreviewStyle}>{marker.previewIcon === 'settings' ? '⚙️' : '❓'}</div>
       )}
     </div>
   );
@@ -159,8 +172,8 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
     return Object.values(groups).filter(group => group.start && group.end);
   }, [markers]);
 
-  const MAX_LINE_THICKNESS = 10; // pixels, for element 0
-  const MIN_LINE_THICKNESS = 2; // pixels, for the highest element ID
+  const MAX_LINE_THICKNESS = 20; // pixels, for element 0 (doubled)
+  const MIN_LINE_THICKNESS = 4; // pixels, for the highest element ID (doubled)
 
   return (
     <div style={{ position: 'relative', padding: '30px 0', minHeight: '60px' }}>
@@ -171,7 +184,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
         }}
         style={{
           width: `${length}px`, // This can be a fixed pixel value or scale with `timelineLength` state
-          height: '10px',
+          height: '20px', // Doubled from 10px
           backgroundColor: '#ccc',
           position: 'relative',
           border: '1px solid #999',

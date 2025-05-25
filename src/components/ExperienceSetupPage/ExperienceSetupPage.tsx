@@ -16,6 +16,7 @@ export interface TimelineMarker {
   color: string;
   previewImageUrl?: string; // Optional: for photo elements on start markers
   textPreview?: string; // Optional: for text elements on start markers
+  previewIcon?: string; // Optional: for component elements on start markers (e.g., 'floppy-disk')
 }
 
 export interface ElementConfig {
@@ -63,9 +64,13 @@ const ExperienceSetupPage: React.FC = () => {
 
       if (el.type !== 'empty') {
         let textPreviewContent: string | undefined = undefined;
+        let iconPreviewContent: string | undefined = undefined;
+
         if (el.type === 'text' && typeof el.content === 'string' && el.content.trim()) {
           const fullText = el.content.trim();
           textPreviewContent = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
+        } else if (el.type === 'component') {
+          iconPreviewContent = 'settings'; // Using a generic icon name for now
         }
 
         if (!startMarker) {
@@ -78,6 +83,7 @@ const ExperienceSetupPage: React.FC = () => {
             color: el.timelineColor,
             previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
             textPreview: textPreviewContent,
+            previewIcon: iconPreviewContent,
           };
         } else {
           // Update existing start marker's previews if necessary
@@ -85,6 +91,7 @@ const ExperienceSetupPage: React.FC = () => {
             ...startMarker,
             previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
             textPreview: textPreviewContent,
+            previewIcon: iconPreviewContent,
           };
         }
 
@@ -199,10 +206,10 @@ const ExperienceSetupPage: React.FC = () => {
             }
           } else if (newConfig.type === 'empty') {
             handleRemoveElementMarkers(id);
-            // When an element is emptied, ensure its start marker's previewImageUrl and textPreview are cleared
+            // When an element is emptied, ensure its start marker's previews are cleared
             setMarkers(prevMarkers =>
                 prevMarkers.map(m =>
-                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined, textPreview: undefined } : m
+                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined, textPreview: undefined, previewIcon: undefined } : m
                 )
             );
           }
@@ -212,20 +219,22 @@ const ExperienceSetupPage: React.FC = () => {
       })
     );
 
-    // After elements state is set, update the markers state for previewImageUrl and textPreview
+    // After elements state is set, update the markers state for previews
     setMarkers(prevMarkers => prevMarkers.map(m => {
         if (m.elementId === id && m.type === 'start') {
             let previewImageUrl: string | undefined = undefined;
             let textPreview: string | undefined = undefined;
+            let previewIcon: string | undefined = undefined;
 
             if (newConfig.type === 'photo' && typeof newConfig.content === 'string') {
                 previewImageUrl = newConfig.content;
             } else if (newConfig.type === 'text' && typeof newConfig.content === 'string' && newConfig.content.trim()) {
                 const fullText = newConfig.content.trim();
                 textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
+            } else if (newConfig.type === 'component') {
+                previewIcon = 'settings'; // Generic icon name
             }
-            // Clear previews if not the correct type or content is unsuitable
-            return { ...m, previewImageUrl, textPreview };
+            return { ...m, previewImageUrl, textPreview, previewIcon };
         }
         return m;
     }));
