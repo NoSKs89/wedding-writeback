@@ -22,6 +22,7 @@ import { getApiBaseUrl } from './config/apiConfig'; // Import the centralized he
 import { useIsMobile } from './utils/deviceDetect'; // ADDED
 import FontGrabber from './components/FontGrabber'; // ADDED
 import AccountSetupPage from './components/SetupPage/AccountSetupPage';
+import ExperienceSetupPage from './components/ExperienceSetupPage/ExperienceSetupPage'; // Added import
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -268,6 +269,7 @@ const MainAppContent = () => {
           <Route path="images" element={<ImageUploadSetup />} />
           <Route path="layout" element={<WeddingJourneyWrapperForSetup />} />
           <Route path="account" element={<AccountSetupPage />} />
+          <Route path="experience" element={<ExperienceSetupPage />} />
         </Route>
       </Routes>
     </div>
@@ -305,119 +307,47 @@ function App() {
 // or WeddingPageController will be refactored to be more versatile.
 const WeddingJourneyWrapperForSetup = () => {
   const { weddingId } = useParams();
-  const { setIsSetupMode } = useSetupMode();
-  const [weddingData, setWeddingData] = useState(null);
-  const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]);
-  const [showGuideLines, setShowGuideLines] = useState(true); // This could be driven by Leva state too eventually
-  const [initialLayoutLoaded, setInitialLayoutLoaded] = useState(false);
-  const [error, setError] = useState(null); // New error state
-  const isMobile = useIsMobile(); // ADDED
+  const { isSetupMode, setIsSetupMode } = useSetupMode();
+  const isMobile = useIsMobile();
+  const [weddingDataForLeva, setWeddingDataForLeva] = useState(null);
+  const [error, setError] = useState(null);
 
-  const fetchCoreDataAndLayout = useCallback(async () => {
-    if (!weddingId) return;
-    console.log(`[App.js] WeddingJourneyWrapper: Fetching core data for ${weddingId}`);
-    setInitialLayoutLoaded(false); // Reset for new weddingId
-    setError(null); // Reset error state
-    
-    try { // ADDED OUTER TRY
-      let coreData;
-      try {
-        const response = await axios.get(`${getApiBaseUrl()}/weddings/${weddingId}`);
-        coreData = response.data;
-        if (coreData && Object.keys(coreData).length > 0) {
-          const transformed = transformWeddingData(coreData);
-          setWeddingData(transformed);
-          if (transformed && transformed.scrapbookImageFolder && transformed.scrapbookImageFileNames) {
-            const imagePaths = transformed.scrapbookImageFileNames.map(fileName => {
-              if (fileName && (fileName.startsWith('http://') || fileName.startsWith('https://'))) {
-                return fileName;
-              }
-              const folder = transformed.scrapbookImageFolder.endsWith('/') ? transformed.scrapbookImageFolder : transformed.scrapbookImageFolder + '/';
-              const name = fileName.startsWith('/') ? fileName.substring(1) : fileName;
-              return folder + name;
-            });
-            setResolvedScrapbookImages(imagePaths);
-          } else {
-            setResolvedScrapbookImages([]);
-          }
-        } else {
-          console.error('[App.js] WeddingJourneyWrapper: No core data returned or data is empty');
-          setWeddingData(null);
-          setError('Wedding data not found or is empty.');
-          // Still set initialLayoutLoaded true so we don't hang on loading forever
-          setInitialLayoutLoaded(true); 
-          return; // Stop if core data fetch failed but indicate loading is done
-        }
-      } catch (err) {
-        console.error('[App.js] WeddingJourneyWrapper: Error fetching core wedding data:', err);
-        setError(err.message || 'Failed to fetch wedding data.');
-        setWeddingData(null);
-        // Still set initialLayoutLoaded true so we don't hang on loading forever
-        setInitialLayoutLoaded(true);
-        return; // Stop if core data fetch failed but indicate loading is done
-      }
-
-      // If core data loaded successfully, proceed to load layout settings
-      try {
-        console.log(`[App.js] WeddingJourneyWrapper: Attempting to load ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings for ${weddingId}`);
-        // MODIFIED: Use consolidated loadSettingsFromServer with viewType
-        const viewType = isMobile ? 'mobile' : 'desktop';
-        await useLevaStore.getState().loadSettingsFromServer(weddingId, viewType);
-        console.log('[App.js] WeddingJourneyWrapper: Layout settings loaded.');
-      } catch (layoutError) {
-        console.error(`[App.js] WeddingJourneyWrapper: Error loading ${isMobile ? 'MOBILE' : 'DESKTOP'} layout settings:`, layoutError);
-        // Non-critical for initial display, component will use defaults. Logged already.
-        // setError('Failed to load layout settings.'); // Optionally set an error message
-      }
-      setInitialLayoutLoaded(true);
-    } catch (overallError) { // ADDED OUTER CATCH
-      console.error('[App.js] WeddingJourneyWrapper: Critical error in fetchCoreDataAndLayout:', overallError);
-      setError('A critical error occurred while loading setup data.');
-      setWeddingData(null);
-      setInitialLayoutLoaded(true); // Ensure UI updates out of loading state
-    }
-  }, [weddingId, isMobile]); // isMobile dependency is correct here
-
-  // useEffect to call fetchCoreDataAndLayout
   useEffect(() => {
-    if (weddingId) {
-      setIsSetupMode(true); // Set setup mode when this wrapper is active
-      fetchCoreDataAndLayout();
-    }
-    // Cleanup function to reset setup mode when component unmounts or weddingId changes
-    return () => {
-      setIsSetupMode(false);
+    setIsSetupMode(true); // Always in setup mode when this wrapper is active
+    return () => setIsSetupMode(false); // Reset when navigating away
+  }, [setIsSetupMode, weddingId]); // weddingId dependency to re-affirm if it changes
+
+  useEffect(() => {
+    const fetchAndTransform = async () => {
+      if (!weddingId) return;
+      try {
+        const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}`;
+        const response = await axios.get(apiUrl);
+        const transformed = transformWeddingData(response.data);
+        setWeddingDataForLeva(transformed);
+
+        // MODIFIED: Load settings in the wrapper based on viewType
+        const viewType = isMobile ? 'mobile' : 'desktop';
+        console.log(`[App.js] WeddingJourneyWrapperForSetup: Attempting to load ${viewType} layout settings for ${weddingId}`);
+        await useLevaStore.getState().loadSettingsFromServer(weddingId, viewType);
+        console.log(`[App.js] WeddingJourneyWrapperForSetup: Layout settings load attempt complete for ${weddingId}`);
+
+      } catch (err) {
+        console.error('[App.js] WeddingJourneyWrapperForSetup: Error fetching/transforming data or loading settings for ' + weddingId + ':', err);
+        setError(err.message || 'Failed to load data or settings for setup.');
+        setWeddingDataForLeva(null);
+      }
     };
-  }, [weddingId, fetchCoreDataAndLayout, setIsSetupMode]);
+    fetchAndTransform();
+  }, [weddingId, isMobile]); // isMobile dependency ensures settings are loaded for the correct view
 
-  // Revised render logic
-  if (!initialLayoutLoaded && !error) { 
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Loading wedding and layout data for setup...</div>;
-  }
+  if (error) return <div>Error in setup: {error}</div>;
+  if (!weddingDataForLeva) return <div>Loading setup data for {weddingId}...</div>;
 
-  if (error && !weddingData) { 
-    return <div style={{ color: 'red', padding: '20px', textAlign: 'center' }}>Error: {error}</div>;
-  }
-  
-  if (initialLayoutLoaded && !weddingData && !error) { // Loaded, no critical error, but no data
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Wedding data for "{weddingId}" could not be loaded or was not found.</div>;
-  }
-
-  if (!weddingData && !error) { // Fallback if somehow weddingData is null but initialLayoutLoaded is false and no error yet (should be caught by first condition)
-    return <div style={{ padding: '20px', textAlign: 'center' }}>Preparing setup mode...</div>;
-  }
-  
-  if (!weddingData && error) { // If there was an error and weddingData ended up null (already handled by second condition, but for clarity)
-     return <div style={{ color: 'red', padding: '20px', textAlign: 'center' }}>Error: {error}</div>;
-  }
-
-  // If weddingData is present, render WeddingJourney. 
-  // A non-critical layout error might have occurred but is only logged for now.
+  // Decide which journey component to render based on isMobile
   const JourneyComponent = isMobile ? WeddingJourneyMobile : WeddingJourney;
-  return <JourneyComponent
-    weddingData={weddingData}
-    resolvedScrapbookImages={resolvedScrapbookImages} // Use the state variable for resolved images
-  />;
+
+  return <JourneyComponent weddingData={weddingDataForLeva} resolvedScrapbookImages={weddingDataForLeva.scrapbookImages.map(img => img.fileName)} /*setShowGuideLines={() => {}} REMOVED*/ />;
 };
 
 export default App; 
