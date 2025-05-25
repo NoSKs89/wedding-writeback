@@ -176,20 +176,30 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
   const MIN_LINE_THICKNESS = 4; // pixels, for the highest element ID (doubled)
 
   return (
-    <div style={{ position: 'relative', padding: '30px 0', minHeight: '60px' }}>
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center', // Center the START-BAR-FINISH assembly
+      padding: '30px 0', // Keep vertical padding
+      minHeight: '60px', // Keep minHeight
+      // width is now determined by flex items
+    }}>
+      <div style={{ fontSize: '0.8em', color: '#555', marginRight: '10px' }}>
+        START
+      </div>
       <div
         ref={(el: HTMLDivElement | null) => {
           (timelineRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
           drop(el); // Attach drop target to the bar itself
         }}
         style={{
-          width: `${length}px`, // This can be a fixed pixel value or scale with `timelineLength` state
-          height: '20px', // Doubled from 10px
+          width: `${length}px`,
+          height: '20px',
           backgroundColor: '#ccc',
-          position: 'relative',
+          position: 'relative', // For markers and lines within
           border: '1px solid #999',
           borderRadius: '5px',
-          margin: '20px 0',
+          // Removed margin: '20px 0' as flex handles alignment
         }}
       >
         {/* Render Lines for element durations */}
@@ -247,6 +257,9 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
             timelineRef={timelineRef}
           />
         ))}
+      </div>
+      <div style={{ fontSize: '0.8em', color: '#555', marginLeft: '10px' }}>
+        FINISH
       </div>
     </div>
   );
