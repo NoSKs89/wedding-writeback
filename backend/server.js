@@ -22,6 +22,13 @@ const AWS_S3_BUCKET_NAME = process.env.AWS_S3_BUCKET_NAME;
 const RSVP_TO_EMAIL = process.env.RSVP_TO_EMAIL;
 const RSVP_FROM_EMAIL = process.env.RSVP_FROM_EMAIL;
 
+// --- Allowed Origins for CORS ---
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',          // Local development for frontend
+  'https://weddingwriteback.com',    // Production frontend
+  // Add any other origins you need to support, e.g., staging environments
+];
+
 // --- AWS SDK Clients ---
 const s3Client = new S3Client({ region: S3_REGION });
 const sesClient = new SESClient({ region: SES_REGION });
@@ -57,16 +64,28 @@ const connectToDatabase = async () => {
 };
 
 // --- Helper for API Gateway Responses ---
-const createResponse = (statusCode, body, additionalHeaders = {}) => {
+const createResponse = (statusCode, body, requestOrigin, additionalHeaders = {}) => {
+  const baseHeaders = {
+    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent", // Added X-Amz-User-Agent
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE,PATCH", // Added PATCH
+    ...additionalHeaders,
+  };
+
+  if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
+    baseHeaders["Access-Control-Allow-Origin"] = requestOrigin;
+    baseHeaders["Access-Control-Allow-Credentials"] = "true"; // Must be a string "true"
+  } else {
+    // For non-whitelisted origins or if no origin is present, use a wildcard.
+    // Credentials cannot be true with a wildcard origin.
+    baseHeaders["Access-Control-Allow-Origin"] = "*";
+    // If "Access-Control-Allow-Credentials" was true by default from additionalHeaders, ensure it's removed or false for wildcard.
+    // For simplicity, we ensure it's not true. If it's in additionalHeaders as true, this logic doesn't override, which could be an edge case.
+    // However, standard calls won't put it there.
+  }
+
   return {
     statusCode,
-    headers: {
-      "Access-Control-Allow-Origin": "*", // Adjust for your domain in production
-      "Access-Control-Allow-Credentials": true,
-      "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
-      "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE",
-      ...additionalHeaders,
-    },
+    headers: baseHeaders,
     body: JSON.stringify(body),
   };
 };
@@ -76,6 +95,8 @@ exports.handler = async (event, context) => {
   // context.callbackWaitsForEmptyEventLoop = true; // Default is true, usually fine. If false, connections might close prematurely.
 
   console.log('[HANDLER] Event Received:', JSON.stringify(event, null, 2)); // Log the event for debugging
+  const requestOrigin = event.headers?.origin || event.headers?.Origin; // Get request origin
+  console.log(`[HANDLER] Request Origin Header: ${requestOrigin}`);
 
   const httpMethod = event.requestContext.http.method;
   let routePath = event.requestContext.http.path;
@@ -92,19 +113,18 @@ exports.handler = async (event, context) => {
 
   // --- Handle API Routes ---
   if (routePath.startsWith('/api/')) {
-    console.log(`[API_HANDLER] Received API call. Method: ${httpMethod}, Path: ${routePath}`);
     // Ensure database connection FOR API calls
     try {
       await connectToDatabase();
     } catch (dbError) {
       console.error('[HANDLER] Critical: Failed to connect to database for API request.', dbError);
-      return createResponse(500, { message: "Internal Server Error - Database connection failed" });
+      return createResponse(500, { message: "Internal Server Error - Database connection failed" }, requestOrigin);
     }
 
     // --- Handle CORS Preflight OPTIONS requests globally for API ---
     if (httpMethod === 'OPTIONS') {
       console.log(`[HANDLER] Responding to API OPTIONS preflight for ${routePath}`)
-      return createResponse(200, {}); // Return 200 OK with CORS headers from createResponse
+      return createResponse(200, {}, requestOrigin); // Return 200 OK with CORS headers from createResponse
     }
     // --- End API CORS Preflight --- 
 
@@ -116,7 +136,7 @@ exports.handler = async (event, context) => {
         body = JSON.parse(event.body);
       } catch (parseError) {
         console.error('[HANDLER] Error parsing JSON body:', parseError);
-        return createResponse(400, { message: "Invalid JSON format in request body." });
+        return createResponse(400, { message: "Invalid JSON format in request body." }, requestOrigin);
       }
     } else if (event.body) {
       body = event.body;
@@ -125,20 +145,20 @@ exports.handler = async (event, context) => {
     try {
       // Simple GET /api/hello
       if (httpMethod === "GET" && routePath === "/api/hello") {
-        return createResponse(200, { message: 'Hello from the native Lambda backend!' });
+        return createResponse(200, { message: 'Hello from the native Lambda backend!' }, requestOrigin);
       }
 
       // GET /api/items
       if (httpMethod === "GET" && routePath === "/api/items") {
           const items = await Item.find();
-          return createResponse(200, items);
+          return createResponse(200, items, requestOrigin);
       }
 
       // POST /api/items
       if (httpMethod === "POST" && routePath === "/api/items") {
           const newItem = new Item({ name: body.name });
           const item = await newItem.save();
-          return createResponse(201, item);
+          return createResponse(201, item, requestOrigin);
       }
 
       // GET /api/weddings/:customId
@@ -148,16 +168,16 @@ exports.handler = async (event, context) => {
           console.log(`[ROUTE /api/weddings/:customId] Request for ${customId}. Mongoose readyState: ${mongoose.connection.readyState}`);
           const wedding = await WeddingData.findOne({ customId });
           if (!wedding) {
-              return createResponse(404, { message: 'Wedding data not found' });
+              return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           }
-          return createResponse(200, wedding);
+          return createResponse(200, wedding, requestOrigin);
       }    
 
       // POST /api/weddings
       if (httpMethod === "POST" && routePath === "/api/weddings") {
           const weddingPayload = body;
           if (!weddingPayload.customId) {
-              return createResponse(400, { message: 'customId is required' });
+              return createResponse(400, { message: 'customId is required' }, requestOrigin);
           }
 
           // Hash password if provided
@@ -184,7 +204,7 @@ exports.handler = async (event, context) => {
               },
               { new: true, upsert: true, runValidators: true }
           );
-          return createResponse(wedding ? 201 : 400, wedding || { message: "Failed to create/update wedding" });
+          return createResponse(wedding ? 201 : 400, wedding || { message: "Failed to create/update wedding" }, requestOrigin);
       }
 
       // GET /api/weddings/:customId/layout-settings
@@ -197,9 +217,9 @@ exports.handler = async (event, context) => {
           console.log(`[GET /layout-settings] customId: ${customId}, view: ${view}, selecting: ${fieldToSelect}`);
 
           const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           
-          return createResponse(200, wedding[fieldToSelect] || {});
+          return createResponse(200, wedding[fieldToSelect] || {}, requestOrigin);
       }
 
       // POST /api/weddings/:customId/layout-settings
@@ -213,7 +233,7 @@ exports.handler = async (event, context) => {
           console.log(`[POST /layout-settings] customId: ${customId}, view: ${view}, updating: ${fieldToUpdate}`);
 
           if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
-              return createResponse(400, { message: 'Invalid layout settings. Expected an object.' });
+              return createResponse(400, { message: 'Invalid layout settings. Expected an object.' }, requestOrigin);
           }
           
           const updateQuery = { $set: { [fieldToUpdate]: newLayoutSettings } };
@@ -222,9 +242,9 @@ exports.handler = async (event, context) => {
               updateQuery,
               { new: true, runValidators: true, select: `${fieldToUpdate} customId` }
           );
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' }, requestOrigin);
           
-          return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] });
+          return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
       
       // POST /api/s3/presigned-url
@@ -232,19 +252,19 @@ exports.handler = async (event, context) => {
       if (httpMethod === "POST" && presignedUrlMatch) {
           const { fileName, fileType, weddingId, imageType } = body;
           if (!fileName || !fileType || !weddingId || !imageType) {
-              return createResponse(400, { message: 'fileName, fileType, weddingId, and imageType are required.' });
+              return createResponse(400, { message: 'fileName, fileType, weddingId, and imageType are required.' }, requestOrigin);
           }
           let s3KeyPrefix = '';
           switch (imageType) {
               case 'introCouple': case 'introBackground': s3KeyPrefix = `${weddingId}/main/`; break;
               case 'scrapbook': s3KeyPrefix = `${weddingId}/scrapbook/`; break;
-              default: return createResponse(400, { message: 'Invalid imageType.' });
+              default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
           const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
           const command = new PutObjectCommand({ Bucket: AWS_S3_BUCKET_NAME, Key: uniqueFileName, ContentType: fileType });
           const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
           const publicUrl = `https://${AWS_S3_BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${uniqueFileName}`;
-          return createResponse(200, { presignedUrl, publicUrl, key: uniqueFileName });
+          return createResponse(200, { presignedUrl, publicUrl, key: uniqueFileName }, requestOrigin);
       }
 
       // POST /api/weddings/:customId/images
@@ -252,20 +272,20 @@ exports.handler = async (event, context) => {
       if (httpMethod === "POST" && postImageMatch) {
           const customId = postImageMatch[1];
           const { imageUrl, caption, s3Key, imageType } = body;
-          if (!imageUrl || !imageType) return createResponse(400, { message: 'imageUrl and imageType are required.' });
-          if (imageType === 'scrapbook' && !s3Key) return createResponse(400, { message: 's3Key required for scrapbook images.' });
+          if (!imageUrl || !imageType) return createResponse(400, { message: 'imageUrl and imageType are required.' }, requestOrigin);
+          if (imageType === 'scrapbook' && !s3Key) return createResponse(400, { message: 's3Key required for scrapbook images.' }, requestOrigin);
 
           const wedding = await WeddingData.findOne({ customId });
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found for image update.' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for image update.' }, requestOrigin);
 
           if (imageType === 'introCouple') wedding.introCouple = imageUrl;
           else if (imageType === 'introBackground') wedding.introBackground = imageUrl;
           else if (imageType === 'scrapbook') {
               wedding.scrapbookImages.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
-          } else return createResponse(400, { message: 'Invalid imageType for image post.' });
+          } else return createResponse(400, { message: 'Invalid imageType for image post.' }, requestOrigin);
           
           await wedding.save();
-          return createResponse(200, { message: `Image for ${imageType} saved.`, weddingData: wedding });
+          return createResponse(200, { message: `Image for ${imageType} saved.`, weddingData: wedding }, requestOrigin);
       }
 
       // DELETE /api/weddings/:customId/images/:imageId
@@ -274,10 +294,10 @@ exports.handler = async (event, context) => {
           const customId = deleteImageMatch[1];
           const imageId = deleteImageMatch[2];
           const wedding = await WeddingData.findOne({ customId });
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found for image delete.' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for image delete.' }, requestOrigin);
           
           const imageToDelete = wedding.scrapbookImages.id(imageId);
-          if (!imageToDelete) return createResponse(404, { message: 'Scrapbook image not found by ID.' });
+          if (!imageToDelete) return createResponse(404, { message: 'Scrapbook image not found by ID.' }, requestOrigin);
           
           if (imageToDelete.s3Key) {
               try {
@@ -287,7 +307,7 @@ exports.handler = async (event, context) => {
           }
           wedding.scrapbookImages.pull({ _id: imageId });
           await wedding.save();
-          return createResponse(200, { message: 'Scrapbook image deleted.', weddingData: wedding });
+          return createResponse(200, { message: 'Scrapbook image deleted.', weddingData: wedding }, requestOrigin);
       }
 
       // DELETE /api/weddings/:customId/scrapbook-images
@@ -295,7 +315,7 @@ exports.handler = async (event, context) => {
       if (httpMethod === "DELETE" && clearScrapbookMatch) {
           const customId = clearScrapbookMatch[1];
           const wedding = await WeddingData.findOne({ customId });
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found for scrapbook clear.' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for scrapbook clear.' }, requestOrigin);
           if (wedding.scrapbookImages && wedding.scrapbookImages.length > 0) {
               for (const img of wedding.scrapbookImages) {
                   if (img.s3Key) {
@@ -308,7 +328,7 @@ exports.handler = async (event, context) => {
           }
           wedding.scrapbookImages = [];
           await wedding.save();
-          return createResponse(200, { message: 'All scrapbook images cleared.', weddingData: wedding });
+          return createResponse(200, { message: 'All scrapbook images cleared.', weddingData: wedding }, requestOrigin);
       }
       
       // POST /api/rsvp/:customId
@@ -317,7 +337,7 @@ exports.handler = async (event, context) => {
           const customId = rsvpMatch[1];
           const rsvpPayload = body;
           const weddingDetails = await WeddingData.findOne({ customId });
-          if (!weddingDetails) return createResponse(404, { message: `Wedding ID '${customId}' not found for RSVP.` });
+          if (!weddingDetails) return createResponse(404, { message: `Wedding ID '${customId}' not found for RSVP.` }, requestOrigin);
 
           const newRsvp = new Rsvp({ ...rsvpPayload, weddingId: customId });
           const savedRsvp = await newRsvp.save();
@@ -342,7 +362,7 @@ exports.handler = async (event, context) => {
                   console.log('RSVP email sent.');
               } catch (emailError) { console.error('RSVP email send failed:', emailError); }
           }
-          return createResponse(201, savedRsvp);
+          return createResponse(201, savedRsvp, requestOrigin);
       }
 
       // POST /api/weddings/:customId/verify-setup-password
@@ -350,16 +370,16 @@ exports.handler = async (event, context) => {
       if (httpMethod === "POST" && verifyPasswordMatch) {
           const customId = verifyPasswordMatch[1];
           const { password } = body;
-          if (!password) return createResponse(400, { message: 'Password is required for verification.' });
+          if (!password) return createResponse(400, { message: 'Password is required for verification.' }, requestOrigin);
           
           const wedding = await WeddingData.findOne({ customId }).select('+setupPassword'); // Ensure password is selected
-          if (!wedding) return createResponse(404, { message: 'Wedding data not found for password verification.' });
-          if (!wedding.setupPassword) return createResponse(401, { message: 'Setup password not configured for this wedding.' });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for password verification.' }, requestOrigin);
+          if (!wedding.setupPassword) return createResponse(401, { message: 'Setup password not configured for this wedding.' }, requestOrigin);
 
           const isMatch = await bcrypt.compare(password, wedding.setupPassword);
-          if (isMatch) return createResponse(200, { success: true, message: 'Password verified.' });
+          if (isMatch) return createResponse(200, { success: true, message: 'Password verified.' }, requestOrigin);
           
-          return createResponse(401, { success: false, message: 'Invalid password.' });
+          return createResponse(401, { success: false, message: 'Invalid password.' }, requestOrigin);
       }
 
       // PUT /api/weddings/:customId/change-password
@@ -369,42 +389,42 @@ exports.handler = async (event, context) => {
           const { currentPassword, newPassword, confirmNewPassword } = body;
 
           if (!currentPassword || !newPassword || !confirmNewPassword) {
-              return createResponse(400, { message: 'Current password, new password, and confirmation are required.' });
+              return createResponse(400, { message: 'Current password, new password, and confirmation are required.' }, requestOrigin);
           }
           if (newPassword !== confirmNewPassword) {
-              return createResponse(400, { message: 'New password and confirmation do not match.' });
+              return createResponse(400, { message: 'New password and confirmation do not match.' }, requestOrigin);
           }
           if (newPassword.length < 1) { // Basic validation, can be made more robust
-              return createResponse(400, { message: 'New password is too short.' });
+              return createResponse(400, { message: 'New password is too short.' }, requestOrigin);
           }
 
           const wedding = await WeddingData.findOne({ customId }).select('+setupPassword');
           if (!wedding) {
-              return createResponse(404, { message: 'Wedding data not found.' });
+              return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
           }
           if (!wedding.setupPassword) {
-              return createResponse(401, { message: 'Setup password not configured. Cannot change.' });
+              return createResponse(401, { message: 'Setup password not configured. Cannot change.' }, requestOrigin);
           }
 
           const isMatch = await bcrypt.compare(currentPassword, wedding.setupPassword);
           if (!isMatch) {
-              return createResponse(401, { message: 'Incorrect current password.' });
+              return createResponse(401, { message: 'Incorrect current password.' }, requestOrigin);
           }
 
           const salt = await bcrypt.genSalt(10);
           wedding.setupPassword = await bcrypt.hash(newPassword, salt);
           await wedding.save();
 
-          return createResponse(200, { success: true, message: 'Password changed successfully.' });
+          return createResponse(200, { success: true, message: 'Password changed successfully.' }, requestOrigin);
       }
 
       // Fallback for unhandled API routes
       console.log(`[HANDLER] API Route not found for ${httpMethod} ${routePath}`);
-      return createResponse(404, { message: `The requested API resource for ${httpMethod} ${routePath} was not found.` });
+      return createResponse(404, { message: `The requested API resource for ${httpMethod} ${routePath} was not found.` }, requestOrigin);
 
     } catch (error) {
       console.error(`[HANDLER] Error processing API ${httpMethod} ${routePath}:`, error);
-      return createResponse(500, { message: 'Internal Server Error', errorName: error.name, errorMessage: error.message });
+      return createResponse(500, { message: 'Internal Server Error', errorName: error.name, errorMessage: error.message }, requestOrigin);
     }
   } else if (httpMethod === "GET") { // --- Handle Non-API GET requests (Serve index.html) ---
     try {
@@ -484,11 +504,14 @@ exports.handler = async (event, context) => {
       // Fallback: Serve a generic error or a very basic index.html
       // Or, if the error is that index.html itself is not found, this is a critical deployment issue.
       // For now, return a simple 500 error for HTML serving issues.
-      return createResponse(500, { message: "Error serving page content." });
+      // Note: HTML responses don't typically need complex CORS like API, but createResponse handles it.
+      // If serving HTML, a simple wildcard might be fine, or no CORS headers if same-origin.
+      // However, using createResponse ensures consistency if any script within HTML makes cross-origin requests that rely on these.
+      return createResponse(500, { message: "Error serving page content." }, requestOrigin);
     }
   } else { // --- Fallback for other methods or unhandled non-API GETs ---
     console.log(`[HANDLER] Route not found or method not allowed for ${httpMethod} ${routePath}`);
-    return createResponse(404, { message: `The requested resource for ${httpMethod} ${routePath} was not found or method not allowed.` });
+    return createResponse(404, { message: `The requested resource for ${httpMethod} ${routePath} was not found or method not allowed.` }, requestOrigin);
   }
 };
 
@@ -497,10 +520,10 @@ exports.handler = async (event, context) => {
 // Example:
 // if (httpMethod === "GET" && path === "/api/items") {
 //   const items = await Item.find();
-//   return createResponse(200, items);
+//   return createResponse(200, items, requestOrigin);
 // }
 // if (httpMethod === "POST" && path === "/api/items") {
 //   const newItem = new Item({ name: body.name });
 //   const item = await newItem.save();
-//   return createResponse(201, item);
+//   return createResponse(201, item, requestOrigin);
 // } 
