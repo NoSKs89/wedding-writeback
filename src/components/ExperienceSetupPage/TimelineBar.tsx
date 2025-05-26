@@ -6,6 +6,7 @@ import { TimelineMarker } from './ExperienceSetupPage'; // Import the interface
 interface TimelineBarProps {
   markers: TimelineMarker[];
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
+  onUpdateElementGroupPosition: (elementId: number, newStartProportion: number, newEndPosition: number) => void;
   length: number; // Visual length of the bar (e.g., in pixels)
   maxElements?: number; 
 }
@@ -55,7 +56,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     cursor: 'grab',
     opacity: isDragging ? 0.5 : 1,
     transform: 'translateX(-50%)', // Center the marker horizontally
-    zIndex: 20 // Ensure markers are above lines and the main timeline bar
+    zIndex: 100 // Ensure markers are well above lines
   };
 
   const startMarkerStyle: React.CSSProperties = {
@@ -81,7 +82,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     objectFit: 'cover',
     border: '1px solid #ccc',
     borderRadius: '3px',
-    zIndex: 21, // Above the marker itself
+    zIndex: 101, // Above the marker itself
     backgroundColor: 'white', // Added for better visibility if image is transparent
   };
 
@@ -97,7 +98,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     fontSize: '9px',
     borderRadius: '2px',
     whiteSpace: 'nowrap',
-    zIndex: 21, // Above the marker itself
+    zIndex: 101, // Above the marker itself
   };
 
   // Style for the icon preview
@@ -107,7 +108,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
     left: '50%',
     transform: 'translateX(-50%)',
     fontSize: '14px', // Larger size for an icon/emoji
-    zIndex: 21,
+    zIndex: 101, // Above the marker itself
     // No background, relying on icon/emoji visual
   };
 
@@ -131,8 +132,103 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
   );
 };
 
+export const DRAGGABLE_ELEMENT_LINE_TYPE = 'ELEMENT_LINE';
 
-const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPosition, length, maxElements = 8 }) => {
+// Define an interface for the drag item for lines
+interface ElementLineDragItem {
+  id: string;
+  elementId: number;
+  type: typeof DRAGGABLE_ELEMENT_LINE_TYPE;
+  originalStartProportion: number;
+  originalEndProportion: number;
+  originalDuration: number;
+}
+
+interface DraggableElementLineProps {
+  elementId: number;
+  startMarker: TimelineMarker;
+  endMarker: TimelineMarker;
+  lineHeight: number;
+  lineZIndex: number;
+  barWidth: number;
+  timelineRef: React.RefObject<HTMLDivElement>;
+  onUpdateElementGroupPosition: (elementId: number, newStartProportion: number, newEndPosition: number) => void;
+}
+
+const DraggableElementLine: React.FC<DraggableElementLineProps> = ({ elementId, startMarker, endMarker, lineHeight, lineZIndex, barWidth, timelineRef, onUpdateElementGroupPosition }) => {
+  const [{ isDragging }, drag] = useDrag(() => ({
+    type: DRAGGABLE_ELEMENT_LINE_TYPE,
+    item: {
+      id: `line-${elementId}`,
+      elementId,
+      type: DRAGGABLE_ELEMENT_LINE_TYPE,
+      originalStartProportion: startMarker.position,
+      originalEndProportion: endMarker.position,
+      originalDuration: endMarker.position - startMarker.position,
+    } as ElementLineDragItem, // Explicitly cast item to our defined type
+    collect: (monitor: DragSourceMonitor) => ({
+      isDragging: !!monitor.isDragging(),
+    }),
+    end: (item: ElementLineDragItem, monitor: DragSourceMonitor) => { // Use the specific item type here
+      const clientOffset = monitor.getSourceClientOffset(); // Cursor position at drop
+      const initialClientOffset = monitor.getInitialClientOffset(); // Cursor position at drag start
+      const timelineElement = timelineRef.current;
+
+      if (!item || !clientOffset || !initialClientOffset || !timelineElement) return;
+
+      const barRect = timelineElement.getBoundingClientRect();
+      const dragDeltaPx = clientOffset.x - initialClientOffset.x;
+      const dragDeltaProportion = dragDeltaPx / barRect.width;
+
+      let newStartProportion = item.originalStartProportion + dragDeltaProportion;
+      let newEndProportion = item.originalEndProportion + dragDeltaProportion;
+
+      // Clamp and maintain duration if hitting boundaries
+      if (newStartProportion < 0) {
+        newStartProportion = 0;
+        newEndProportion = item.originalDuration;
+      }
+      if (newEndProportion > 1) {
+        newEndProportion = 1;
+        newStartProportion = 1 - item.originalDuration;
+      }
+      // Ensure start is not negative after adjustment (can happen if duration is very long)
+      if (newStartProportion < 0) {
+        newStartProportion = 0;
+        newEndProportion = Math.min(1, item.originalDuration); // Also ensure end is not > 1
+      }
+
+      onUpdateElementGroupPosition(item.elementId, newStartProportion, newEndProportion);
+    },
+  }), [elementId, startMarker.position, endMarker.position, barWidth, timelineRef, onUpdateElementGroupPosition]);
+
+  const lineStartPx = startMarker.position * barWidth;
+  const lineWidthPx = Math.max(0, (endMarker.position * barWidth) - lineStartPx);
+
+  if (lineWidthPx <= 0) return null;
+
+  return (
+    <div
+      ref={drag}
+      style={{
+        position: 'absolute',
+        left: `${lineStartPx}px`,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: `${lineWidthPx}px`,
+        height: `${lineHeight}px`,
+        backgroundColor: startMarker.color,
+        zIndex: lineZIndex,
+        borderRadius: '2px',
+        cursor: 'grab',
+        opacity: isDragging ? 0.7 : 1,
+      }}
+      title={`Drag Element ${elementId} Segment`}
+    />
+  );
+};
+
+const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPosition, onUpdateElementGroupPosition, length, maxElements = 8 }) => {
   const timelineRef = React.useRef<HTMLDivElement | null>(null);
 
   const [{ isOver }, drop] = useDrop(() => ({
@@ -229,20 +325,16 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
           const lineZIndex = maxElements - (group.start.elementId - 1); // Adjust for 1-based ID
 
           return (
-            <div
+            <DraggableElementLine
               key={`line-${group.start.elementId}`}
-              style={{
-                position: 'absolute',
-                left: `${lineStartPx}px`,
-                top: '50%', // Center on the timeline bar's midline
-                transform: 'translateY(-50%)',
-                width: `${lineWidthPx}px`,
-                height: `${lineHeight}px`,
-                backgroundColor: group.start.color, // Use the element's color
-                zIndex: lineZIndex, // Higher zIndex for elements that are visually on top in parallax
-                borderRadius: '2px',
-              }}
-              title={`Element ${group.start.elementId} duration`}
+              elementId={group.start.elementId}
+              startMarker={group.start}
+              endMarker={group.end}
+              lineHeight={lineHeight}
+              lineZIndex={lineZIndex}
+              barWidth={length}
+              timelineRef={timelineRef}
+              onUpdateElementGroupPosition={onUpdateElementGroupPosition}
             />
           );
         })}

@@ -181,6 +181,21 @@ const ExperienceSetupPage: React.FC = () => {
     setTimelineLength(newLength);
   }, [timelineLength]);
 
+  const handleUpdateElementGroupPosition = useCallback((elementId: number, newStartProportion: number, newEndPosition: number) => {
+    setMarkers(prevMarkers =>
+      prevMarkers.map(marker => {
+        if (marker.elementId === elementId) {
+          if (marker.type === 'start') {
+            return { ...marker, position: newStartProportion };
+          }
+          if (marker.type === 'end') {
+            return { ...marker, position: newEndPosition };
+          }
+        }
+        return marker;
+      })
+    );
+  }, []);
 
   // --- Element Configuration ---
 
@@ -365,6 +380,7 @@ const ExperienceSetupPage: React.FC = () => {
         <TimelineBar
           markers={activeMarkers}
           onUpdateMarkerPosition={handleUpdateMarkerPosition}
+          onUpdateElementGroupPosition={handleUpdateElementGroupPosition}
           length={timelineLength} // Visual length of the bar
           maxElements={INITIAL_ELEMENT_COUNT} // Pass maxElements for calculations in TimelineBar
         />
