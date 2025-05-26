@@ -1,4 +1,4 @@
-import React, { useState, useCallback, ChangeEvent } from 'react';
+import React, { useState, useCallback, ChangeEvent, useEffect } from 'react';
 import { ElementConfig } from './ExperienceSetupPage'; // Import the interface
 // No need to import RSVPForm or ScrapbookBackground here if not rendering them directly
 // import RSVPForm from '../../RSVPForm';
@@ -12,12 +12,58 @@ interface ElementSlotProps {
   element: ElementConfig;
   onUpdate: (newConfig: Partial<Omit<ElementConfig, 'id' | 'timelineColor'>>) => void;
   onRemove: () => void; // To set element back to 'empty'
+  isFocused: boolean; // New prop
+  onFocus: (elementId: number) => void; // New prop
+  startPositionPercent?: number; // New prop, percentage 0-1
+  endPositionPercent?: number; // New prop, percentage 0-1
+  onMarkerPositionChangeFromInput: (elementId: number, type: 'start' | 'end', newPosition: number) => void; // New prop
 }
 
-const ElementSlot: React.FC<ElementSlotProps> = ({ element, onUpdate, onRemove }) => {
+const ElementSlot: React.FC<ElementSlotProps> = ({
+  element,
+  onUpdate,
+  onRemove,
+  isFocused,
+  onFocus,
+  startPositionPercent,
+  endPositionPercent,
+  onMarkerPositionChangeFromInput
+}) => {
   const [textContent, setTextContent] = useState<string>(element.type === 'text' && typeof element.content === 'string' ? element.content : '');
   const [selectedFile, setSelectedFile] = useState<File | null>(element.type === 'photo' && element.content instanceof File ? element.content : null);
   const [filePreview, setFilePreview] = useState<string | null>(element.type === 'photo' && typeof element.content === 'string' ? element.content : null);
+
+  // Local state for input values, initialized from props
+  const [startInput, setStartInput] = useState<string>((startPositionPercent !== undefined ? startPositionPercent * 100 : 0).toFixed(1));
+  const [endInput, setEndInput] = useState<string>((endPositionPercent !== undefined ? endPositionPercent * 100 : 0).toFixed(1));
+
+  useEffect(() => {
+    setStartInput((startPositionPercent !== undefined ? startPositionPercent * 100 : 0).toFixed(1));
+  }, [startPositionPercent]);
+
+  useEffect(() => {
+    setEndInput((endPositionPercent !== undefined ? endPositionPercent * 100 : 0).toFixed(1));
+  }, [endPositionPercent]);
+
+  const handleSlotClick = (event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent click from bubbling to document listener
+    onFocus(element.id);
+  };
+
+  const handlePositionInputChange = (type: 'start' | 'end', value: string) => {
+    const numericValue = parseFloat(value);
+    if (type === 'start') {
+      setStartInput(value);
+      if (!isNaN(numericValue)) {
+        onMarkerPositionChangeFromInput(element.id, 'start', numericValue / 100);
+      }
+    } else {
+      setEndInput(value);
+      if (!isNaN(numericValue)) {
+        onMarkerPositionChangeFromInput(element.id, 'end', numericValue / 100);
+      }
+    }
+  };
 
   const handleTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const newTypeValue = e.target.value;
@@ -64,6 +110,55 @@ const ElementSlot: React.FC<ElementSlotProps> = ({ element, onUpdate, onRemove }
     setFilePreview(null);
   };
 
+  const baseStyle: React.CSSProperties = {
+    padding: '17px',
+    minHeight: '120px',
+    backgroundColor: '#f9f9f9',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'box-shadow 0.3s ease, border-top 0.3s ease, border-right 0.3s ease, border-bottom 0.3s ease, border-left 0.3s ease',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    // Explicit borders for unfocused state
+    borderTop: '1px solid #e0e0e0',
+    borderRight: '1px solid #e0e0e0',
+    borderBottom: '1px solid #e0e0e0',
+    borderLeft: `5px solid ${element.timelineColor === '#FFFFFF' ? '#DDDDDD' : element.timelineColor}`,
+  };
+
+  const focusedStyleObj: React.CSSProperties = {
+    boxShadow: '0 6px 12px rgba(0,0,0,0.25)',
+    // Explicit, thicker borders for focused state
+    borderTop: `2px solid ${element.timelineColor === '#FFFFFF' ? '#007bff' : element.timelineColor }`,
+    borderRight: `2px solid ${element.timelineColor === '#FFFFFF' ? '#007bff' : element.timelineColor }`,
+    borderBottom: `2px solid ${element.timelineColor === '#FFFFFF' ? '#007bff' : element.timelineColor }`,
+    borderLeft: `2px solid ${element.timelineColor === '#FFFFFF' ? '#007bff' : element.timelineColor }`,
+  };
+  
+  const focusedStyle: React.CSSProperties = isFocused ? focusedStyleObj : {};
+
+  // Styles for the input controls
+  const inputControlStyle: React.CSSProperties = {
+    display: 'flex',
+    gap: '10px',
+    marginTop: '15px',
+    alignItems: 'center'
+  };
+
+  const numberInputStyle: React.CSSProperties = {
+    width: '70px',
+    padding: '5px',
+    textAlign: 'right',
+    border: '1px solid #ccc',
+    borderRadius: '4px'
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.85rem',
+    color: '#555'
+  }
+
   const selectContainerStyle: React.CSSProperties = {
     position: 'relative',
     display: 'inline-block',
@@ -103,100 +198,129 @@ const ElementSlot: React.FC<ElementSlotProps> = ({ element, onUpdate, onRemove }
     recommendedText = "Recommended: Image Background";
   }
 
-  // Determine the value for the select dropdown based on element's type and name
-  let dropdownValue: string = element.type; // Default to element.type
-
+  let dropdownValue: string = element.type;
   if (element.type === 'component') {
     if (element.name === 'RSVP Form') {
       dropdownValue = 'component-rsvp';
     } else if (element.name === 'Scrapbook') {
       dropdownValue = 'component-scrapbook';
     } else {
-      // If element.type is 'component' but its name doesn't match specific
-      // component options, set dropdown to show '- inactive -'.
-      // This handles cases where a generic 'component' might exist but isn't
-      // one of the explicit choices in *this* dropdown.
       dropdownValue = 'empty';
     }
   }
-  // If element.type is 'empty', 'photo', or 'text', dropdownValue remains as is.
 
   return (
-    <div style={{ borderLeft: `5px solid ${element.timelineColor}`, paddingLeft: '10px', minHeight: '100px' }}>
-      <h5>Element Slot {element.id}</h5>
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
-        <label style={{fontSize: '0.9rem'}}>Type:</label>
-        <div style={selectContainerStyle}>
-          <select value={dropdownValue} onChange={handleTypeChange} style={selectStyle}>
-            <option value="empty"> - inactive - </option>
-            <option value="photo">Photo</option>
-            <option value="text">Text</option>
-            <option value={"component-rsvp" as string}>RSVP Form</option>
-            <option value={"component-scrapbook" as string}>Scrapbook</option>
-          </select>
+    <div 
+      style={{ ...baseStyle, ...focusedStyle }} 
+      onClick={handleSlotClick} 
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div> {/* Content wrapper div for flex layout */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <h5 style={{ margin: 0, fontSize: '1.1em' }}>Element Slot {element.id}</h5>
+          {element.type !== 'empty' && (
+            <button onClick={(e) => { e.stopPropagation(); handleRemoveContent(); }} style={{marginLeft: 'auto', color: 'red', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem'}}>Clear</button>
+          )}
         </div>
-        {element.type !== 'empty' && (
-            <button onClick={handleRemoveContent} style={{marginLeft: 'auto', color: 'red', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem'}}>Clear</button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+          <label style={{fontSize: '0.9rem'}}>Type:</label>
+          <div style={selectContainerStyle}>
+            <select value={dropdownValue} onChange={handleTypeChange} style={selectStyle}>
+              <option value="empty"> - inactive - </option>
+              <option value="photo">Photo</option>
+              <option value="text">Text</option>
+              <option value={"component-rsvp" as string}>RSVP Form</option>
+              <option value={"component-scrapbook" as string}>Scrapbook</option>
+            </select>
+          </div>
+        </div>
+
+        {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
+        {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}
+        {element.type === 'photo' && (
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '10px' }}>
+            {filePreview && 
+              <img 
+                src={filePreview} 
+                alt={element.name || "Preview"} 
+                style={{ 
+                  maxWidth: '80px', 
+                  maxHeight: '80px', 
+                  objectFit: 'cover',
+                  border: '1px solid #ddd', 
+                  borderRadius: '4px' 
+                }} 
+              />
+            }
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handlePhotoUpload} 
+                style={{ 
+                  fontSize: '0.8rem', 
+                  maxWidth: '150px' 
+                }}
+              />
+              {element.name && !filePreview && element.content && 
+                <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
+              }
+               {filePreview && element.name && 
+                <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
+              }
+            </div>
+          </div>
+        )}
+
+        {element.type === 'text' && (
+          <div>
+            <textarea
+              value={textContent}
+              onChange={(e) => setTextContent(e.target.value)}
+              placeholder="Enter your text"
+              rows={3}
+              style={{width: '90%', marginBottom: '5px', padding: '5px', border: '1px solid #ccc', borderRadius: '3px'}}
+            />
+            <button onClick={handleTextSubmit} style={{padding: '5px 10px', fontSize: '0.8rem'}}>Submit Text</button>
+            {element.content && typeof element.content === 'string' && <p style={{fontSize: '0.8em', color: '#555'}}>Saved: {element.content.substring(0,50)}...</p>}
+          </div>
+        )}
+
+        {element.type === 'component' && element.name && (
+          <div>
+            <p style={{fontSize: '0.9em', color: '#333'}}>Selected Component: <strong>{element.name}</strong></p>
+          </div>
         )}
       </div>
 
-      {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
-
-      {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}
-
-      {element.type === 'photo' && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '10px' }}>
-          {filePreview && 
-            <img 
-              src={filePreview} 
-              alt={element.name || "Preview"} 
-              style={{ 
-                maxWidth: '80px', 
-                maxHeight: '80px', 
-                objectFit: 'cover',
-                border: '1px solid #ddd', 
-                borderRadius: '4px' 
-              }} 
+      {isFocused && element.type !== 'empty' && (
+        <div style={inputControlStyle}>
+          <div style={{flex: 1}}>
+            <label htmlFor={`start-pos-${element.id}`} style={labelStyle}>Start (%):</label>
+            <input
+              type="number"
+              id={`start-pos-${element.id}`}
+              value={startInput}
+              onChange={(e) => handlePositionInputChange('start', e.target.value)}
+              step="0.1" // User requested 0.1 step
+              min="0"
+              max="100"
+              style={numberInputStyle}
             />
-          }
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            <input 
-              type="file" 
-              accept="image/*" 
-              onChange={handlePhotoUpload} 
-              style={{ 
-                fontSize: '0.8rem', 
-                maxWidth: '150px' 
-              }}
-            />
-            {element.name && !filePreview && element.content && 
-              <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
-            }
-             {filePreview && element.name && 
-              <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
-            }
           </div>
-        </div>
-      )}
-
-      {element.type === 'text' && (
-        <div>
-          <textarea
-            value={textContent}
-            onChange={(e) => setTextContent(e.target.value)}
-            placeholder="Enter your text"
-            rows={3}
-            style={{width: '90%', marginBottom: '5px', padding: '5px', border: '1px solid #ccc', borderRadius: '3px'}}
-          />
-          <button onClick={handleTextSubmit} style={{padding: '5px 10px', fontSize: '0.8rem'}}>Submit Text</button>
-          {element.content && typeof element.content === 'string' && <p style={{fontSize: '0.8em', color: '#555'}}>Saved: {element.content.substring(0,50)}...</p>}
-        </div>
-      )}
-
-      {/* Updated component display to be a simple placeholder */}
-      {element.type === 'component' && element.name && (
-        <div>
-          <p style={{fontSize: '0.9em', color: '#333'}}>Selected Component: <strong>{element.name}</strong></p>
+          <div style={{flex: 1}}>
+            <label htmlFor={`end-pos-${element.id}`} style={labelStyle}>End (%):</label>
+            <input
+              type="number"
+              id={`end-pos-${element.id}`}
+              value={endInput}
+              onChange={(e) => handlePositionInputChange('end', e.target.value)}
+              step="0.1" // User requested 0.1 step
+              min="0"
+              max="100"
+              style={numberInputStyle}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -53,6 +53,9 @@ const ExperienceSetupPage: React.FC = () => {
     }))
   );
   const [markers, setMarkers] = useState<TimelineMarker[]>([]);
+  const [markerHistory, setMarkerHistory] = useState<TimelineMarker[][]>([[]]);
+  const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(0);
+  const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
 
   // --- Memoized Timeline Markers ---
   // This recalculates markers whenever elements or their configured content change.
@@ -256,6 +259,30 @@ const ExperienceSetupPage: React.FC = () => {
 
   }, [activeMarkers, elements.length, handleAddOrUpdateElementMarker, handleRemoveElementMarkers]);
 
+  const updateMarkersAndManageHistory = (newMarkersState: TimelineMarker[]) => {
+    // ... existing code ...
+  };
+
+  const handleRedo = useCallback(() => {
+    if (currentHistoryIndex < markerHistory.length - 1) {
+      const newIndex = currentHistoryIndex + 1;
+      console.log(`[Redo] currentHistoryIndex: ${currentHistoryIndex}, newIndex: ${newIndex}`);
+      console.log('[Redo] Restoring to state:', JSON.parse(JSON.stringify(markerHistory[newIndex])));
+      setMarkers(markerHistory[newIndex]);
+      setCurrentHistoryIndex(newIndex);
+    }
+  }, [currentHistoryIndex, markerHistory]);
+
+  const handleElementFocus = useCallback((elementId: number) => {
+    setFocusedElementId(elementId); // Always set this element as focused.
+  }, []);
+
+  const handleMarkerPositionChangeFromInput = useCallback((elementId: number, type: 'start' | 'end', newPositionPercent: number) => {
+    // Find the marker id
+    const markerIdToUpdate = `element-${elementId}-${type}`;
+    // Call the existing handler that also manages history
+    handleUpdateMarkerPosition(markerIdToUpdate, newPositionPercent);
+  }, [handleUpdateMarkerPosition]);
 
   // --- Z-index Visualization ---
   // Lower index in `elements` array means higher z-index.
@@ -360,6 +387,26 @@ const ExperienceSetupPage: React.FC = () => {
     setMarkers(initialMarkers);
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (focusedElementId !== null) {
+        const target = event.target as HTMLElement;
+        // Find the DOM element of the currently focused slot
+        const focusedSlotElement = document.querySelector(`[data-element-slot-id="${focusedElementId}"]`);
+
+        // If the click target is not the focused slot itself and not a descendant of the focused slot
+        if (focusedSlotElement && !focusedSlotElement.contains(target)) {
+          setFocusedElementId(null);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [focusedElementId]); // Re-run if focusedElementId changes to attach/detach with correct state
+
   return (
     <DndProvider backend={HTML5Backend}>
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -387,15 +434,36 @@ const ExperienceSetupPage: React.FC = () => {
 
         {/* Element Slots */}
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginTop: '20px', width: '100%' }}>
-          {elements.map((el) => (
-            <div key={el.id} style={getElementSlotStyle(el)}>
-              <ElementSlot
-                element={el}
-                onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
-                onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
-              />
-            </div>
-          ))}
+          {elements.map((el) => {
+            const isFocused = el.id === focusedElementId;
+            let startMarkerPos: number | undefined = undefined;
+            let endMarkerPos: number | undefined = undefined;
+
+            if (isFocused && el.type !== 'empty') {
+              const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
+              const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
+              startMarkerPos = startMarker?.position;
+              endMarkerPos = endMarker?.position;
+            }
+
+            return (
+              <div 
+                key={el.id} 
+                data-element-slot-id={el.id} // Add a data attribute to the wrapper
+              >
+                <ElementSlot
+                  element={el}
+                  onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
+                  onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
+                  isFocused={isFocused}
+                  onFocus={handleElementFocus}
+                  startPositionPercent={startMarkerPos}
+                  endPositionPercent={endMarkerPos}
+                  onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
+                />
+              </div>
+            );
+          })}
         </div>
 
         {/* Save Button */}
