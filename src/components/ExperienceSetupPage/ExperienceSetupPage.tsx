@@ -5,6 +5,9 @@ import ElementSlot from './ElementSlot'; // Component for each element configura
 import { DndProvider } from 'react-dnd'; // For drag and drop of timeline markers
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
+import { useTransition, animated, config, useSpring, useSpringRef } from '@react-spring/web'; // Added useSpring, useSpringRef
+import FAQModalContainer from './FAQModalContainer'; // Import the FAQ component
+
 
 // --- Interfaces ---
 
@@ -56,6 +59,40 @@ const ExperienceSetupPage: React.FC = () => {
   const [markerHistory, setMarkerHistory] = useState<TimelineMarker[][]>([[]]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(0);
   const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
+
+  // Centralized modal state
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  // State for mobile and landscape detection
+  const [isMobile, setIsMobile] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
+
+  // Effect for mobile & landscape detection (similar to MainExperience.js)
+  useEffect(() => {
+    const checkDevice = () => {
+      const ua = navigator.userAgent;
+      const platform = navigator.platform;
+      // @ts-ignore
+      const maxTouchPoints = navigator.maxTouchPoints || 0;
+
+      const isPotentiallyMobile =
+        /Mobi/i.test(ua) ||
+        /Android/i.test(ua) ||
+        /iPhone|iPad|iPod/.test(ua) ||
+        // @ts-ignore
+        (platform === 'MacIntel' && maxTouchPoints > 1) || 
+        /Windows Phone/i.test(ua);
+
+      setIsMobile(isPotentiallyMobile);
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+
+    checkDevice();
+    window.addEventListener('resize', checkDevice);
+    return () => {
+      window.removeEventListener('resize', checkDevice);
+    };
+  }, []);
 
   // --- Memoized Timeline Markers ---
   // This recalculates markers whenever elements or their configured content change.
@@ -407,10 +444,49 @@ const ExperienceSetupPage: React.FC = () => {
     };
   }, [focusedElementId]); // Re-run if focusedElementId changes to attach/detach with correct state
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (activeModal && e.target === e.currentTarget) {
+      setActiveModal(null);
+    }
+  };
+
   return (
     <DndProvider backend={HTML5Backend}>
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h2 className="experience-setup-title">Experience Setup</h2>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh' }}>
+        
+        {/* Backdrop for Modals */}
+        {activeModal && (
+          <div
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              zIndex: 999, // Should be below modal content (FAQModalContainer uses 1000 when open)
+            }}
+            onClick={handleBackdropClick}
+          />
+        )}
+
+        {/* Page Header with Modal Trigger Buttons/Containers */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '800px', marginBottom: '20px', zIndex: 100 }}> {/* Added zIndex and maxWidth */}
+            {/* FAQModalContainer will position itself absolutely. It handles its own click to open. */}
+            <FAQModalContainer
+              activeModal={activeModal}
+              setActiveModal={setActiveModal}
+              isMobile={isMobile}
+              isLandscape={isLandscape}
+              // Add any specific props for positioning if FAQModalContainer supports it,
+              // or wrap it in a div if you need to constrain its 'button' position.
+              // For now, relying on its internal absolute positioning relative to a positioned ancestor or viewport.
+            />
+            <h2 className="experience-setup-title" style={{ margin: '0 10px', flexGrow: 1, textAlign: 'center' }}>Experience Setup</h2>
+            {/* Placeholder for a second modal button/container on the right */}
+            <button 
+              onClick={() => setActiveModal('helpModal')} 
+              style={{ padding: '10px 15px', cursor: 'pointer', visibility: 'hidden' /* Hide until a real one is ready */ }}
+            >
+              Open Help
+            </button>
+        </div>
 
         <div className="timeline-length-controls" style={{ alignItems: 'center' }}>
           <label htmlFor="timelineLength" className="timeline-length-label">Overall Timeline Length:</label>
