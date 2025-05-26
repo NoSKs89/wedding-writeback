@@ -348,18 +348,18 @@ const ExperienceSetupPage: React.FC = () => {
   return (
     <DndProvider backend={HTML5Backend}>
       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <h2>Experience Setup</h2>
+        <h2 className="experience-setup-title">Experience Setup</h2>
 
-        <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center' }}>
-          <label htmlFor="timelineLength" style={{ marginRight: '10px' }}>Overall Timeline Length:</label>
+        <div className="timeline-length-controls" style={{ alignItems: 'center' }}>
+          <label htmlFor="timelineLength" className="timeline-length-label">Overall Timeline Length:</label>
           <input
             type="number"
             id="timelineLength"
             value={timelineLength}
             onChange={(e) => handleTimelineLengthChange(parseInt(e.target.value, 10) || 0)}
-            style={{ width: '100px', padding: '5px' }}
+            className="timeline-length-input"
           />
-          <span style={{ marginLeft: '10px' }}>units</span>
+          <span className="timeline-length-units">units</span>
         </div>
 
         <TimelineBar

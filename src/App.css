@@ -162,3 +162,37 @@ body {
   box-shadow: '4px 4px 12px rgba(0,0,0,0.25)';
   border: '6px solid white';
 }
+
+/* Styles for ExperienceSetupPage */
+.experience-setup-title {
+  /* Add desired styles for the main title, e.g.: */
+  font-size: 2em; /* Example */
+  color: #333; /* Example */
+  margin-bottom: 0; /* Example */
+}
+
+.timeline-length-controls {
+  display: flex; /* Enable flexbox for alignment */
+  align-items: center; /* Vertically align items in this container */
+  margin: 20px 0; /* Replicates previous inline margin */
+}
+
+.timeline-length-label {
+  margin-right: 10px; /* Replicates previous inline margin */
+  /* Add other label styles, e.g.: */
+  font-weight: bold;
+}
+
+.timeline-length-input {
+  width: 100px; /* Replicates previous inline style */
+  padding: 5px; /* Replicates previous inline style */
+  /* Add other input styles, e.g.: */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.timeline-length-units {
+  margin-left: 10px; /* Replicates previous inline margin */
+  /* Add other styles, e.g.: */
+  color: #555;
+}
