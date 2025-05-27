@@ -24,7 +24,7 @@ const FaqModalContainer = ({ activeModal, setActiveModal, isMobile, isLandscape 
       borderRadius: '5px', zIndex: 50, transform: 'translate(0%, 0%)'
     },
     to: {
-      position: 'absolute', 
+      position: isFaqOpen ? 'fixed' : 'absolute',
       width: isFaqOpen ? isMobile ? '80%' : '45%' : '10%', 
       height: isFaqOpen ? isMobile ? (isLandscape ? '77.5%' : '90%') : '80.5%' : isMobile ? '10%' : '7.5%', 
       border: 'auto',
