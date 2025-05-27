@@ -16,11 +16,12 @@ interface DraggableTimelineMarkerProps {
   barWidth: number;
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
   timelineRef: React.RefObject<HTMLDivElement>;
+  previewOffsetLevel?: number; // Added for stacking previews
 }
 
 export const DRAGGABLE_TIMELINE_MARKER_TYPE = 'TIMELINE_MARKER';
 
-const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, timelineRef }) => {
+const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, timelineRef, previewOffsetLevel = 0 }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DRAGGABLE_TIMELINE_MARKER_TYPE,
     item: { id: marker.id, type: DRAGGABLE_TIMELINE_MARKER_TYPE, originalPosition: marker.position },
@@ -46,6 +47,9 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
 
   // Style for triangle markers using CSS borders
   const markerBaseSize = 12; // pixels
+  const PREVIEW_STACK_OFFSET = 20; // Pixels to shift each overlapping preview upwards
+  const dynamicBottomOffset = markerBaseSize + 12 + (previewOffsetLevel * PREVIEW_STACK_OFFSET);
+
   const commonMarkerStyle: React.CSSProperties = {
     position: 'absolute',
     left: `${leftPosition}px`,
@@ -74,7 +78,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
   // Style for the preview image
   const previewImageStyle: React.CSSProperties = {
     position: 'absolute',
-    bottom: `${markerBaseSize + 12}px`, // Position above the start marker's point
+    bottom: `${dynamicBottomOffset}px`, // Use dynamic offset
     left: '50%',
     transform: 'translateX(-50%)',
     width: '20px', // Small preview size
@@ -89,7 +93,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
   // Style for the text preview
   const textPreviewStyle: React.CSSProperties = {
     position: 'absolute',
-    bottom: `${markerBaseSize + 12}px`, // Position above the start marker's point
+    bottom: `${dynamicBottomOffset}px`, // Use dynamic offset
     left: '50%',
     transform: 'translateX(-50%)',
     padding: '1px 3px',
@@ -104,7 +108,7 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
   // Style for the icon preview
   const iconPreviewStyle: React.CSSProperties = {
     position: 'absolute',
-    bottom: `${markerBaseSize + 10}px`, // Adjusted position slightly
+    bottom: `${dynamicBottomOffset - 2}px`, // Adjusted slightly for icons, use dynamic offset
     left: '50%',
     transform: 'translateX(-50%)',
     fontSize: '14px', // Larger size for an icon/emoji
@@ -271,6 +275,38 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
   const MAX_LINE_THICKNESS = 20; // pixels, for element 0 (doubled)
   const MIN_LINE_THICKNESS = 4; // pixels, for the highest element ID (doubled)
 
+  // --- Preview Overlap Management ---
+  const processedMarkers = React.useMemo(() => {
+    const startMarkers = markers
+      .filter(m => m.type === 'start' && (m.previewImageUrl || m.textPreview || m.previewIcon))
+      .sort((a, b) => a.position - b.position);
+
+    const PREVIEW_WIDTH_PROPORTION_THRESHOLD = 0.035; // Adjust as needed (approx 35px for 1000px bar)
+    const markersWithOffsets = new Map<string, number>(); // Store { markerId: offsetLevel }
+
+    for (let i = 0; i < startMarkers.length; i++) {
+      let offsetLevel = 0;
+      for (let j = 0; j < i; j++) {
+        // Check if startMarkers[i] overlaps with startMarkers[j]
+        // and if startMarkers[j] already has an assigned offset that matches the current trial offsetLevel
+        if (
+          Math.abs(startMarkers[i].position - startMarkers[j].position) < PREVIEW_WIDTH_PROPORTION_THRESHOLD &&
+          markersWithOffsets.get(startMarkers[j].id) === offsetLevel
+        ) {
+          offsetLevel++; // Increment offset for startMarkers[i] and restart inner loop
+          j = -1; // Restart checks with the new offsetLevel
+        }
+      }
+      markersWithOffsets.set(startMarkers[i].id, offsetLevel);
+    }
+
+    return markers.map(marker => ({
+      ...marker,
+      previewOffsetLevel: markersWithOffsets.get(marker.id) ?? 0,
+    }));
+  }, [markers]);
+  // --- End Preview Overlap Management ---
+
   return (
     <div style={{
       display: 'flex',
@@ -295,6 +331,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
           position: 'relative', // For markers and lines within
           border: '1px solid #999',
           borderRadius: '5px',
+          boxShadow: '0 4px 8px rgba(0,0,0,0.1)', // Added box shadow
           // Removed margin: '20px 0' as flex handles alignment
         }}
       >
@@ -340,13 +377,14 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
         })}
 
         {/* Render Markers (should be on top of lines) */}
-        {markers.map((marker) => (
+        {processedMarkers.map((marker) => (
           <DraggableTimelineMarker
             key={marker.id}
             marker={marker}
             barWidth={length}
             onUpdateMarkerPosition={onUpdateMarkerPosition}
             timelineRef={timelineRef}
+            previewOffsetLevel={marker.previewOffsetLevel} // Pass down the calculated offset
           />
         ))}
       </div>

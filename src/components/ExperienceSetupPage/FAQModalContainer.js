@@ -16,7 +16,8 @@ const FaqModalContainer = ({ activeModal, setActiveModal, isMobile, isLandscape 
     ref: faqSpringRef,
     config: isFaqOpen ? config.stiff : { tension: 300, friction: 30 },
     from: {
-      position: 'absolute', width: '10%', height: isMobile ? '10%' : '7.5%', top: isMobile ? '1.75%' : '-5.75%', left: isMobile ? '14.5%' : '16.5%', border: 'none',
+      position: 'absolute', width: '10%', height: isMobile ? '10%' : '7.5%', 
+      top: '-5.75%', left: isMobile ? '14.5%' : '16.5%', border: 'none',
       background: 'rgba(0, 0, 0, 0.2)',
       borderWidth: (isMobile && isLandscape) ? '0px' : '2px',
       borderColor: '#fff', borderStyle: 'solid',
@@ -28,8 +29,8 @@ const FaqModalContainer = ({ activeModal, setActiveModal, isMobile, isLandscape 
       height: isFaqOpen ? isMobile ? (isLandscape ? '77.5%' : '90%') : '80.5%' : isMobile ? '10%' : '7.5%', 
       border: 'auto',
       marginBottom: isMobile && isFaqOpen && !isLandscape ? '30px' : '0px',
-      top: isFaqOpen ? (isMobile && isLandscape) ? '1%' : '50%' : '1.75%', 
-      left: isFaqOpen ? '50%' : isMobile ? '14.5%' : '16.5%',
+      top: isFaqOpen ? '50%' : '27.5%', 
+      left: isFaqOpen ? '50%' : isMobile ? '14.5%' : '20%',
       background: isFaqOpen
         ? 'rgba(60, 60, 60, 0.85)'
         : isFaqHovered

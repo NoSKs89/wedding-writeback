@@ -4,9 +4,11 @@ import TimelineBar from './TimelineBar'; // Component for the timeline
 import ElementSlot from './ElementSlot'; // Component for each element configuration
 import { DndProvider } from 'react-dnd'; // For drag and drop of timeline markers
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import { Parallax, ParallaxLayer, IParallax } from '@react-spring/parallax';
 import { useTransition, animated, config, useSpring, useSpringRef } from '@react-spring/web'; // Added useSpring, useSpringRef
 import FAQModalContainer from './FAQModalContainer'; // Import the FAQ component
+import { useParams } from 'react-router-dom'; // Added
+import axios from 'axios'; // Added
+import { getApiBaseUrl } from '../../config/apiConfig'; // Added - Assuming this path is correct
 
 
 // --- Interfaces ---
@@ -31,8 +33,21 @@ export interface ElementConfig {
   // Z-index is implicitly determined by array order (index 0 is highest)
 }
 
-const INITIAL_ELEMENT_COUNT = 8;
-const INITIAL_TIMELINE_LENGTH = 1000; // Arbitrary unit for timeline length (e.g., pixels or virtual units)
+// Define an interface for the wedding data based on the provided structure
+interface WeddingData {
+  _id: string;
+  brideName?: string;
+  groomName?: string;
+  weddingDate?: string; // ISO Date string
+  introCouple?: string; // Image URL
+  introBackground?: string; // Image URL
+  // Add other fields as necessary from your data structure
+}
+
+const INITIAL_DEFINED_ELEMENT_COUNT = 7; // For the 7 predefined slots
+const MAX_DISPLAY_ELEMENTS_INITIAL = 8; // For TimelineBar's visual calculations and initial array sizing if needed for colors.
+const INITIAL_TIMELINE_LENGTH = 1000;
+
 // Updated color palette based on user's new list
 const ELEMENT_COLORS = [
   '#FFFFFF', // Pure White (Element 1)
@@ -42,22 +57,33 @@ const ELEMENT_COLORS = [
   '#AB47BC', // Deep Magenta (Element 5)
   '#5C6BC0', // Royal Blue (Element 6)
   '#00897B', // Deep Teal (Element 7)
-  '#000000'  // Pure Black (Element 8)
+  '#78909C'  // Added an 8th color for the 8th default slot if created before fetching
 ];
 
+// Helper to format date as MMMM DD, YYYY
+const formatDate = (dateString?: string): string => {
+  if (!dateString) return 'Date Not Set';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  } catch (e) {
+    console.error("Error formatting date:", e);
+    return "Invalid Date";
+  }
+};
+
 const ExperienceSetupPage: React.FC = () => {
+  const { weddingId } = useParams<{ weddingId: string }>();
+  const [currentWeddingData, setCurrentWeddingData] = useState<WeddingData | null>(null);
+  const [isLoadingWeddingData, setIsLoadingWeddingData] = useState(true);
+
   const [timelineLength, setTimelineLength] = useState<number>(INITIAL_TIMELINE_LENGTH);
-  const [elements, setElements] = useState<ElementConfig[]>(
-    Array.from({ length: INITIAL_ELEMENT_COUNT }, (_, i) => ({
-      id: i + 1, // Changed to 1-based ID
-      type: 'empty',
-      content: null,
-      timelineColor: ELEMENT_COLORS[i % ELEMENT_COLORS.length], // Keep 0-based for color array
-    }))
-  );
+  const [elements, setElements] = useState<ElementConfig[]>([]);
   const [markers, setMarkers] = useState<TimelineMarker[]>([]);
-  const [markerHistory, setMarkerHistory] = useState<TimelineMarker[][]>([[]]);
-  const [currentHistoryIndex, setCurrentHistoryIndex] = useState<number>(0);
   const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
 
   // Centralized modal state
@@ -67,38 +93,67 @@ const ExperienceSetupPage: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
-  // Effect for mobile & landscape detection (similar to MainExperience.js)
+  // Fetch wedding data
   useEffect(() => {
-    const checkDevice = () => {
-      const ua = navigator.userAgent;
-      const platform = navigator.platform;
-      // @ts-ignore
-      const maxTouchPoints = navigator.maxTouchPoints || 0;
+    if (weddingId) {
+      const fetchWeddingData = async () => {
+        setIsLoadingWeddingData(true);
+        try {
+          const apiBase = getApiBaseUrl();
+          const response = await axios.get<WeddingData>(`${apiBase}/weddings/${weddingId}`);
+          setCurrentWeddingData(response.data);
+        } catch (error) {
+          console.error('Error fetching wedding data:', error);
+          // Handle error (e.g., set an error state, show a notification)
+        }
+        setIsLoadingWeddingData(false);
+      };
+      fetchWeddingData();
+    }
+  }, [weddingId]);
 
-      const isPotentiallyMobile =
-        /Mobi/i.test(ua) ||
-        /Android/i.test(ua) ||
-        /iPhone|iPad|iPod/.test(ua) ||
-        // @ts-ignore
-        (platform === 'MacIntel' && maxTouchPoints > 1) || 
-        /Windows Phone/i.test(ua);
-
-      setIsMobile(isPotentiallyMobile);
-      setIsLandscape(window.innerWidth > window.innerHeight);
-    };
-
-    checkDevice();
-    window.addEventListener('resize', checkDevice);
-    return () => {
-      window.removeEventListener('resize', checkDevice);
-    };
-  }, []);
+  // Initialize elements once wedding data is fetched
+  useEffect(() => {
+    if (currentWeddingData) {
+      const initialElements: ElementConfig[] = [
+        {
+          id: 1, type: 'text', content: currentWeddingData.brideName || 'Bride Name',
+          name: 'Bride Name', timelineColor: ELEMENT_COLORS[0],
+        },
+        {
+          id: 2, type: 'text', content: currentWeddingData.groomName || 'Groom Name',
+          name: 'Groom Name', timelineColor: ELEMENT_COLORS[1],
+        },
+        {
+          id: 3, type: 'text', content: formatDate(currentWeddingData.weddingDate),
+          name: 'Wedding Date', timelineColor: ELEMENT_COLORS[2],
+        },
+        {
+          id: 4, type: 'photo', content: currentWeddingData.introCouple || null,
+          name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3],
+        },
+        {
+          id: 5, type: 'photo', content: currentWeddingData.introBackground || null,
+          name: 'Intro Background Image', timelineColor: ELEMENT_COLORS[4],
+        },
+        {
+          id: 6, type: 'component', content: 'RSVP Form', name: 'RSVP Form',
+          timelineColor: ELEMENT_COLORS[5],
+        },
+        {
+          id: 7, type: 'component', content: 'Scrapbook', name: 'Scrapbook',
+          timelineColor: ELEMENT_COLORS[6],
+        },
+      ];
+      setElements(initialElements);
+    }
+  }, [currentWeddingData]);
 
   // --- Memoized Timeline Markers ---
   // This recalculates markers whenever elements or their configured content change.
   const activeMarkers = useMemo(() => {
     const newMarkers: TimelineMarker[] = [];
-    elements.forEach((el, index) => {
+    elements.forEach((el) => { // el.id is 1-based
       let startMarker = markers.find(m => m.elementId === el.id && m.type === 'start');
       let endMarker = markers.find(m => m.elementId === el.id && m.type === 'end');
 
@@ -113,45 +168,121 @@ const ExperienceSetupPage: React.FC = () => {
           iconPreviewContent = 'settings'; // Using a generic icon name for now
         }
 
+        // Default positions based on element ID if markers don't exist
+        // Spread out elements a bit initially.
+        const defaultBasePosition = ((el.id - 1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, elements.length)) * 0.8; // Use total elements or initial count
+
         if (!startMarker) {
-          const defaultStartPosition = ((el.id -1) / INITIAL_ELEMENT_COUNT) * 0.8;
           startMarker = {
-            id: `element-${el.id}-start`,
-            elementId: el.id,
-            type: 'start',
-            position: defaultStartPosition,
+            id: `element-${el.id}-start`, elementId: el.id, type: 'start',
+            position: defaultBasePosition, // Default start
             color: el.timelineColor,
             previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
-            textPreview: textPreviewContent,
-            previewIcon: iconPreviewContent,
+            textPreview: textPreviewContent, previewIcon: iconPreviewContent,
           };
         } else {
-          // Update existing start marker's previews if necessary
           startMarker = {
             ...startMarker,
             previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
-            textPreview: textPreviewContent,
-            previewIcon: iconPreviewContent,
+            textPreview: textPreviewContent, previewIcon: iconPreviewContent,
           };
         }
 
         if (!endMarker) {
-          const defaultEndPosition = startMarker.position + 0.1; // Example: 10% duration
           endMarker = {
-            id: `element-${el.id}-end`,
-            elementId: el.id,
-            type: 'end',
-            position: Math.min(defaultEndPosition, 1), // Ensure it doesn't exceed 100%
+            id: `element-${el.id}-end`, elementId: el.id, type: 'end',
+            position: Math.min(startMarker.position + 0.1, 1), // Default duration
             color: el.timelineColor,
           };
         }
         newMarkers.push(startMarker, endMarker);
       }
     });
-    // If you want to persist marker positions outside this memo, update the main `markers` state here.
-    // For this example, `activeMarkers` is derived. For saving, you'd update `setMarkers`.
+    // To persist these derived markers if they are new (e.g. default creation)
+    // This logic can be complex. For now, let's assume `setMarkers` is called elsewhere appropriately.
+    // If `markers` state itself is not updated with these defaults, dragging might behave unexpectedly.
+    // A good place to ensure markers exist is when elements are initialized or added.
+    // Let's try to update the main markers state if new default markers were created.
+    if (newMarkers.length > markers.length && newMarkers.some(nm => !markers.find(m => m.id === nm.id))) {
+        // This is a simplification; robust diffing might be needed.
+        // Or, ensure markers are added explicitly when elements are.
+        // For now, let markers state be managed by handlers like handleUpdateMarkerPosition etc.
+        // The memo is primarily for deriving what *should* be displayed.
+    }
     return newMarkers;
-  }, [elements, markers]); // `markers` dependency allows manual updates to persist
+  }, [elements, markers]);
+
+  // Ensure markers are created/updated when elements are set initially or changed.
+  useEffect(() => {
+    const newMarkerSet: TimelineMarker[] = [];
+
+    const specificDefaultPositions: {[key: number]: {start: number, end: number}} = {
+      1: { start: 0.075, end: 0.500 }, // Bride Name
+      2: { start: 0.100, end: 0.500 }, // Groom Name
+      3: { start: 0.150, end: 0.500 }, // Wedding Date
+      4: { start: 0.050, end: 0.600 }, // Intro Couple Image
+      5: { start: 0.000, end: 0.650 }, // Intro Background Image
+      6: { start: 0.650, end: 1.000 }, // RSVP Form
+      7: { start: 0.600, end: 1.000 }, // Scrapbook
+    };
+
+    elements.forEach(el => {
+        if (el.type !== 'empty') {
+            let startNeedsUpdate = false;
+            let endNeedsUpdate = false;
+
+            let existingStart = markers.find(m => m.elementId === el.id && m.type === 'start');
+            let existingEnd = markers.find(m => m.elementId === el.id && m.type === 'end');
+
+            let textPreview: string | undefined = undefined;
+            let previewIcon: string | undefined = undefined;
+            let previewImageUrl: string | undefined = undefined;
+
+            if (el.type === 'text' && typeof el.content === 'string' && el.content.trim()) {
+                const fullText = el.content.trim();
+                textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
+            } else if (el.type === 'component') {
+                previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+            } else if (el.type === 'photo' && typeof el.content === 'string') {
+                previewImageUrl = el.content;
+            }
+
+            if (!existingStart) {
+                const specificDefaults = specificDefaultPositions[el.id];
+                const defaultPos = specificDefaults ? specificDefaults.start 
+                                   : ((el.id - 1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, elements.length)) * 0.8;
+                existingStart = {
+                    id: `element-${el.id}-start`, elementId: el.id, type: 'start',
+                    position: defaultPos, color: el.timelineColor,
+                    textPreview, previewIcon, previewImageUrl
+                };
+                startNeedsUpdate = true;
+            } else if (existingStart.textPreview !== textPreview || existingStart.previewIcon !== previewIcon || existingStart.previewImageUrl !== previewImageUrl) {
+                existingStart = { ...existingStart, textPreview, previewIcon, previewImageUrl };
+                startNeedsUpdate = true;
+            }
+
+
+            if (!existingEnd) {
+                const specificDefaults = specificDefaultPositions[el.id];
+                const defaultEndPos = specificDefaults ? specificDefaults.end 
+                                    : Math.min(existingStart.position + 0.1, 1);
+                existingEnd = {
+                    id: `element-${el.id}-end`, elementId: el.id, type: 'end',
+                    position: defaultEndPos, color: el.timelineColor,
+                };
+                endNeedsUpdate = true;
+            }
+            
+            newMarkerSet.push(existingStart, existingEnd);
+        }
+    });
+    // Only update if there are actual changes to avoid infinite loops
+    // This basic check might not be enough for all cases.
+    if (JSON.stringify(newMarkerSet) !== JSON.stringify(markers.filter(m => elements.find(e => e.id === m.elementId && e.type !== 'empty')))) {
+       setMarkers(newMarkerSet);
+    }
+  }, [elements]); // Removed `markers` from dependency array to prevent potential loops with the simple JSON.stringify check
 
   // --- CRUD for Timeline Markers & Length ---
 
@@ -161,26 +292,6 @@ const ExperienceSetupPage: React.FC = () => {
         marker.id === markerId ? { ...marker, position: Math.max(0, Math.min(1, newPosition)) } : marker
       )
     );
-    // Potentially update the main `markers` state if you want to persist these positions
-    // For now, `activeMarkers` will reflect this change if `markers` is a dependency.
-    // To make it truly persistent and not just derived:
-    setMarkers(prev => {
-        const updated = prev.map(m => m.id === markerId ? {...m, position: newPosition} : m);
-        // Ensure start is not after end and vice-versa
-        const changedMarker = updated.find(m => m.id === markerId);
-        if (changedMarker) {
-            const pairType = changedMarker.type === 'start' ? 'end' : 'start';
-            const pairMarker = updated.find(m => m.elementId === changedMarker.elementId && m.type === pairType);
-            if (pairMarker) {
-                if (changedMarker.type === 'start' && newPosition > pairMarker.position) {
-                    pairMarker.position = newPosition; // or some other logic
-                } else if (changedMarker.type === 'end' && newPosition < pairMarker.position) {
-                    pairMarker.position = newPosition; // or some other logic
-                }
-            }
-        }
-        return updated;
-    });
   }, []);
 
   const handleAddOrUpdateElementMarker = useCallback((elementId: number, type: 'start' | 'end', position: number) => {
@@ -190,16 +301,31 @@ const ExperienceSetupPage: React.FC = () => {
     const markerId = `element-${elementId}-${type}`;
     setMarkers(prevMarkers => {
       const existingMarkerIndex = prevMarkers.findIndex(m => m.id === markerId);
+      let updatedMarkers;
       if (existingMarkerIndex > -1) {
-        const updatedMarkers = [...prevMarkers];
+        updatedMarkers = [...prevMarkers];
         updatedMarkers[existingMarkerIndex] = { ...updatedMarkers[existingMarkerIndex], position };
-        return updatedMarkers;
       } else {
-        return [
+        updatedMarkers = [
           ...prevMarkers,
           { id: markerId, elementId, type, position, color: element.timelineColor },
         ];
       }
+      // Ensure start is not after end and vice-versa
+      const changedMarker = updatedMarkers.find(m => m.id === markerId);
+      if (changedMarker) {
+          const pairType = changedMarker.type === 'start' ? 'end' : 'start';
+          const pairMarkerIndex = updatedMarkers.findIndex(m => m.elementId === changedMarker.elementId && m.type === pairType);
+          if (pairMarkerIndex > -1) {
+            const pairMarker = updatedMarkers[pairMarkerIndex];
+              if (changedMarker.type === 'start' && position > pairMarker.position) {
+                  updatedMarkers[pairMarkerIndex] = {...pairMarker, position: position};
+              } else if (changedMarker.type === 'end' && position < pairMarker.position) {
+                  updatedMarkers[pairMarkerIndex] = {...pairMarker, position: position};
+              }
+          }
+      }
+      return updatedMarkers;
     });
   }, [elements]);
 
@@ -209,28 +335,15 @@ const ExperienceSetupPage: React.FC = () => {
   }, []);
 
   const handleTimelineLengthChange = useCallback((newLength: number) => {
-    const oldLength = timelineLength;
-    const ratio = newLength / oldLength;
-
-    setMarkers(prevMarkers =>
-      prevMarkers.map(marker => ({
-        ...marker,
-        position: marker.position, // Position is relative (0-1), so it scales with the bar's visual length
-      }))
-    );
     setTimelineLength(newLength);
-  }, [timelineLength]);
+  }, []);
 
   const handleUpdateElementGroupPosition = useCallback((elementId: number, newStartProportion: number, newEndPosition: number) => {
     setMarkers(prevMarkers =>
       prevMarkers.map(marker => {
         if (marker.elementId === elementId) {
-          if (marker.type === 'start') {
-            return { ...marker, position: newStartProportion };
-          }
-          if (marker.type === 'end') {
-            return { ...marker, position: newEndPosition };
-          }
+          if (marker.type === 'start') return { ...marker, position: newStartProportion };
+          if (marker.type === 'end') return { ...marker, position: newEndPosition };
         }
         return marker;
       })
@@ -248,76 +361,26 @@ const ExperienceSetupPage: React.FC = () => {
           const updatedEl = { ...el, ...newConfig };
 
           if (wasEmpty && isNowNotEmpty) {
-            const existingStart = activeMarkers.find(m => m.elementId === id && m.type === 'start');
-            const existingEnd = activeMarkers.find(m => m.elementId === id && m.type === 'end');
-
-            if (!existingStart) {
-              const defaultStartPos = ((id - 1) / elements.length) * 0.5;
-              handleAddOrUpdateElementMarker(id, 'start', defaultStartPos);
-            }
-            if (!existingEnd) {
-                const startPos = existingStart?.position || ((id - 1) / elements.length) * 0.5;
-              handleAddOrUpdateElementMarker(id, 'end', Math.min(startPos + 0.1, 1));
-            }
+            // Default positions when an empty element becomes active
+            const defaultStartPos = ((id -1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, elements.length)) * 0.5;
+            handleAddOrUpdateElementMarker(id, 'start', defaultStartPos);
+            handleAddOrUpdateElementMarker(id, 'end', Math.min(defaultStartPos + 0.1, 1));
           } else if (newConfig.type === 'empty') {
             handleRemoveElementMarkers(id);
-            // When an element is emptied, ensure its start marker's previews are cleared
-            setMarkers(prevMarkers =>
-                prevMarkers.map(m =>
-                    (m.elementId === id && m.type === 'start') ? { ...m, previewImageUrl: undefined, textPreview: undefined, previewIcon: undefined } : m
-                )
-            );
           }
           return updatedEl;
         }
         return el;
       })
     );
-
-    // After elements state is set, update the markers state for previews
-    setMarkers(prevMarkers => prevMarkers.map(m => {
-        if (m.elementId === id && m.type === 'start') {
-            let previewImageUrl: string | undefined = undefined;
-            let textPreview: string | undefined = undefined;
-            let previewIcon: string | undefined = undefined;
-
-            if (newConfig.type === 'photo' && typeof newConfig.content === 'string') {
-                previewImageUrl = newConfig.content;
-            } else if (newConfig.type === 'text' && typeof newConfig.content === 'string' && newConfig.content.trim()) {
-                const fullText = newConfig.content.trim();
-                textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
-            } else if (newConfig.type === 'component') {
-                previewIcon = 'settings'; // Generic icon name
-            }
-            return { ...m, previewImageUrl, textPreview, previewIcon };
-        }
-        return m;
-    }));
-
-  }, [activeMarkers, elements.length, handleAddOrUpdateElementMarker, handleRemoveElementMarkers]);
-
-  const updateMarkersAndManageHistory = (newMarkersState: TimelineMarker[]) => {
-    // ... existing code ...
-  };
-
-  const handleRedo = useCallback(() => {
-    if (currentHistoryIndex < markerHistory.length - 1) {
-      const newIndex = currentHistoryIndex + 1;
-      console.log(`[Redo] currentHistoryIndex: ${currentHistoryIndex}, newIndex: ${newIndex}`);
-      console.log('[Redo] Restoring to state:', JSON.parse(JSON.stringify(markerHistory[newIndex])));
-      setMarkers(markerHistory[newIndex]);
-      setCurrentHistoryIndex(newIndex);
-    }
-  }, [currentHistoryIndex, markerHistory]);
+  }, [elements.length, handleAddOrUpdateElementMarker, handleRemoveElementMarkers]);
 
   const handleElementFocus = useCallback((elementId: number) => {
-    setFocusedElementId(elementId); // Always set this element as focused.
+    setFocusedElementId(elementId);
   }, []);
 
   const handleMarkerPositionChangeFromInput = useCallback((elementId: number, type: 'start' | 'end', newPositionPercent: number) => {
-    // Find the marker id
     const markerIdToUpdate = `element-${elementId}-${type}`;
-    // Call the existing handler that also manages history
     handleUpdateMarkerPosition(markerIdToUpdate, newPositionPercent);
   }, [handleUpdateMarkerPosition]);
 
@@ -328,7 +391,7 @@ const ExperienceSetupPage: React.FC = () => {
     const maxBrightness = 1;
     const minBrightness = 0.6; // Adjust as needed
     // Higher z-index (lower array index / lower element.id for 1-based) = brighter
-    const brightness = maxBrightness - ((element.id - 1) / (INITIAL_ELEMENT_COUNT -1)) * (maxBrightness - minBrightness);
+    const brightness = maxBrightness - ((element.id - 1) / (INITIAL_DEFINED_ELEMENT_COUNT -1)) * (maxBrightness - minBrightness);
     
     let borderStyle = `3px solid ${element.timelineColor}`;
     if (element.timelineColor === '#FFFFFF') {
@@ -350,109 +413,41 @@ const ExperienceSetupPage: React.FC = () => {
     };
   };
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (activeModal && e.target === e.currentTarget) setActiveModal(null);
+  };
 
-  // --- Parallax Configuration (derived from state) ---
-  const parallaxPages = useMemo(() => {
-    // Convert timelineLength and marker positions to parallax pages/offsets
-    // This is a simplified example. You'll need to map your timeline units to parallax pages.
-    // The react-spring/parallax `offset` is the start of the page (0 for first, 1 for second, etc.)
-    // `speed` can be used for parallax depth, `factor` for how many "pages" the layer spans.
-
-    let totalPages = timelineLength / 500; // Example: 500 units = 1 page
-
-    return elements.map((el, index) => {
-      if (el.type === 'empty') return null;
-
-      const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
-      const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
-
-      if (!startMarker || !endMarker) return null;
-
-      const offset = startMarker.position * totalPages;
-      const endPosition = endMarker.position * totalPages;
-      const factor = Math.max(0.1, endPosition - offset); // How many pages this element spans
-
-      // Higher z-index (lower array index) should appear on top.
-      // In react-spring/parallax, layer order determines z-index by default.
-      // You can also use the `sticky` prop for more complex layering.
-      return {
-        id: el.id,
-        offset,
-        factor,
-        speed: 0.5 + (index * 0.1), // Example speed, adjust for desired parallax effect
-        content: el.content,
-        type: el.type,
-        name: el.name,
-        zIndex: INITIAL_ELEMENT_COUNT - index, // Explicit z-index for clarity if needed elsewhere
-      };
-    }).filter(Boolean);
-  }, [elements, activeMarkers, timelineLength]);
-
-  useEffect(() => {
-    // Initialize elements with default timeline colors and random start/end positions
-    setElements(
-      Array.from({ length: INITIAL_ELEMENT_COUNT }, (_, i) => ({
-        id: i + 1, // 1-based ID
+  const handleAddNewElement = () => {
+    setElements(prevElements => {
+      const newId = prevElements.length > 0 ? Math.max(...prevElements.map(el => el.id)) + 1 : 1;
+      const newElement: ElementConfig = {
+        id: newId,
         type: 'empty',
         content: null,
-        timelineColor: ELEMENT_COLORS[i % ELEMENT_COLORS.length],
-      }))
-    );
+        timelineColor: ELEMENT_COLORS[(newId - 1) % ELEMENT_COLORS.length], // Cycle through colors
+        name: `Element ${newId}`
+      };
+      // Add markers for the new element
+      const defaultPos = ((newId - 1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, prevElements.length + 1)) * 0.8;
+      const startMarkerId = `element-${newId}-start`;
+      const endMarkerId = `element-${newId}-end`;
 
-    // Initialize markers (example)
-    const initialMarkers: TimelineMarker[] = [];
-    ELEMENT_COLORS.forEach((color, index) => {
-      const elementId = index + 1;
-      // For initial markers, textPreview will be undefined as elements start empty
-      initialMarkers.push({
-        id: `element-${elementId}-start`,
-        elementId: elementId,
-        type: 'start',
-        position: Math.random() * 0.3, // Random start position (0 to 0.3)
-        color: color,
-        // previewImageUrl: undefined // Initially no preview
-        // textPreview: undefined // Initially no preview
-      });
-      initialMarkers.push({
-        id: `element-${elementId}-end`,
-        elementId: elementId,
-        type: 'end',
-        position: Math.random() * 0.3 + 0.4, // Random end position (0.4 to 0.7)
-        color: color,
-      });
+      setMarkers(prevMarkers => [
+        ...prevMarkers,
+        { id: startMarkerId, elementId: newId, type: 'start', position: defaultPos, color: newElement.timelineColor },
+        { id: endMarkerId, elementId: newId, type: 'end', position: Math.min(defaultPos + 0.1, 1), color: newElement.timelineColor }
+      ]);
+      return [...prevElements, newElement];
     });
-    setMarkers(initialMarkers);
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (focusedElementId !== null) {
-        const target = event.target as HTMLElement;
-        // Find the DOM element of the currently focused slot
-        const focusedSlotElement = document.querySelector(`[data-element-slot-id="${focusedElementId}"]`);
-
-        // If the click target is not the focused slot itself and not a descendant of the focused slot
-        if (focusedSlotElement && !focusedSlotElement.contains(target)) {
-          setFocusedElementId(null);
-        }
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [focusedElementId]); // Re-run if focusedElementId changes to attach/detach with correct state
-
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (activeModal && e.target === e.currentTarget) {
-      setActiveModal(null);
-    }
   };
+
+  if (isLoadingWeddingData) {
+    return <div style={{textAlign: 'center', padding: '50px', fontSize: '1.2em'}}>Loading Wedding Experience Setup...</div>;
+  }
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh' }}>
+      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#E9ecce' }}>
         
         {/* Backdrop for Modals */}
         {activeModal && (
@@ -478,7 +473,9 @@ const ExperienceSetupPage: React.FC = () => {
               // or wrap it in a div if you need to constrain its 'button' position.
               // For now, relying on its internal absolute positioning relative to a positioned ancestor or viewport.
             />
-            <h2 className="experience-setup-title" style={{ margin: '0 10px', flexGrow: 1, textAlign: 'center' }}>Experience Setup</h2>
+            <h2 className="experience-setup-title" style={{ margin: '0 10px', flexGrow: 1, textAlign: 'center' }}>
+              Experience Setup {currentWeddingData?.brideName && currentWeddingData?.groomName ? `for ${currentWeddingData.brideName} & ${currentWeddingData.groomName}` : weddingId ? `for ${weddingId}`: ''}
+            </h2>
             {/* Placeholder for a second modal button/container on the right */}
             <button 
               onClick={() => setActiveModal('helpModal')} 
@@ -505,23 +502,15 @@ const ExperienceSetupPage: React.FC = () => {
           onUpdateMarkerPosition={handleUpdateMarkerPosition}
           onUpdateElementGroupPosition={handleUpdateElementGroupPosition}
           length={timelineLength} // Visual length of the bar
-          maxElements={INITIAL_ELEMENT_COUNT} // Pass maxElements for calculations in TimelineBar
+          maxElements={MAX_DISPLAY_ELEMENTS_INITIAL} // Pass maxElements for calculations in TimelineBar
         />
 
         {/* Element Slots */}
         <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginTop: '20px', width: '100%' }}>
           {elements.map((el) => {
             const isFocused = el.id === focusedElementId;
-            let startMarkerPos: number | undefined = undefined;
-            let endMarkerPos: number | undefined = undefined;
-
-            if (isFocused && el.type !== 'empty') {
-              const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
-              const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
-              startMarkerPos = startMarker?.position;
-              endMarkerPos = endMarker?.position;
-            }
-
+            const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
+            const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
             return (
               <div 
                 key={el.id} 
@@ -533,19 +522,35 @@ const ExperienceSetupPage: React.FC = () => {
                   onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
                   isFocused={isFocused}
                   onFocus={handleElementFocus}
-                  startPositionPercent={startMarkerPos}
-                  endPositionPercent={endMarkerPos}
+                  startPositionPercent={startMarker?.position}
+                  endPositionPercent={endMarker?.position}
                   onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
                 />
               </div>
             );
           })}
+          {/* "Add New Element" Slot */}
+          <div
+            onClick={handleAddNewElement}
+            style={{
+              width: '200px', minHeight: '120px', border: '2px dashed #333333', // Always black/dark-grey dashed border
+              borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', padding: '10px', margin: '5px',
+              color: '#333333', // Always black/dark-grey text color
+              textAlign: 'center',
+              boxSizing: 'border-box'
+            }}
+            title="Add a new element to the experience"
+          >
+            <div style={{fontSize: '2em', fontWeight: 'bold'}}>+</div>
+            <span style={{marginLeft: '10px', fontSize: '0.9em'}}>Add Element {elements.length + 1}</span>
+          </div>
         </div>
 
         {/* Save Button */}
         <div style={{ marginTop: '30px', width: '100%', display: 'flex', justifyContent: 'center' }}>
           <button
-            onClick={() => console.log('Save Configuration clicked. Current state:', { elements, timelineLength })}
+            onClick={() => console.log('Save Configuration clicked. Current state:', { elements, markers, timelineLength })}
             style={{
               padding: '10px 20px',
               fontSize: '1rem',
@@ -560,36 +565,43 @@ const ExperienceSetupPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Preview Area (Optional) */}
-        {/* <div style={{ marginTop: '40px', height: '500px', border: '1px solid #ccc', overflow: 'hidden' }}>
-          <h4>Parallax Preview (Conceptual)</h4>
-          <Parallax pages={timelineLength / 500} style={{ height: '100%', backgroundColor: '#f0f0f0' }}>
-            {parallaxPages.map(p => {
-              if (!p) return null;
-              return (
-                <ParallaxLayer
-                  key={`preview-${p.id}`}
-                  offset={p.offset}
-                  speed={p.speed}
-                  factor={p.factor}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    // zIndex: p.zIndex // react-spring/parallax handles order by default
-                  }}
-                >
-                  <div style={{ padding: '20px', backgroundColor: 'rgba(255,255,255,0.8)', border: `2px solid ${elements[p.id].timelineColor}`}}>
-                    {p.type === 'photo' && typeof p.content === 'string' && <img src={p.content} alt={`Element ${p.id}`} style={{ maxWidth: '100px', maxHeight: '100px' }} />}
-                    {p.type === 'text' && typeof p.content === 'string' && <p>{p.content}</p>}
-                    {p.type === 'component' && p.name === 'RSVPForm' && <div>Custom Component: RSVPForm</div>}
-                    {p.type === 'component' && typeof p.content === 'function' && React.createElement(p.content)}
-                  </div>
-                </ParallaxLayer>
-              )
-            })}
-          </Parallax>
-        </div> */}
+        {/* Debug Button to log marker positions */}
+        <div style={{ marginTop: '10px', width: '100%', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={() => {
+              console.log("--- Current Element Positions ---");
+              const elementsData: { [key: number]: { name?: string, start?: number, end?: number, type?: string } } = {};
+              elements.forEach(el => {
+                if (el.type !== 'empty') {
+                  elementsData[el.id] = { name: el.name, type: el.type };
+                }
+              });
+              activeMarkers.forEach(marker => {
+                if (elementsData[marker.elementId]) {
+                  if (marker.type === 'start') {
+                    elementsData[marker.elementId].start = marker.position;
+                  } else if (marker.type === 'end') {
+                    elementsData[marker.elementId].end = marker.position;
+                  }
+                }
+              });
+              Object.entries(elementsData).forEach(([id, data]) => {
+                console.log(
+                  `Element ID: ${id}, Name: ${data.name || 'N/A'}, Type: ${data.type}, Start: ${data.start?.toFixed(3) || 'N/A'}, End: ${data.end?.toFixed(3) || 'N/A'}`
+                );
+              });
+              console.log("---------------------------------");
+            }}
+            style={{
+              padding: '8px 15px', fontSize: '0.9rem', color: 'white',
+              backgroundColor: '#6c757d', border: 'none', borderRadius: '5px',
+              cursor: 'pointer', marginLeft: '10px' 
+            }}
+          >
+            Log Element Positions
+          </button>
+        </div>
+
       </div>
     </DndProvider>
   );

@@ -125,6 +125,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     borderRight: '1px solid #e0e0e0',
     borderBottom: '1px solid #e0e0e0',
     borderLeft: `5px solid ${element.timelineColor === '#FFFFFF' ? '#DDDDDD' : element.timelineColor}`,
+    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
   };
 
   const focusedStyleObj: React.CSSProperties = {
