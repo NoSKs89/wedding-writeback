@@ -192,11 +192,19 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
 
   let recommendedText = null;
   if (element.id === 1) {
-    recommendedText = "Recommended: Intro Text";
+    recommendedText = "Recommended: Bride Name";
   } else if (element.id === 2) {
-    recommendedText = "Recommended: Intro Picture";
-  } else if (element.id === 8) {
-    recommendedText = "Recommended: Image Background";
+    recommendedText = "Recommended: Groom Name";
+  } else if (element.id === 3) {
+    recommendedText = "Recommended: Wedding Date";
+  } else if (element.id === 4) {
+    recommendedText = "Recommended: Transparent Couple Intro Image";
+  } else if (element.id === 5) {
+    recommendedText = "Recommended: Background Scene Image";
+  } else if (element.id === 6) {
+    recommendedText = "Recommended: RSVP Form";
+  } else if (element.id === 7) {
+    recommendedText = "Recommended: Image Scrapbook";
   }
 
   let dropdownValue: string = element.type;

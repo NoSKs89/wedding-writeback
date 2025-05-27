@@ -473,9 +473,14 @@ const ExperienceSetupPage: React.FC = () => {
               // or wrap it in a div if you need to constrain its 'button' position.
               // For now, relying on its internal absolute positioning relative to a positioned ancestor or viewport.
             />
-            <h2 className="experience-setup-title" style={{ margin: '0 10px', flexGrow: 1, textAlign: 'center' }}>
-              Experience Setup {currentWeddingData?.brideName && currentWeddingData?.groomName ? `for ${currentWeddingData.brideName} & ${currentWeddingData.groomName}` : weddingId ? `for ${weddingId}`: ''}
-            </h2>
+            <div style={{ flexGrow: 1, textAlign: 'center', margin: '0 10px' }}>
+              <h1 className="experience-setup-main-title" style={{ margin: '0 0 5px 0' }}>
+                Experience Setup
+              </h1>
+              <h3 className="experience-setup-event-name" style={{ margin: '0' }}>
+                {currentWeddingData?.brideName && currentWeddingData?.groomName ? `for ${currentWeddingData.brideName} & ${currentWeddingData.groomName}` : weddingId ? `for ${weddingId}`: ''}
+              </h3>
+            </div>
             {/* Placeholder for a second modal button/container on the right */}
             <button 
               onClick={() => setActiveModal('helpModal')} 
