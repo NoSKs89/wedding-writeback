@@ -93,6 +93,20 @@ const ExperienceSetupPage: React.FC = () => {
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
 
+  useEffect(() => {
+    const checkDeviceOrientation = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      // Basic landscape check (width > height)
+      // More sophisticated checks might be needed if it impacts spring animations heavily
+      setIsLandscape(window.innerWidth > window.innerHeight);
+    };
+
+    checkDeviceOrientation(); // Initial check
+    window.addEventListener('resize', checkDeviceOrientation);
+    return () => window.removeEventListener('resize', checkDeviceOrientation);
+  }, []);
+
   // Fetch wedding data
   useEffect(() => {
     if (weddingId) {
@@ -484,7 +498,7 @@ const ExperienceSetupPage: React.FC = () => {
             {/* Placeholder for a second modal button/container on the right */}
             <button 
               onClick={() => setActiveModal('helpModal')} 
-              style={{ padding: '10px 15px', cursor: 'pointer', visibility: 'hidden' /* Hide until a real one is ready */ }}
+              style={{ padding: '10px 15px', cursor: 'pointer', display: 'none' /* Changed from visibility: hidden */ }}
             >
               Open Help
             </button>
@@ -502,53 +516,75 @@ const ExperienceSetupPage: React.FC = () => {
           <span className="timeline-length-units">units</span>
         </div>
 
-        <TimelineBar
-          markers={activeMarkers}
-          onUpdateMarkerPosition={handleUpdateMarkerPosition}
-          onUpdateElementGroupPosition={handleUpdateElementGroupPosition}
-          length={timelineLength} // Visual length of the bar
-          maxElements={MAX_DISPLAY_ELEMENTS_INITIAL} // Pass maxElements for calculations in TimelineBar
-        />
+        {/* Main content area for Timeline and Element Slots */}
+        <div style={{
+          display: 'flex',
+          flexDirection: isMobile ? 'row' : 'column',
+          width: '100%',
+          marginTop: '20px',
+          gap: isMobile ? '20px' : '0px' // Add gap for mobile row layout
+        }}>
+          {/* TimelineBar Container (Left column on mobile) */}
+          <div style={isMobile ? { flex: '0 0 100px', /* Reduced width */ display: 'flex', justifyContent: 'center' } : { width: '100%' }}>
+            <TimelineBar
+              markers={activeMarkers}
+              onUpdateMarkerPosition={handleUpdateMarkerPosition}
+              onUpdateElementGroupPosition={handleUpdateElementGroupPosition}
+              length={isMobile ? 600 : timelineLength} // Example: fixed length for vertical mobile, or adjust based on available height
+              maxElements={MAX_DISPLAY_ELEMENTS_INITIAL}
+              isMobile={isMobile} // Pass isMobile prop
+            />
+          </div>
 
-        {/* Element Slots */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '10px', marginTop: '20px', width: '100%' }}>
-          {elements.map((el) => {
-            const isFocused = el.id === focusedElementId;
-            const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
-            const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
-            return (
-              <div 
-                key={el.id} 
-                data-element-slot-id={el.id} // Add a data attribute to the wrapper
-              >
-                <ElementSlot
-                  element={el}
-                  onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
-                  onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
-                  isFocused={isFocused}
-                  onFocus={handleElementFocus}
-                  startPositionPercent={startMarker?.position}
-                  endPositionPercent={endMarker?.position}
-                  onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
-                />
-              </div>
-            );
-          })}
-          {/* "Add New Element" Slot */}
-          <div
-            onClick={handleAddNewElement}
-            style={{
-              width: '200px', minHeight: '120px', border: '2px dashed #333333', // Always black/dark-grey dashed border
-              borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', padding: '10px', margin: '5px',
-              color: '#333333', // Always black/dark-grey text color
-              textAlign: 'center',
-              boxSizing: 'border-box'
-            }}
-            title="Add a new element to the experience"
-          >
-            <div style={{fontSize: '2em', fontWeight: 'bold'}}>+</div>
-            <span style={{marginLeft: '10px', fontSize: '0.9em'}}>Add Element {elements.length + 1}</span>
+          {/* Element Slots Container (Right column on mobile or full width below timeline on desktop) */}
+          <div style={{
+            display: 'flex',
+            flexWrap: isMobile ? 'nowrap' : 'wrap', // No wrap for mobile to stack vertically
+            flexDirection: isMobile ? 'column' : 'row', // Stack vertically on mobile
+            justifyContent: isMobile ? 'flex-start' : 'center',
+            gap: '10px',
+            flexGrow: 1, // Allow this to take remaining space on mobile
+            overflowY: isMobile ? 'auto' : 'visible', // Allow scrolling for element slots on mobile
+            maxHeight: isMobile ? 'calc(100vh - 150px)' : 'none', // Example max height for mobile scroll
+          }}>
+            {elements.map((el) => {
+              const isFocused = el.id === focusedElementId;
+              const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
+              const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
+              return (
+                <div 
+                  key={el.id} 
+                  data-element-slot-id={el.id} // Add a data attribute to the wrapper
+                >
+                  <ElementSlot
+                    element={el}
+                    onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
+                    onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
+                    isFocused={isFocused}
+                    onFocus={handleElementFocus}
+                    startPositionPercent={startMarker?.position}
+                    endPositionPercent={endMarker?.position}
+                    onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
+                  />
+                </div>
+              );
+            })}
+            {/* "Add New Element" Slot */}
+            <div
+              onClick={handleAddNewElement}
+              style={{
+                width: '200px', minHeight: '120px', border: '2px dashed #333333', // Always black/dark-grey dashed border
+                borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', padding: '10px', margin: '5px',
+                color: '#333333', // Always black/dark-grey text color
+                textAlign: 'center',
+                boxSizing: 'border-box'
+              }}
+              title="Add a new element to the experience"
+            >
+              <div style={{fontSize: '2em', fontWeight: 'bold'}}>+</div>
+              <span style={{marginLeft: '10px', fontSize: '0.9em'}}>Add Element {elements.length + 1}</span>
+            </div>
           </div>
         </div>
 

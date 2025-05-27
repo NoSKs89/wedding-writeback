@@ -7,21 +7,23 @@ interface TimelineBarProps {
   markers: TimelineMarker[];
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
   onUpdateElementGroupPosition: (elementId: number, newStartProportion: number, newEndPosition: number) => void;
-  length: number; // Visual length of the bar (e.g., in pixels)
-  maxElements?: number; 
+  length: number; // Visual length (horizontal) or height (vertical) of the bar
+  maxElements?: number;
+  isMobile?: boolean; // Added for mobile layout adjustments
 }
 
 interface DraggableTimelineMarkerProps {
   marker: TimelineMarker;
-  barWidth: number;
+  barSize: number; // Represents width for desktop, height for mobile
   onUpdateMarkerPosition: (markerId: string, newPosition: number) => void;
   timelineRef: React.RefObject<HTMLDivElement>;
-  previewOffsetLevel?: number; // Added for stacking previews
+  previewOffsetLevel?: number;
+  isMobile?: boolean; // Added
 }
 
 export const DRAGGABLE_TIMELINE_MARKER_TYPE = 'TIMELINE_MARKER';
 
-const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barWidth, onUpdateMarkerPosition, timelineRef, previewOffsetLevel = 0 }) => {
+const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marker, barSize, onUpdateMarkerPosition, timelineRef, previewOffsetLevel = 0, isMobile }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DRAGGABLE_TIMELINE_MARKER_TYPE,
     item: { id: marker.id, type: DRAGGABLE_TIMELINE_MARKER_TYPE, originalPosition: marker.position },
@@ -33,87 +35,133 @@ const DraggableTimelineMarker: React.FC<DraggableTimelineMarkerProps> = ({ marke
       const timelineElement = timelineRef.current;
 
       if (item && clientOffset && timelineElement) {
-        const barRect = timelineElement.getBoundingClientRect();
-        const positionInBar = clientOffset.x - barRect.left;
-        let newPositionProportion = positionInBar / barRect.width;
-        newPositionProportion = Math.max(0, Math.min(1, newPositionProportion));
+        let positionInBar;
+        let newPositionProportion;
 
+        if (isMobile) {
+          positionInBar = clientOffset.y - timelineElement.getBoundingClientRect().top;
+          newPositionProportion = positionInBar / timelineElement.getBoundingClientRect().height;
+        } else {
+          positionInBar = clientOffset.x - timelineElement.getBoundingClientRect().left;
+          newPositionProportion = positionInBar / timelineElement.getBoundingClientRect().width;
+        }
+        newPositionProportion = Math.max(0, Math.min(1, newPositionProportion));
         onUpdateMarkerPosition(item.id, newPositionProportion);
       }
     },
-  }), [marker.id, marker.position, barWidth, onUpdateMarkerPosition, timelineRef]);
+  }), [marker.id, marker.position, barSize, onUpdateMarkerPosition, timelineRef, isMobile]);
 
-  const leftPosition = marker.position * barWidth;
+  const positionAlongAxis = marker.position * barSize;
 
-  // Style for triangle markers using CSS borders
-  const markerBaseSize = 12; // pixels
-  const PREVIEW_STACK_OFFSET = 20; // Pixels to shift each overlapping preview upwards
-  const dynamicBottomOffset = markerBaseSize + 12 + (previewOffsetLevel * PREVIEW_STACK_OFFSET);
+  const markerBaseSize = 12;
+  const PREVIEW_STACK_OFFSET = 20; 
+  // For mobile, previews might be to the side, not stacked "above" in the Y-axis.
+  // This offset logic might need more significant changes for vertical mobile.
+  // For now, let's assume previews are still "above" the marker's point relative to the bar's main axis.
+  const dynamicOffsetForPreview = markerBaseSize + 12 + (previewOffsetLevel * PREVIEW_STACK_OFFSET);
 
   const commonMarkerStyle: React.CSSProperties = {
     position: 'absolute',
-    left: `${leftPosition}px`,
     width: '0',
     height: '0',
-    borderLeft: `${markerBaseSize / 2}px solid transparent`,
-    borderRight: `${markerBaseSize / 2}px solid transparent`,
     cursor: 'grab',
     opacity: isDragging ? 0.5 : 1,
-    transform: 'translateX(-50%)', // Center the marker horizontally
-    zIndex: 100 // Ensure markers are well above lines
+    zIndex: 100,
+    ...(isMobile ? {
+      // Vertical layout: markers point left/right from a vertical bar
+      // This requires rethinking the border triangle logic entirely.
+      // For now, let's keep original triangle orientation and adjust positioning
+      // Start markers on the left, end markers on the right of the vertical bar.
+      // This is a placeholder for more complex marker re-orientation for vertical.
+      top: `${positionAlongAxis}px`,
+      transform: 'translateY(-50%)', 
+      borderTop: `${markerBaseSize / 2}px solid transparent`,
+      borderBottom: `${markerBaseSize / 2}px solid transparent`,
+    } : {
+      left: `${positionAlongAxis}px`,
+      transform: 'translateX(-50%)',
+      borderLeft: `${markerBaseSize / 2}px solid transparent`,
+      borderRight: `${markerBaseSize / 2}px solid transparent`,
+    })
   };
 
   const startMarkerStyle: React.CSSProperties = {
     ...commonMarkerStyle,
-    bottom: '10px', // Position point towards the bar (from above)
-    borderTop: `${markerBaseSize}px solid ${marker.color}`, // Pointy end is now at the bottom, created by borderTop
+    ...(isMobile ? {
+      left: '10px', // Positioned to the left of the vertical bar line
+      borderRight: `${markerBaseSize}px solid ${marker.color}`, // Points right, towards the bar
+    } : {
+      top: '10px',
+      borderBottom: `${markerBaseSize}px solid ${marker.color}`, // Points upwards
+    })
   };
 
   const endMarkerStyle: React.CSSProperties = {
     ...commonMarkerStyle,
-    top: '10px', // Position point towards the bar (from below)
-    borderBottom: `${markerBaseSize}px solid ${marker.color}`, // Pointy end is now at the top, created by borderBottom
+    ...(isMobile ? {
+      right: '10px', // Positioned to the right of the vertical bar line
+      borderLeft: `${markerBaseSize}px solid ${marker.color}`, // Points left, towards the bar
+    } : {
+      bottom: '10px',
+      borderTop: `${markerBaseSize}px solid ${marker.color}`, // Points downwards
+    })
+  };
+  
+  const previewBaseStyle: React.CSSProperties = {
+    position: 'absolute',
+    zIndex: 101,
+    backgroundColor: 'white',
   };
 
-  // Style for the preview image
   const previewImageStyle: React.CSSProperties = {
-    position: 'absolute',
-    bottom: `${dynamicBottomOffset}px`, // Use dynamic offset
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '20px', // Small preview size
+    ...previewBaseStyle,
+    width: '20px',
     height: '20px',
     objectFit: 'cover',
     border: '1px solid #ccc',
     borderRadius: '3px',
-    zIndex: 101, // Above the marker itself
-    backgroundColor: 'white', // Added for better visibility if image is transparent
+    ...(isMobile ? {
+      top: '50%',
+      left: `${markerBaseSize + 5 + (previewOffsetLevel * PREVIEW_STACK_OFFSET)}px`, // To the right of start marker
+      transform: 'translateY(-50%)',
+    } : {
+      top: `${dynamicOffsetForPreview}px`,
+      left: '50%',
+      transform: 'translateX(-50%)',
+    })
   };
 
-  // Style for the text preview
   const textPreviewStyle: React.CSSProperties = {
-    position: 'absolute',
-    bottom: `${dynamicBottomOffset}px`, // Use dynamic offset
-    left: '50%',
-    transform: 'translateX(-50%)',
+    ...previewBaseStyle,
     padding: '1px 3px',
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     color: 'white',
     fontSize: '9px',
     borderRadius: '2px',
     whiteSpace: 'nowrap',
-    zIndex: 101, // Above the marker itself
+    ...(isMobile ? {
+      top: '50%',
+      left: `${markerBaseSize + 5 + (previewOffsetLevel * PREVIEW_STACK_OFFSET)}px`, // To the right of start marker
+      transform: 'translateY(-50%)',
+    } : {
+      top: `${dynamicOffsetForPreview}px`,
+      left: '50%',
+      transform: 'translateX(-50%)',
+    })
   };
 
-  // Style for the icon preview
   const iconPreviewStyle: React.CSSProperties = {
-    position: 'absolute',
-    bottom: `${dynamicBottomOffset - 2}px`, // Adjusted slightly for icons, use dynamic offset
-    left: '50%',
-    transform: 'translateX(-50%)',
-    fontSize: '14px', // Larger size for an icon/emoji
-    zIndex: 101, // Above the marker itself
-    // No background, relying on icon/emoji visual
+    ...previewBaseStyle,
+    fontSize: '14px',
+    ...(isMobile ? {
+      top: '50%',
+      left: `${markerBaseSize + 5 + (previewOffsetLevel * PREVIEW_STACK_OFFSET)}px`, // To the right of start marker
+      transform: 'translateY(-50%)',
+    } : {
+      top: `${dynamicOffsetForPreview -2}px`,
+      left: '50%',
+      transform: 'translateX(-50%)',
+    })
   };
 
   return (
@@ -152,14 +200,15 @@ interface DraggableElementLineProps {
   elementId: number;
   startMarker: TimelineMarker;
   endMarker: TimelineMarker;
-  lineHeight: number;
+  lineThickness: number; // Renamed from lineHeight for clarity in vertical
   lineZIndex: number;
-  barWidth: number;
+  barSize: number; // Represents width for desktop, height for mobile
   timelineRef: React.RefObject<HTMLDivElement>;
   onUpdateElementGroupPosition: (elementId: number, newStartProportion: number, newEndPosition: number) => void;
+  isMobile?: boolean; // Added
 }
 
-const DraggableElementLine: React.FC<DraggableElementLineProps> = ({ elementId, startMarker, endMarker, lineHeight, lineZIndex, barWidth, timelineRef, onUpdateElementGroupPosition }) => {
+const DraggableElementLine: React.FC<DraggableElementLineProps> = ({ elementId, startMarker, endMarker, lineThickness, lineZIndex, barSize, timelineRef, onUpdateElementGroupPosition, isMobile }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: DRAGGABLE_ELEMENT_LINE_TYPE,
     item: {
@@ -169,25 +218,31 @@ const DraggableElementLine: React.FC<DraggableElementLineProps> = ({ elementId, 
       originalStartProportion: startMarker.position,
       originalEndProportion: endMarker.position,
       originalDuration: endMarker.position - startMarker.position,
-    } as ElementLineDragItem, // Explicitly cast item to our defined type
+    } as ElementLineDragItem,
     collect: (monitor: DragSourceMonitor) => ({
       isDragging: !!monitor.isDragging(),
     }),
-    end: (item: ElementLineDragItem, monitor: DragSourceMonitor) => { // Use the specific item type here
-      const clientOffset = monitor.getSourceClientOffset(); // Cursor position at drop
-      const initialClientOffset = monitor.getInitialClientOffset(); // Cursor position at drag start
+    end: (item: ElementLineDragItem, monitor: DragSourceMonitor) => {
+      const clientOffset = monitor.getSourceClientOffset();
+      const initialClientOffset = monitor.getInitialClientOffset();
       const timelineElement = timelineRef.current;
 
       if (!item || !clientOffset || !initialClientOffset || !timelineElement) return;
 
-      const barRect = timelineElement.getBoundingClientRect();
-      const dragDeltaPx = clientOffset.x - initialClientOffset.x;
-      const dragDeltaProportion = dragDeltaPx / barRect.width;
+      let dragDeltaPx;
+      let dragDeltaProportion;
 
+      if (isMobile) {
+        dragDeltaPx = clientOffset.y - initialClientOffset.y;
+        dragDeltaProportion = dragDeltaPx / timelineElement.getBoundingClientRect().height;
+      } else {
+        dragDeltaPx = clientOffset.x - initialClientOffset.x;
+        dragDeltaProportion = dragDeltaPx / timelineElement.getBoundingClientRect().width;
+      }
+      
       let newStartProportion = item.originalStartProportion + dragDeltaProportion;
       let newEndProportion = item.originalEndProportion + dragDeltaProportion;
 
-      // Clamp and maintain duration if hitting boundaries
       if (newStartProportion < 0) {
         newStartProportion = 0;
         newEndProportion = item.originalDuration;
@@ -196,43 +251,50 @@ const DraggableElementLine: React.FC<DraggableElementLineProps> = ({ elementId, 
         newEndProportion = 1;
         newStartProportion = 1 - item.originalDuration;
       }
-      // Ensure start is not negative after adjustment (can happen if duration is very long)
       if (newStartProportion < 0) {
         newStartProportion = 0;
-        newEndProportion = Math.min(1, item.originalDuration); // Also ensure end is not > 1
+        newEndProportion = Math.min(1, item.originalDuration);
       }
 
       onUpdateElementGroupPosition(item.elementId, newStartProportion, newEndProportion);
     },
-  }), [elementId, startMarker.position, endMarker.position, barWidth, timelineRef, onUpdateElementGroupPosition]);
+  }), [elementId, startMarker.position, endMarker.position, barSize, timelineRef, onUpdateElementGroupPosition, isMobile]);
 
-  const lineStartPx = startMarker.position * barWidth;
-  const lineWidthPx = Math.max(0, (endMarker.position * barWidth) - lineStartPx);
+  const lineStartPx = startMarker.position * barSize;
+  const lineLengthPx = Math.max(0, (endMarker.position * barSize) - lineStartPx);
 
-  if (lineWidthPx <= 0) return null;
+  if (lineLengthPx <= 0) return null;
 
   return (
     <div
       ref={drag}
       style={{
         position: 'absolute',
-        left: `${lineStartPx}px`,
-        top: '50%',
-        transform: 'translateY(-50%)',
-        width: `${lineWidthPx}px`,
-        height: `${lineHeight}px`,
         backgroundColor: startMarker.color,
         zIndex: lineZIndex,
         borderRadius: '2px',
         cursor: 'grab',
         opacity: isDragging ? 0.7 : 1,
+        ...(isMobile ? {
+          top: `${lineStartPx}px`,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          height: `${lineLengthPx}px`,
+          width: `${lineThickness}px`,
+        } : {
+          left: `${lineStartPx}px`,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          width: `${lineLengthPx}px`,
+          height: `${lineThickness}px`,
+        })
       }}
       title={`Drag Element ${elementId} Segment`}
     />
   );
 };
 
-const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPosition, onUpdateElementGroupPosition, length, maxElements = 8 }) => {
+const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPosition, onUpdateElementGroupPosition, length, maxElements = 8, isMobile }) => {
   const timelineRef = React.useRef<HTMLDivElement | null>(null);
 
   const [{ isOver }, drop] = useDrop(() => ({
@@ -281,7 +343,7 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
       .filter(m => m.type === 'start' && (m.previewImageUrl || m.textPreview || m.previewIcon))
       .sort((a, b) => a.position - b.position);
 
-    const PREVIEW_WIDTH_PROPORTION_THRESHOLD = 0.035; // Adjust as needed (approx 35px for 1000px bar)
+    const PREVIEW_WIDTH_PROPORTION_THRESHOLD = isMobile ? 0.05 : 0.035; // Wider threshold for vertical previews
     const markersWithOffsets = new Map<string, number>(); // Store { markerId: offsetLevel }
 
     for (let i = 0; i < startMarkers.length; i++) {
@@ -304,35 +366,44 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
       ...marker,
       previewOffsetLevel: markersWithOffsets.get(marker.id) ?? 0,
     }));
-  }, [markers]);
+  }, [markers, isMobile]);
   // --- End Preview Overlap Management ---
 
   return (
     <div style={{
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center', // Center the START-BAR-FINISH assembly
-      padding: '30px 0', // Keep vertical padding
-      minHeight: '60px', // Keep minHeight
-      // width is now determined by flex items
+      alignItems: 'center', // Center items for horizontal, stretch for vertical might be better
+      justifyContent: 'center',
+      padding: isMobile ? '0 30px' : '30px 0', // Adjust padding for mobile
+      minHeight: isMobile ? `${length}px` : '60px', // Use length for minHeight on mobile
+      minWidth: isMobile ? '60px' : 'auto', // Minimum width for vertical bar
+      flexDirection: isMobile ? 'column' : 'row', // Stack START/BAR/FINISH vertically on mobile
     }}>
-      <div style={{ fontSize: '0.8em', color: '#555', marginRight: '10px' }}>
+      <div style={{ 
+        fontSize: '0.8em', 
+        color: '#555', 
+        ...(isMobile ? { marginBottom: '10px' } : { marginRight: '10px' }) 
+      }}>
         START
       </div>
       <div
         ref={(el: HTMLDivElement | null) => {
           (timelineRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-          drop(el); // Attach drop target to the bar itself
+          drop(el);
         }}
         style={{
-          width: `${length}px`,
-          height: '20px',
+          ...(isMobile ? {
+            height: `${length}px`, // length is height on mobile
+            width: '20px',         // Fixed width for vertical bar
+          } : {
+            width: `${length}px`,  // length is width on desktop
+            height: '20px',        // Fixed height for horizontal bar
+          }),
           backgroundColor: '#ccc',
-          position: 'relative', // For markers and lines within
+          position: 'relative',
           border: '1px solid #999',
           borderRadius: '5px',
-          boxShadow: '0 4px 8px rgba(0,0,0,0.1)', // Added box shadow
-          // Removed margin: '20px 0' as flex handles alignment
+          boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
         }}
       >
         {/* Render Lines for element durations */}
@@ -341,10 +412,10 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
 
           const lineStartPx = group.start.position * length;
           const lineEndPx = group.end.position * length;
-          const lineWidthPx = Math.max(0, lineEndPx - lineStartPx);
+          const lineLengthPx = Math.max(0, lineEndPx - lineStartPx);
 
           // Ensure start is before end, otherwise don't render or render differently
-          if (lineWidthPx <= 0) return null;
+          if (lineLengthPx <= 0) return null;
 
           // Calculate thickness based on elementId (higher id = thicker for timeline representation)
           // Element ID 0 (highest parallax Z) should be MIN_LINE_THICKNESS on the timeline bar.
@@ -352,13 +423,8 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
           const thicknessRange = MAX_LINE_THICKNESS - MIN_LINE_THICKNESS;
           const thicknessStep = maxElements > 1 ? thicknessRange / (maxElements - 1) : 0;
           // Higher elementId = closer to MAX_LINE_THICKNESS. Adjust for 1-based ID.
-          let lineHeight = MIN_LINE_THICKNESS + ((group.start.elementId - 1) * thicknessStep);
-          lineHeight = Math.max(MIN_LINE_THICKNESS, Math.min(MAX_LINE_THICKNESS, lineHeight));
-
-          // Z-index for VISUAL stacking on the timeline bar ITSELF:
-          // Let's assign z-index from 1 to maxElements.
-          // Element 1 (highest actual parallax Z) gets zIndex = maxElements on timeline bar.
-          // Element maxElements (lowest actual parallax Z) gets zIndex = 1 on timeline bar.
+          let lineVisualThickness = MIN_LINE_THICKNESS + ((group.start.elementId - 1) * thicknessStep);
+          lineVisualThickness = Math.max(MIN_LINE_THICKNESS, Math.min(MAX_LINE_THICKNESS, lineVisualThickness));
           const lineZIndex = maxElements - (group.start.elementId - 1); // Adjust for 1-based ID
 
           return (
@@ -367,11 +433,12 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
               elementId={group.start.elementId}
               startMarker={group.start}
               endMarker={group.end}
-              lineHeight={lineHeight}
+              lineThickness={lineVisualThickness} // Pass calculated thickness
               lineZIndex={lineZIndex}
-              barWidth={length}
+              barSize={length} // Pass main axis dimension (length or height)
               timelineRef={timelineRef}
               onUpdateElementGroupPosition={onUpdateElementGroupPosition}
+              isMobile={isMobile} // Pass isMobile
             />
           );
         })}
@@ -381,14 +448,19 @@ const TimelineBar: React.FC<TimelineBarProps> = ({ markers, onUpdateMarkerPositi
           <DraggableTimelineMarker
             key={marker.id}
             marker={marker}
-            barWidth={length}
+            barSize={length} // Pass main axis dimension
             onUpdateMarkerPosition={onUpdateMarkerPosition}
             timelineRef={timelineRef}
-            previewOffsetLevel={marker.previewOffsetLevel} // Pass down the calculated offset
+            previewOffsetLevel={marker.previewOffsetLevel}
+            isMobile={isMobile} // Pass isMobile
           />
         ))}
       </div>
-      <div style={{ fontSize: '0.8em', color: '#555', marginLeft: '10px' }}>
+      <div style={{ 
+        fontSize: '0.8em', 
+        color: '#555', 
+        ...(isMobile ? { marginTop: '10px' } : { marginLeft: '10px' }) 
+      }}>
         FINISH
       </div>
     </div>
