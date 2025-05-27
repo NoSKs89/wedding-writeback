@@ -461,7 +461,7 @@ const ExperienceSetupPage: React.FC = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#E9ecce' }}>
+      <div style={{ padding: '0px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#E9ecce' }}>
         
         {/* Backdrop for Modals */}
         {activeModal && (
@@ -522,10 +522,10 @@ const ExperienceSetupPage: React.FC = () => {
           flexDirection: isMobile ? 'row' : 'column',
           width: '100%',
           marginTop: '20px',
-          gap: isMobile ? '20px' : '0px' // Add gap for mobile row layout
+          gap: isMobile ? '40px' : '0px' // Increased gap for mobile row layout
         }}>
           {/* TimelineBar Container (Left column on mobile) */}
-          <div style={isMobile ? { flex: '0 0 100px', /* Reduced width */ display: 'flex', justifyContent: 'center' } : { width: '100%' }}>
+          <div style={isMobile ? { flex: '0 0 100px', display: 'flex', justifyContent: 'flex-start' /* Align to left */ } : { width: '100%' }}>
             <TimelineBar
               markers={activeMarkers}
               onUpdateMarkerPosition={handleUpdateMarkerPosition}

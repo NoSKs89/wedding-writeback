@@ -76,6 +76,7 @@ const SetupLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isLayoutPage = location.pathname.includes('/setup/layout');
+  const isExperienceSetupPage = location.pathname.includes('/setup/experience'); // New check
   const isMobile = useIsMobile(); // ADDED
 
   // Store auth per weddingId. In a real app, consider more robust session/token management.
@@ -143,7 +144,7 @@ const SetupLayout = () => {
             Editing: {isMobile ? 'Mobile View' : 'Desktop View'}
           </div>
         )}
-        <main className={styles.mainContent}>
+        <main className={isExperienceSetupPage ? styles.mainContentFullWidth : styles.mainContent}>
           <Outlet />
         </main>
       </div>

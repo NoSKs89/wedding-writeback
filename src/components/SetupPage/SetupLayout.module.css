@@ -22,4 +22,8 @@
 
 .mainContent {
     padding: 1rem;
+}
+
+.mainContentFullWidth {
+    padding: 0;
 } 
