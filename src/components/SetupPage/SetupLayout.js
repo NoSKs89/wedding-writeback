@@ -118,11 +118,14 @@ const SetupLayout = () => {
       <div className="setup-page-layout">
         {!isLayoutPage && (
           <header className={styles.header}>
-            <h2>Wedding Setup: {weddingId}</h2>
+            <h2>WriteBack Setup: {weddingId}</h2>
             <nav className={styles.nav}>
+              <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} style={{marginRight: '10px'}}>How To</button>
+              <button onClick={() => navigate(`/${weddingId}/setup/experience`)} style={{marginRight: '10px'}}>Experience Setup</button>
               <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
+              <button onClick={() => navigate(`/${weddingId}/setup/layout`)} style={{marginRight: '10px'}}>Advanced Layout Setup</button>
               <button onClick={() => navigate(`/${weddingId}/setup/account`)} style={{marginRight: '10px'}}>Account Settings</button>
-              <Link to="/admin/dashboard" className={styles.navLink}>Admin Dashboard</Link>
+              {/* <Link to="/admin/dashboard" className={styles.navLink}>Admin Dashboard</Link> */}
               {/* Add other setup navigation links here if needed */}
               <hr style={{margin: '15px 0'}} />
             </nav>

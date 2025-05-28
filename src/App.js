@@ -23,6 +23,7 @@ import { useIsMobile } from './utils/deviceDetect'; // ADDED
 import FontGrabber from './components/FontGrabber'; // ADDED
 import AccountSetupPage from './components/SetupPage/AccountSetupPage';
 import ExperienceSetupPage from './components/ExperienceSetupPage/ExperienceSetupPage'; // Added import
+import HowToPage from './components/SetupPage/HowToPage'; // Added import for HowToPage
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -270,6 +271,7 @@ const MainAppContent = () => {
           <Route path="layout" element={<WeddingJourneyWrapperForSetup />} />
           <Route path="account" element={<AccountSetupPage />} />
           <Route path="experience" element={<ExperienceSetupPage />} />
+          <Route path="how-to" element={<HowToPage />} />
         </Route>
       </Routes>
     </div>
