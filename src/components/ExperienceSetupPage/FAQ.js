@@ -12,28 +12,28 @@ const FAQ = ({ isFaqOpen, onClose, faqTransRef }) => {
     { id: 'faq-title', content: <h2 className="faq-title">FAQ</h2> },
     { id: 'faq-q1', content: (
         <li className="faq-item">
-          <strong>Why sign a waiver?</strong>
-          <p>We don't expect any issues. The waiver is to ensure so we are covered in the event that a customer claims we damaged their record that was already in that condition.</p>
+          <strong>How does this work?</strong>
+          <p>Note the 'Experience Timeline' below. This is a visual representation of the scrolling experience on the page your guests will visit to RSVP and find out more about your wedding. 'Elements' are visual events that occur on this scrolling experience.</p>
         </li>
     )},
     { id: 'faq-q2', content: (
         <li className="faq-item">
-          <strong>My digital files are not as loud as other media?</strong>
-          <p>This is because the process of recording the output of the record leaves the dynamic range intact. Look up the 'loudness wars' and what compression is. Upon request, I can add a mastering limiter to bring the overall level up but doing so reduces the dynamic range.</p>
+          <strong>Do I have to set this up manually?</strong>
+          <p>Absolutely not! Feel free to use the 'Restore Defaults' to reset the exerience to the standard design.</p>
         </li>
     )},
     { id: 'faq-q3', content: (
         <li className="faq-item">
-          <strong>Why so expensive?</strong>
-          <p>This is our side hustle, and operates after our regular careers. Digitizing a record takes time to record, then splice, organize the files and export differing versions.</p>
+          <strong>What are the element types?</strong>
+          <p>There are 3 types of elements: 'Text', 'Image', and 'Components'. 'Text' elements display text, 'Image' elements display an image, and 'Components' are built in features such as the RSVP Form and the Scrapbook Images.</p>
         </li>
     )},
     { id: 'faq-q4', content: (
-        <li className="faq-item">
-          <strong>My record still has pops or clicks?</strong>
-          <p>Dirt and dust are just one of the many things that can cause pops or clicks. We can clean the record for you, but it won't fix scratches or other irritants.</p>
-        </li>
-    )},
+      <li className="faq-item">
+        <strong>What is a 'Scrapbook'?</strong>
+        <p>It's a collection of images set up in the 'Image Management' page. This is seperate from other images set on the experience page. You can adjust the max amount of images in the Scrapbook Element, and if you have uploaded more than the max it will randomly select the max amount of them on each page load.</p>
+      </li>
+    )}
   ];
 
   // Use the provided ref for transitions

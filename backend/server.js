@@ -246,6 +246,39 @@ exports.handler = async (event, context) => {
           
           return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
+
+      // GET /api/weddings/:customId/experience-settings
+      const getExperienceSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/experience-settings$/);
+      if (httpMethod === "GET" && getExperienceSettingsMatch) {
+          const customId = getExperienceSettingsMatch[1];
+          console.log(`[GET /experience-settings] customId: ${customId}`);
+          const wedding = await WeddingData.findOne({ customId }).select('experienceSettings customId');
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for experience settings' }, requestOrigin);
+          // Send back the settings, or an empty object if not found, to align with frontend expectation
+          return createResponse(200, { data: wedding.experienceSettings || null }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/experience-settings
+      const postExperienceSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/experience-settings$/);
+      if (httpMethod === "POST" && postExperienceSettingsMatch) {
+          const customId = postExperienceSettingsMatch[1];
+          const newExperienceSettings = body; // The whole body is the settings object
+          console.log(`[POST /experience-settings] customId: ${customId}`);
+
+          if (typeof newExperienceSettings !== 'object' || newExperienceSettings === null) {
+              return createResponse(400, { message: 'Invalid experience settings. Expected an object.' }, requestOrigin);
+          }
+          
+          const updateQuery = { $set: { experienceSettings: newExperienceSettings } };
+          const wedding = await WeddingData.findOneAndUpdate(
+              { customId }, 
+              updateQuery,
+              { new: true, runValidators: true, select: 'experienceSettings customId' }
+          );
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for experience settings update.' }, requestOrigin);
+          
+          return createResponse(200, { message: 'Experience settings saved.', data: wedding.experienceSettings }, requestOrigin);
+      }
       
       // POST /api/s3/presigned-url
       const presignedUrlMatch = routePath.match(/^\/api\/s3\/presigned-url$/);

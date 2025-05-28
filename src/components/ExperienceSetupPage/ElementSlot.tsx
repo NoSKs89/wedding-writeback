@@ -32,6 +32,11 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   const [textContent, setTextContent] = useState<string>(element.type === 'text' && typeof element.content === 'string' ? element.content : '');
   const [selectedFile, setSelectedFile] = useState<File | null>(element.type === 'photo' && element.content instanceof File ? element.content : null);
   const [filePreview, setFilePreview] = useState<string | null>(element.type === 'photo' && typeof element.content === 'string' ? element.content : null);
+  const [maxScrapbookImages, setMaxScrapbookImages] = useState<number | string>(
+    (element.type === 'component' && element.name === 'Scrapbook' && typeof element.content === 'object' && element.content && 'maxImages' in element.content)
+      ? (element.content as { maxImages: number }).maxImages
+      : ''
+  );
 
   // Local state for input values, initialized from props
   const [startInput, setStartInput] = useState<string>((startPositionPercent !== undefined ? startPositionPercent * 100 : 0).toFixed(1));
@@ -44,6 +49,17 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   useEffect(() => {
     setEndInput((endPositionPercent !== undefined ? endPositionPercent * 100 : 0).toFixed(1));
   }, [endPositionPercent]);
+
+  useEffect(() => {
+    // Update local state if element content (maxImages) changes externally
+    if (element.type === 'component' && element.name === 'Scrapbook') {
+      if (typeof element.content === 'object' && element.content && 'maxImages' in element.content) {
+        setMaxScrapbookImages((element.content as { maxImages: number }).maxImages);
+      } else if (element.content === 'Scrapbook') { // Default case if content is just the string name
+        setMaxScrapbookImages(''); // Or a default value like 15
+      }
+    }
+  }, [element.content, element.type, element.name]);
 
   const handleSlotClick = (event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent click from bubbling to document listener
@@ -70,13 +86,20 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     setTextContent('');
     setSelectedFile(null);
     setFilePreview(null);
+    setMaxScrapbookImages(''); // Reset max images input
 
     if (newTypeValue === 'empty') {
         onRemove();
     } else if (newTypeValue === 'component-rsvp') {
         onUpdate({ type: 'component', content: 'RSVP Form', name: 'RSVP Form' });
     } else if (newTypeValue === 'component-scrapbook') {
-        onUpdate({ type: 'component', content: 'Scrapbook', name: 'Scrapbook' });
+        // For scrapbook, content could be an object { maxImages: number }
+        // Initialize with a default or existing value if switching to scrapbook
+        const currentMax = (typeof element.content === 'object' && element.content && 'maxImages' in element.content)
+                           ? (element.content as { maxImages: number }).maxImages
+                           : 15; // Default to 15
+        setMaxScrapbookImages(currentMax);
+        onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
     } else if (newTypeValue === 'photo' || newTypeValue === 'text') {
         onUpdate({ type: newTypeValue as 'photo' | 'text', content: null, name: undefined });
     } else {
@@ -108,6 +131,18 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     setTextContent('');
     setSelectedFile(null);
     setFilePreview(null);
+    setMaxScrapbookImages('');
+  };
+
+  const handleMaxImagesChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setMaxScrapbookImages(value); // Keep as string for input field flexibility
+    const numValue = parseInt(value, 10);
+    if (!isNaN(numValue) && numValue > 0) {
+      onUpdate({ content: { maxImages: numValue } as { maxImages: number } });
+    } else if (value === '') { // Allow clearing the input
+      onUpdate({ content: { maxImages: undefined } as { maxImages?: number } }); // Or some other way to signify "no limit" or "default"
+    }
   };
 
   const baseStyle: React.CSSProperties = {
@@ -299,6 +334,21 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         {element.type === 'component' && element.name && (
           <div>
             <p style={{fontSize: '0.9em', color: '#333'}}>Selected Component: <strong>{element.name}</strong></p>
+            {element.name === 'Scrapbook' && (
+              <div style={{ marginTop: '10px' }}>
+                <label htmlFor={`max-images-${element.id}`} style={{...labelStyle, marginRight: '5px'}}>Max Images:</label>
+                <input
+                  type="number"
+                  id={`max-images-${element.id}`}
+                  value={maxScrapbookImages}
+                  onChange={handleMaxImagesChange}
+                  min="1"
+                  style={{...numberInputStyle, width: '60px'}}
+                  placeholder="e.g. 15"
+                />
+                <p style={{...recommendedTextStyle, fontSize: '0.7rem', margin: '3px 0 0 0'}}>Recommends &lt; 15 for Load Times</p>
+              </div>
+            )}
           </div>
         )}
       </div>

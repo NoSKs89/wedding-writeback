@@ -27,10 +27,17 @@ export interface TimelineMarker {
 export interface ElementConfig {
   id: number; // Now 1-8
   type: 'empty' | 'photo' | 'text' | 'component';
-  content: string | File | React.ComponentType<any> | null; // URL for photo, text content, or component type
+  content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
   // Z-index is implicitly determined by array order (index 0 is highest)
+}
+
+// Define the structure for the experience settings to be saved/loaded
+interface ExperienceSettings {
+  elements: ElementConfig[];
+  markers: TimelineMarker[];
+  timelineLength: number;
 }
 
 // Define an interface for the wedding data based on the provided structure
@@ -38,6 +45,7 @@ interface WeddingData {
   _id: string;
   brideName?: string;
   groomName?: string;
+  eventName?: string; // Added eventName
   weddingDate?: string; // ISO Date string
   introCouple?: string; // Image URL
   introBackground?: string; // Image URL
@@ -76,22 +84,119 @@ const formatDate = (dateString?: string): string => {
   }
 };
 
+// Helper function to generate initial elements and markers
+const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
+  if (!weddingData) {
+    return { initialElements: [], initialMarkers: [] };
+  }
+
+  const initialElementsList: ElementConfig[] = [
+    {
+      id: 1, type: 'text', content: weddingData.brideName || 'Bride Name',
+      name: 'Bride Name', timelineColor: ELEMENT_COLORS[0],
+    },
+    {
+      id: 2, type: 'text', content: weddingData.groomName || 'Groom Name',
+      name: 'Groom Name', timelineColor: ELEMENT_COLORS[1],
+    },
+    {
+      id: 3, type: 'text', content: formatDate(weddingData.weddingDate),
+      name: 'Wedding Date', timelineColor: ELEMENT_COLORS[2],
+    },
+    {
+      id: 4, type: 'photo', content: weddingData.introCouple || null,
+      name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3],
+    },
+    {
+      id: 5, type: 'photo', content: weddingData.introBackground || null,
+      name: 'Intro Background Image', timelineColor: ELEMENT_COLORS[4],
+    },
+    {
+      id: 6, type: 'component', content: 'RSVP Form', name: 'RSVP Form',
+      timelineColor: ELEMENT_COLORS[5],
+    },
+    {
+      id: 7, type: 'component', content: 'Scrapbook', name: 'Scrapbook',
+      timelineColor: ELEMENT_COLORS[6],
+    },
+  ];
+
+  // For scrapbook elements, default content should include maxImages
+  initialElementsList.forEach(el => {
+    if (el.name === 'Scrapbook' && el.type === 'component') {
+      el.content = { maxImages: 15 }; // Default to 15 images
+    }
+  });
+
+  const initialMarkersList: TimelineMarker[] = [];
+  const specificDefaultPositions: {[key: number]: {start: number, end: number}} = {
+    1: { start: 0.075, end: 0.500 },
+    2: { start: 0.100, end: 0.500 },
+    3: { start: 0.150, end: 0.500 },
+    4: { start: 0.050, end: 0.600 },
+    5: { start: 0.000, end: 0.650 },
+    6: { start: 0.650, end: 1.000 },
+    7: { start: 0.600, end: 1.000 },
+  };
+
+  initialElementsList.forEach(el => {
+    if (el.type !== 'empty') {
+      let textPreview: string | undefined = undefined;
+      let previewIcon: string | undefined = undefined;
+      let previewImageUrl: string | undefined = undefined;
+
+      if (el.type === 'text' && typeof el.content === 'string' && el.content.trim()) {
+        const fullText = el.content.trim();
+        textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
+      } else if (el.type === 'component') {
+        previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+      } else if (el.type === 'photo' && typeof el.content === 'string') {
+        previewImageUrl = el.content;
+      }
+
+      const specificDefaults = specificDefaultPositions[el.id];
+      const startPos = specificDefaults ? specificDefaults.start
+                       : ((el.id - 1) / INITIAL_DEFINED_ELEMENT_COUNT) * 0.8;
+      const endPos = specificDefaults ? specificDefaults.end
+                     : Math.min(startPos + 0.1, 1);
+
+      initialMarkersList.push({
+        id: `element-${el.id}-start`, elementId: el.id, type: 'start',
+        position: startPos, color: el.timelineColor,
+        textPreview, previewIcon, previewImageUrl
+      });
+      initialMarkersList.push({
+        id: `element-${el.id}-end`, elementId: el.id, type: 'end',
+        position: endPos, color: el.timelineColor,
+      });
+    }
+  });
+
+  return { initialElements: initialElementsList, initialMarkers: initialMarkersList };
+};
+
 const ExperienceSetupPage: React.FC = () => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [currentWeddingData, setCurrentWeddingData] = useState<WeddingData | null>(null);
   const [isLoadingWeddingData, setIsLoadingWeddingData] = useState(true);
+  const [isLoadingExperienceSettings, setIsLoadingExperienceSettings] = useState(true); // For loading indicator
 
   const [timelineLength, setTimelineLength] = useState<number>(INITIAL_TIMELINE_LENGTH);
   const [elements, setElements] = useState<ElementConfig[]>([]);
   const [markers, setMarkers] = useState<TimelineMarker[]>([]);
   const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
 
-  // Centralized modal state
-  const [activeModal, setActiveModal] = useState<string | null>(null);
-
   // State for mobile and landscape detection
   const [isMobile, setIsMobile] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
+
+  // State for save operation
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
+  const [saveErrorMessage, setSaveErrorMessage] = useState<string | null>(null);
+
+  // Centralized modal state
+  const [activeModal, setActiveModal] = useState<string | null>(null);
 
   useEffect(() => {
     const checkDeviceOrientation = () => {
@@ -107,61 +212,63 @@ const ExperienceSetupPage: React.FC = () => {
     return () => window.removeEventListener('resize', checkDeviceOrientation);
   }, []);
 
-  // Fetch wedding data
+  // Fetch wedding data and then experience settings
   useEffect(() => {
     if (weddingId) {
-      const fetchWeddingData = async () => {
+      const fetchData = async () => {
         setIsLoadingWeddingData(true);
+        setIsLoadingExperienceSettings(true);
+        let fetchedWeddingData: WeddingData | null = null;
+
         try {
           const apiBase = getApiBaseUrl();
-          const response = await axios.get<WeddingData>(`${apiBase}/weddings/${weddingId}`);
-          setCurrentWeddingData(response.data);
+          const weddingDataResponse = await axios.get<WeddingData>(`${apiBase}/weddings/${weddingId}`);
+          fetchedWeddingData = weddingDataResponse.data;
+          setCurrentWeddingData(fetchedWeddingData);
         } catch (error) {
           console.error('Error fetching wedding data:', error);
-          // Handle error (e.g., set an error state, show a notification)
+          setIsLoadingWeddingData(false);
+          setIsLoadingExperienceSettings(false); // Also stop loading settings if wedding data fails
+          return; // Stop if wedding data fails
         }
         setIsLoadingWeddingData(false);
+
+        // Now try to fetch experience settings
+        if (fetchedWeddingData) {
+          try {
+            const apiBase = getApiBaseUrl();
+            const settingsResponse = await axios.get<{ data: ExperienceSettings }>(`${apiBase}/weddings/${weddingId}/experience-settings`);
+            if (settingsResponse.data && settingsResponse.data.data) {
+              const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength } = settingsResponse.data.data;
+              setElements(savedElements);
+              setMarkers(savedMarkers);
+              setTimelineLength(savedTimelineLength);
+              console.log('Successfully loaded experience settings from server.');
+            } else {
+              // No settings found on server, generate defaults
+              console.log('No experience settings found on server, generating defaults.');
+              const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(fetchedWeddingData);
+              setElements(initialElements);
+              setMarkers(initialMarkers);
+              // Keep INITIAL_TIMELINE_LENGTH or allow generateInitialElementsAndMarkers to suggest one if needed
+            }
+          } catch (error: any) {
+            if (error.response && error.response.status === 404) {
+              console.log('No experience settings found (404), generating defaults.');
+            } else {
+              console.error('Error fetching experience settings:', error);
+            }
+            // In case of any error fetching settings, generate defaults
+            const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(fetchedWeddingData);
+            setElements(initialElements);
+            setMarkers(initialMarkers);
+          }
+        }
+        setIsLoadingExperienceSettings(false);
       };
-      fetchWeddingData();
+      fetchData();
     }
   }, [weddingId]);
-
-  // Initialize elements once wedding data is fetched
-  useEffect(() => {
-    if (currentWeddingData) {
-      const initialElements: ElementConfig[] = [
-        {
-          id: 1, type: 'text', content: currentWeddingData.brideName || 'Bride Name',
-          name: 'Bride Name', timelineColor: ELEMENT_COLORS[0],
-        },
-        {
-          id: 2, type: 'text', content: currentWeddingData.groomName || 'Groom Name',
-          name: 'Groom Name', timelineColor: ELEMENT_COLORS[1],
-        },
-        {
-          id: 3, type: 'text', content: formatDate(currentWeddingData.weddingDate),
-          name: 'Wedding Date', timelineColor: ELEMENT_COLORS[2],
-        },
-        {
-          id: 4, type: 'photo', content: currentWeddingData.introCouple || null,
-          name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3],
-        },
-        {
-          id: 5, type: 'photo', content: currentWeddingData.introBackground || null,
-          name: 'Intro Background Image', timelineColor: ELEMENT_COLORS[4],
-        },
-        {
-          id: 6, type: 'component', content: 'RSVP Form', name: 'RSVP Form',
-          timelineColor: ELEMENT_COLORS[5],
-        },
-        {
-          id: 7, type: 'component', content: 'Scrapbook', name: 'Scrapbook',
-          timelineColor: ELEMENT_COLORS[6],
-        },
-      ];
-      setElements(initialElements);
-    }
-  }, [currentWeddingData]);
 
   // --- Memoized Timeline Markers ---
   // This recalculates markers whenever elements or their configured content change.
@@ -434,28 +541,70 @@ const ExperienceSetupPage: React.FC = () => {
   const handleAddNewElement = () => {
     setElements(prevElements => {
       const newId = prevElements.length > 0 ? Math.max(...prevElements.map(el => el.id)) + 1 : 1;
-      const newElement: ElementConfig = {
+      const newElementConfig: ElementConfig = {
         id: newId,
         type: 'empty',
-        content: null,
-        timelineColor: ELEMENT_COLORS[(newId - 1) % ELEMENT_COLORS.length], // Cycle through colors
+        content: null, // content will be set by onUpdate if type changes to scrapbook
+        timelineColor: ELEMENT_COLORS[(newId - 1) % ELEMENT_COLORS.length], 
         name: `Element ${newId}`
       };
-      // Add markers for the new element
+      // Add default markers for the new element - these are simple defaults, not from specificDefaultPositions
       const defaultPos = ((newId - 1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, prevElements.length + 1)) * 0.8;
       const startMarkerId = `element-${newId}-start`;
       const endMarkerId = `element-${newId}-end`;
 
       setMarkers(prevMarkers => [
         ...prevMarkers,
-        { id: startMarkerId, elementId: newId, type: 'start', position: defaultPos, color: newElement.timelineColor },
-        { id: endMarkerId, elementId: newId, type: 'end', position: Math.min(defaultPos + 0.1, 1), color: newElement.timelineColor }
+        { id: startMarkerId, elementId: newId, type: 'start', position: defaultPos, color: newElementConfig.timelineColor },
+        { id: endMarkerId, elementId: newId, type: 'end', position: Math.min(defaultPos + 0.1, 1), color: newElementConfig.timelineColor }
       ]);
-      return [...prevElements, newElement];
+      return [...prevElements, newElementConfig];
     });
   };
 
-  if (isLoadingWeddingData) {
+  const handleRestoreDefaults = () => {
+    if (window.confirm('Are you sure? Reminder that saving the restored defaults will overwrite your current experience.')) {
+      if (currentWeddingData) {
+        const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(currentWeddingData);
+        setElements(initialElements);
+        setMarkers(initialMarkers);
+        setFocusedElementId(null);
+      } else {
+        // Handle case where currentWeddingData might be null (e.g., if called before data load)
+        console.warn('Cannot restore defaults: Wedding data not loaded yet.');
+      }
+    }
+  };
+
+  const handleSaveConfiguration = async () => {
+    if (!weddingId) {
+      setSaveErrorMessage('Cannot save: Wedding ID is missing.');
+      return;
+    }
+    setIsSaving(true);
+    setSaveSuccessMessage(null);
+    setSaveErrorMessage(null);
+
+    const settingsToSave: ExperienceSettings = {
+      elements,
+      markers,
+      timelineLength,
+    };
+
+    try {
+      const apiBase = getApiBaseUrl();
+      await axios.post(`${apiBase}/weddings/${weddingId}/experience-settings`, settingsToSave);
+      setSaveSuccessMessage('Configuration saved successfully!');
+      setTimeout(() => setSaveSuccessMessage(null), 3000); // Clear message after 3 seconds
+    } catch (error) {
+      console.error('Error saving experience settings:', error);
+      setSaveErrorMessage('Failed to save configuration. Please try again.');
+      setTimeout(() => setSaveErrorMessage(null), 5000); // Clear message after 5 seconds
+    }
+    setIsSaving(false);
+  };
+
+  if (isLoadingWeddingData || isLoadingExperienceSettings) { // Updated loading check
     return <div style={{textAlign: 'center', padding: '50px', fontSize: '1.2em'}}>Loading Wedding Experience Setup...</div>;
   }
 
@@ -492,7 +641,9 @@ const ExperienceSetupPage: React.FC = () => {
                 Experience Setup
               </h1>
               <h3 className="experience-setup-event-name" style={{ margin: '0' }}>
-                {currentWeddingData?.brideName && currentWeddingData?.groomName ? `for ${currentWeddingData.brideName} & ${currentWeddingData.groomName}` : weddingId ? `for ${weddingId}`: ''}
+                {currentWeddingData?.eventName 
+                  ? `for ${currentWeddingData.eventName}` 
+                  : (weddingId ? `for wedding ID: ${weddingId}` : '')}
               </h3>
             </div>
             {/* Placeholder for a second modal button/container on the right */}
@@ -526,7 +677,9 @@ const ExperienceSetupPage: React.FC = () => {
           gap: '2%' // Adjusted gap to be a percentage, or a smaller fixed value
         }}>
           {/* TimelineBar Container (ALWAYS a "mobile-like" vertical bar on the left) */}
-          <div style={{ flex: '0 0 25%', display: 'flex', justifyContent: 'center' }}> {/* Centering the timeline bar within its 33% space */}
+          <div style={{ flex: '0 0 25%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}> 
+            <h4 style={{textAlign: 'center', marginBottom: '5px'}}>Experience Timeline</h4>
+            <hr style={{width: '80%', border: 'none', borderTop: '1px solid #ccc', margin: '0 0 10px 0'}} />
             <TimelineBar
               markers={activeMarkers}
               onUpdateMarkerPosition={handleUpdateMarkerPosition}
@@ -545,84 +698,126 @@ const ExperienceSetupPage: React.FC = () => {
             gap: '10px',
             overflowY: 'auto',
             maxHeight: 'calc(100vh - 180px)', // Adjusted max height, ensure this value is appropriate
-            ...(isMobile ? { // Actual Mobile device: single column
-              flexDirection: 'column',
-              flexWrap: 'nowrap',
-            } : { // Actual Desktop device: two columns, wrapping
-              flexDirection: 'row',
-              flexWrap: 'wrap',
-              alignItems: 'flex-start',
+            // For the container of element slots, we need to make it a column if it contains a header + the items row/column
+            flexDirection: 'column', // Parent is column to stack H4 and then the items container
+            ...(isMobile ? { 
+              // On mobile, the items container inside is also a column
+            } : { 
+              // On desktop, the items container inside is a row that wraps
             })
           }}>
-            {elements.map((el) => {
-              const isFocused = el.id === focusedElementId;
-              const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
-              const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
-              return (
-                <div 
-                  key={el.id} 
-                  data-element-slot-id={el.id}
-                  style={!isMobile ? { // Desktop: two-column width
+            <h4 style={{textAlign: 'center', marginBottom: '5px'}}>Experience Elements</h4>
+            <hr style={{width: '95%', border: 'none', borderTop: '1px solid #ccc', margin: '0 0 10px 0'}} />
+            {/* This inner div will now handle the row/column layout for the actual slots */}
+            <div style={{
+              display: 'flex',
+              width: '100%', // Take full width of parent column
+              gap: '10px',
+              overflowY: 'auto', // Keep scroll on this inner container if needed
+              maxHeight: 'calc(100vh - 220px)', // Adjust if header takes up space
+               ...(isMobile ? { // Actual Mobile device: single column
+                flexDirection: 'column',
+                flexWrap: 'nowrap',
+              } : { // Actual Desktop device: two columns, wrapping
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                alignItems: 'flex-start',
+              })
+            }}>
+              {elements.map((el) => {
+                const isFocused = el.id === focusedElementId;
+                const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
+                const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
+                return (
+                  <div 
+                    key={el.id} 
+                    data-element-slot-id={el.id}
+                    style={!isMobile ? { // Desktop: two-column width
+                      width: 'calc(50% - 5px)', // Assumes parent gap: '10px'
+                      boxSizing: 'border-box',
+                    } : { // Mobile: full width of its column
+                      width: '100%',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <ElementSlot
+                      element={el}
+                      onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
+                      onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
+                      isFocused={isFocused}
+                      onFocus={handleElementFocus}
+                      startPositionPercent={startMarker?.position}
+                      endPositionPercent={endMarker?.position}
+                      onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
+                    />
+                  </div>
+                );
+              })}
+              {/* "Add New Element" Slot */}
+              <div
+                onClick={handleAddNewElement}
+                style={{
+                  // Common styles for the "Add New Element" button
+                  minHeight: '120px', border: '2px dashed #333333',
+                  borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'pointer', padding: '10px', /* margin: '5px' REMOVED */
+                  color: '#333333', textAlign: 'center', boxSizing: 'border-box',
+                  // Conditional width based on actual device type (isMobile state)
+                  ...(!isMobile ? { // Desktop: two-column width
                     width: 'calc(50% - 5px)', // Assumes parent gap: '10px'
-                    boxSizing: 'border-box',
                   } : { // Mobile: full width of its column
                     width: '100%',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <ElementSlot
-                    element={el}
-                    onUpdate={(newConfig) => handleElementUpdate(el.id, newConfig)}
-                    onRemove={() => handleElementUpdate(el.id, { type: 'empty', content: null, name: undefined })}
-                    isFocused={isFocused}
-                    onFocus={handleElementFocus}
-                    startPositionPercent={startMarker?.position}
-                    endPositionPercent={endMarker?.position}
-                    onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
-                  />
-                </div>
-              );
-            })}
-            {/* "Add New Element" Slot */}
-            <div
-              onClick={handleAddNewElement}
-              style={{
-                // Common styles for the "Add New Element" button
-                minHeight: '120px', border: '2px dashed #333333',
-                borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', padding: '10px', /* margin: '5px' REMOVED */
-                color: '#333333', textAlign: 'center', boxSizing: 'border-box',
-                // Conditional width based on actual device type (isMobile state)
-                ...(!isMobile ? { // Desktop: two-column width
-                  width: 'calc(50% - 5px)', // Assumes parent gap: '10px'
-                } : { // Mobile: full width of its column
-                  width: '100%',
-                })
-              }}
-              title="Add a new element to the experience"
-            >
-              <div style={{fontSize: '2em', fontWeight: 'bold'}}>+</div>
-              <span style={{marginLeft: '10px', fontSize: '0.9em'}}>Add Element {elements.length + 1}</span>
+                  })
+                }}
+                title="Add a new element to the experience"
+              >
+                <div style={{fontSize: '2em', fontWeight: 'bold'}}>+</div>
+                <span style={{marginLeft: '10px', fontSize: '0.9em'}}>Add Element {elements.length + 1}</span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Save Button */}
-        <div style={{ marginTop: '30px', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={() => console.log('Save Configuration clicked. Current state:', { elements, markers, timelineLength })}
-            style={{
-              padding: '10px 20px',
-              fontSize: '1rem',
-              color: 'white',
-              backgroundColor: '#007bff',
-              border: 'none',
-              borderRadius: '5px',
-              cursor: 'pointer',
-            }}
-          >
-            Save Configuration
-          </button>
+        <div style={{ marginTop: '30px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
+          <div style={{display: 'flex', gap: '15px'}}>
+            <button
+              onClick={handleSaveConfiguration} // Updated onClick
+              disabled={isSaving} // Disable when saving
+              style={{
+                padding: '10px 20px',
+                fontSize: '1rem',
+                color: 'white',
+                backgroundColor: '#007bff',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                opacity: isSaving ? 0.7 : 1,
+              }}
+            >
+              {isSaving ? 'Saving...' : 'Save Configuration'}
+            </button>
+            {/* Restore Defaults Button */}
+            <button
+              onClick={handleRestoreDefaults}
+              disabled={isSaving} // Also disable restore if a save is in progress
+              style={{
+                padding: '10px 20px',
+                fontSize: '1rem',
+                color: 'white',
+                backgroundColor: '#ffc107', /* Warning color */
+                border: 'none',
+                borderRadius: '5px',
+                cursor: isSaving ? 'not-allowed' : 'pointer',
+                opacity: isSaving ? 0.7 : 1,
+              }}
+            >
+              Restore Defaults
+            </button>
+          </div>
+          {/* Save/Load Status Messages */}
+          {saveSuccessMessage && <div style={{color: 'green', marginTop: '10px'}}>{saveSuccessMessage}</div>}
+          {saveErrorMessage && <div style={{color: 'red', marginTop: '10px'}}>{saveErrorMessage}</div>}
         </div>
 
         {/* Debug Button to log marker positions */}
