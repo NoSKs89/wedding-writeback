@@ -519,34 +519,40 @@ const ExperienceSetupPage: React.FC = () => {
         {/* Main content area for Timeline and Element Slots */}
         <div style={{
           display: 'flex',
-          flexDirection: 'row', // Force mobile layout (row for main content sections)
-          alignItems: 'flex-start', // Ensure columns align at the top
+          flexDirection: 'row', // Always side-by-side columns for timeline and slots
+          alignItems: 'flex-start',
           width: '100%',
-          marginTop: '12.5px', // Reduced from 20px
-          gap: '40px' // Force mobile gap
+          marginTop: '12.5px', 
+          gap: '2%' // Adjusted gap to be a percentage, or a smaller fixed value
         }}>
-          {/* TimelineBar Container (Left column on mobile) */}
-          <div style={{ flex: '0 0 100px', display: 'flex', justifyContent: 'flex-start' }}> {/* Force mobile style */}
+          {/* TimelineBar Container (ALWAYS a "mobile-like" vertical bar on the left) */}
+          <div style={{ flex: '0 0 25%', display: 'flex', justifyContent: 'center' }}> {/* Centering the timeline bar within its 33% space */}
             <TimelineBar
               markers={activeMarkers}
               onUpdateMarkerPosition={handleUpdateMarkerPosition}
               onUpdateElementGroupPosition={handleUpdateElementGroupPosition}
-              length={isMobile ? 600 : timelineLength} // Example: fixed length for vertical mobile, or adjust based on available height
+              length={600} // Always a vertical-friendly length
               maxElements={MAX_DISPLAY_ELEMENTS_INITIAL}
-              isMobile={isMobile} // Pass isMobile prop
+              isMobile={true} // Always pass isMobile={true} to TimelineBar to force its vertical mode
             />
           </div>
 
-          {/* Element Slots Container (Right column on mobile or full width below timeline on desktop) */}
+          {/* Element Slots Container */}
           <div style={{
             display: 'flex',
-            flexWrap: isMobile ? 'nowrap' : 'wrap', // No wrap for mobile to stack vertically
-            flexDirection: isMobile ? 'column' : 'row', // Stack vertically on mobile
-            justifyContent: isMobile ? 'flex-start' : 'center',
+            flexBasis: '75%', // Taking roughly 65% to account for the 2% gap
+            flexGrow: 1, // Allow to grow to fill remaining space if percentages don't sum perfectly
             gap: '10px',
-            flexGrow: 1, // Allow this to take remaining space on mobile
-            overflowY: isMobile ? 'auto' : 'visible', // Allow scrolling for element slots on mobile
-            maxHeight: isMobile ? 'calc(100vh - 150px)' : 'none', // Example max height for mobile scroll
+            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 180px)', // Adjusted max height, ensure this value is appropriate
+            ...(isMobile ? { // Actual Mobile device: single column
+              flexDirection: 'column',
+              flexWrap: 'nowrap',
+            } : { // Actual Desktop device: two columns, wrapping
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              alignItems: 'flex-start',
+            })
           }}>
             {elements.map((el) => {
               const isFocused = el.id === focusedElementId;
@@ -555,7 +561,14 @@ const ExperienceSetupPage: React.FC = () => {
               return (
                 <div 
                   key={el.id} 
-                  data-element-slot-id={el.id} // Add a data attribute to the wrapper
+                  data-element-slot-id={el.id}
+                  style={!isMobile ? { // Desktop: two-column width
+                    width: 'calc(50% - 5px)', // Assumes parent gap: '10px'
+                    boxSizing: 'border-box',
+                  } : { // Mobile: full width of its column
+                    width: '100%',
+                    boxSizing: 'border-box',
+                  }}
                 >
                   <ElementSlot
                     element={el}
@@ -574,12 +587,17 @@ const ExperienceSetupPage: React.FC = () => {
             <div
               onClick={handleAddNewElement}
               style={{
-                width: '200px', minHeight: '120px', border: '2px dashed #333333', // Always black/dark-grey dashed border
+                // Common styles for the "Add New Element" button
+                minHeight: '120px', border: '2px dashed #333333',
                 borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', padding: '10px', margin: '5px',
-                color: '#333333', // Always black/dark-grey text color
-                textAlign: 'center',
-                boxSizing: 'border-box'
+                cursor: 'pointer', padding: '10px', /* margin: '5px' REMOVED */
+                color: '#333333', textAlign: 'center', boxSizing: 'border-box',
+                // Conditional width based on actual device type (isMobile state)
+                ...(!isMobile ? { // Desktop: two-column width
+                  width: 'calc(50% - 5px)', // Assumes parent gap: '10px'
+                } : { // Mobile: full width of its column
+                  width: '100%',
+                })
               }}
               title="Add a new element to the experience"
             >
