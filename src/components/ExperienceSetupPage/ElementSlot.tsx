@@ -112,6 +112,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
 
   const baseStyle: React.CSSProperties = {
     padding: '17px',
+    paddingRight: '20px',
     minHeight: '120px',
     backgroundColor: '#f9f9f9',
     borderRadius: '8px',

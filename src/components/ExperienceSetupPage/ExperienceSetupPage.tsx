@@ -461,7 +461,7 @@ const ExperienceSetupPage: React.FC = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <div style={{ padding: '0px', display: 'flex', flexDirection: 'column', alignItems: 'center', minHeight: '100vh', backgroundColor: '#E9ecce' }}>
+      <div style={{ padding: '0px', display: 'flex', flexDirection: 'column', alignItems: 'center', flexGrow: 1, width: '100%' }}>
         
         {/* Backdrop for Modals */}
         {activeModal && (
@@ -476,7 +476,7 @@ const ExperienceSetupPage: React.FC = () => {
         )}
 
         {/* Page Header with Modal Trigger Buttons/Containers */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '800px', marginBottom: '20px', zIndex: 100 }}> {/* Added zIndex and maxWidth */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', maxWidth: '800px', marginTop: '10px', marginBottom: '0px', zIndex: 100 }}> {/* Reduced marginBottom from 20px to 10px */}
             {/* FAQModalContainer will position itself absolutely. It handles its own click to open. */}
             <FAQModalContainer
               activeModal={activeModal}
@@ -519,13 +519,14 @@ const ExperienceSetupPage: React.FC = () => {
         {/* Main content area for Timeline and Element Slots */}
         <div style={{
           display: 'flex',
-          flexDirection: isMobile ? 'row' : 'column',
+          flexDirection: 'row', // Force mobile layout (row for main content sections)
+          alignItems: 'flex-start', // Ensure columns align at the top
           width: '100%',
-          marginTop: '20px',
-          gap: isMobile ? '40px' : '0px' // Increased gap for mobile row layout
+          marginTop: '12.5px', // Reduced from 20px
+          gap: '40px' // Force mobile gap
         }}>
           {/* TimelineBar Container (Left column on mobile) */}
-          <div style={isMobile ? { flex: '0 0 100px', display: 'flex', justifyContent: 'flex-start' /* Align to left */ } : { width: '100%' }}>
+          <div style={{ flex: '0 0 100px', display: 'flex', justifyContent: 'flex-start' }}> {/* Force mobile style */}
             <TimelineBar
               markers={activeMarkers}
               onUpdateMarkerPosition={handleUpdateMarkerPosition}

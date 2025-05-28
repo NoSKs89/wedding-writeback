@@ -20,6 +20,7 @@ const HowToPage: React.FC = () => {
     paddingBottom: '10px',
     marginBottom: '20px',
     color: '#333',
+    textAlign: 'center',
   };
 
   const listItemStyle: React.CSSProperties = {

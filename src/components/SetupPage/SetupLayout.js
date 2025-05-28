@@ -4,6 +4,7 @@ import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig'; // Import the centralized helper
 import { useIsMobile } from '../../utils/deviceDetect'; // ADDED
 import styles from './SetupLayout.module.css';
+import MobileNavModal from './MobileNavModal'; // Import MobileNavModal
 
 // Create a context for setup authentication
 const SetupAuthContext = createContext(null);
@@ -76,8 +77,9 @@ const SetupLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isLayoutPage = location.pathname.includes('/setup/layout');
-  const isExperienceSetupPage = location.pathname.includes('/setup/experience'); // New check
+  const isExperienceSetupPage = location.pathname.includes('/setup/experience') || location.pathname.includes('/setup/how-to'); // Include how-to page for full width background
   const isMobile = useIsMobile(); // ADDED
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false); // State for mobile nav modal
 
   // Store auth per weddingId. In a real app, consider more robust session/token management.
   const [isAuthenticatedForWedding, setIsAuthenticatedForWedding] = useState(() => {
@@ -115,19 +117,36 @@ const SetupLayout = () => {
 
   return (
     <SetupAuthContext.Provider value={authContextValue}>
-      <div className="setup-page-layout">
+      <div className="setup-page-layout" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
         {!isLayoutPage && (
           <header className={styles.header}>
-            <h2>WriteBack Setup: {weddingId}</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+              <h2 style={{ paddingLeft: '10px' }}>Setup: {weddingId}</h2>
+              {isMobile && (
+                <button 
+                  className={styles.hamburgerButton} 
+                  onClick={() => setIsMobileNavOpen(true)}
+                  aria-label="Open navigation menu"
+                  disabled={isMobileNavOpen}
+                >
+                  <div />
+                  <div />
+                  <div />
+                </button>
+              )}
+            </div>
             <nav className={styles.nav}>
-              <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} style={{marginRight: '10px'}}>How To</button>
-              <button onClick={() => navigate(`/${weddingId}/setup/experience`)} style={{marginRight: '10px'}}>Experience Setup</button>
-              <button onClick={() => navigate(`/${weddingId}/setup/images`)} style={{marginRight: '10px'}}>Image Management</button>
-              <button onClick={() => navigate(`/${weddingId}/setup/layout`)} style={{marginRight: '10px'}}>Advanced Layout Setup</button>
-              <button onClick={() => navigate(`/${weddingId}/setup/account`)} style={{marginRight: '10px'}}>Account Settings</button>
-              {/* <Link to="/admin/dashboard" className={styles.navLink}>Admin Dashboard</Link> */}
-              {/* Add other setup navigation links here if needed */}
-              <hr style={{margin: '15px 0'}} />
+              {!isMobile && (
+                <>
+                  <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/images`)} className={styles.navButton}>Image Management</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
+                  <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
+                </>
+              )}
+              {/* Conditionally render hr OR ensure nav itself has no height when empty on mobile */}
             </nav>
           </header>
         )}
@@ -147,9 +166,19 @@ const SetupLayout = () => {
             Editing: {isMobile ? 'Mobile View' : 'Desktop View'}
           </div>
         )}
-        <main className={isExperienceSetupPage ? styles.mainContentFullWidth : styles.mainContent}>
+        <main 
+          className={isExperienceSetupPage ? styles.mainContentFullWidth : styles.mainContent}
+          style={isExperienceSetupPage ? { flexGrow: 1, display: 'flex' } : { flexGrow: 1 }} // Ensure main content can grow, and set display flex for ExperiencePage parent
+        >
           <Outlet />
         </main>
+        {isMobile && 
+          <MobileNavModal 
+            isOpen={isMobileNavOpen} 
+            onClose={() => setIsMobileNavOpen(false)} 
+            weddingId={weddingId} 
+          />
+        }
       </div>
     </SetupAuthContext.Provider>
   );

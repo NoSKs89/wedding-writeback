@@ -1,14 +1,32 @@
 /* Basic styles for SetupLayout - add more as needed */
 .header {
-    padding: 1rem;
+    padding: 0.5rem 1rem;
     background-color: #f0f0f0;
     border-bottom: 1px solid #ddd;
+    text-align: center;
 }
 
 .nav {
     display: flex;
-    gap: 1rem;
+    gap: 0.5rem;
     align-items: center;
+    justify-content: center;
+    overflowX: 'auto';
+    flexWrap: 'nowrap';
+    paddingBottom: '5px';
+    min-height: auto;
+}
+
+/* Remove padding from nav when it only contains the (now conditionally rendered) hr or nothing on mobile */
+@media (max-width: 768px) {
+    .nav {
+        padding: 0;
+        margin-top: 0;
+        min-height: 0;
+    }
+    .nav hr {
+        display: none;
+    }
 }
 
 .navLink {
@@ -20,10 +38,70 @@
     text-decoration: underline;
 }
 
+.navButton {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    color: #333;
+    text-decoration: none;
+}
+
+.navButton:hover {
+    background-color: #f8f8f8;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.navButton:active {
+    background-color: #eee;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+    transform: translateY(1px);
+}
+
+.hamburgerButton {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-around;
+    width: 2rem;
+    height: 2rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    z-index: 10000; /* Ensure it's below the modal backdrop when modal is open */
+}
+
+.hamburgerButton:focus {
+    outline: none;
+}
+
+.hamburgerButton div {
+    width: 2rem;
+    height: 0.25rem;
+    background: #333; /* Hamburger line color */
+    border-radius: 10px;
+    transition: all 0.3s linear;
+    position: relative;
+    transform-origin: 1px;
+}
+
+/* Styles for when the modal might be open - could be used for animation */
+/* .hamburgerButton.open div:nth-child(1) { transform: rotate(45deg); } */
+/* .hamburgerButton.open div:nth-child(2) { opacity: 0; transform: translateX(20px); } */
+/* .hamburgerButton.open div:nth-child(3) { transform: rotate(-45deg); } */
+
 .mainContent {
     padding: 1rem;
+    /* flex-grow: 1; If this class is used, ensure it grows too */
 }
 
 .mainContentFullWidth {
     padding: 0;
+    /* flex-grow: 1; This is now handled inline in SetupLayout.js */
+    /* display: flex; This is now handled inline in SetupLayout.js */
+    background-color: #E9ecce; /* Moved background color here */
 } 
