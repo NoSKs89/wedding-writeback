@@ -8,43 +8,38 @@ import RSVPForm from './RSVPForm';
 import styles from './styles.module.css';
 import '../App.css';
 import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
-import ParallaxBackgroundImage from './ParallaxBackgroundImage';
+// import ParallaxBackgroundImage from './ParallaxBackgroundImage'; // Comment out for now
 import { useTrackedControls } from '../hooks/useTrackedControls';
 import { useLevaStore, LevaFolderSchema } from '../stores/levaStore';
 import { useSetupMode } from '../contexts/SetupModeContext';
+import { ElementConfig, TimelineMarker } from './ExperienceSetupPage/ExperienceSetupPage'; // Import new types
 
 // Type Definitions
 interface WeddingData {
   brideName: string;
   groomName: string;
   weddingDate: string;
-  introBackground: string;
-  introCouple: string;
+  introBackground: string; // Still used for a static background for now
+  introCouple: string; // Still used for a static intro image for now
   rsvpEndpoint: string;
   id: string | number;
   isPlated?: boolean;
   platedOptions?: any[];
+  eventName?: string; // Added from previous changes
+  // experienceSettings will be passed as a separate prop
 }
 
-// This interface should match the AnimControlValues in ParallaxBackgroundImage.tsx
-interface BackgroundAnimControlValues {
-  opacityGentleEnd: number;
-  opacityTargetAtGentleEnd: number;
-  opacityDrasticStartPixels: number;
-  opacityTargetAtDrasticStart: number;
-  opacityFullTransparent: number;
-  translateYThreshold: number;
-  translateYMultiplier: number;
-  scaleInitialRate: number;
-  scaleDrasticStartPx: number;
-  scaleDrasticRate: number;
-  borderRadiusStartScrollY: number;
-  clipPathVanishScrollY: number;
+// NEW: Interface for Experience Settings Prop
+interface ExperienceSettingsData {
+  elements: ElementConfig[];
+  markers: TimelineMarker[];
+  timelineLength: number; // This might define the total scroll length or pages
 }
 
 interface WeddingJourneyProps {
   weddingData: WeddingData;
   resolvedScrapbookImages: string[];
+  experienceSettings: ExperienceSettingsData; // Add new prop
 }
 
 // Updated FocusedImageState for precise animation control
@@ -87,194 +82,28 @@ const springConfigPresets = {
   strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
 };
 
-// Helper functions for color manipulation
-function hexToRgb(hex: string): number[] | null {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result ? [
-    parseInt(result[1], 16),
-    parseInt(result[2], 16),
-    parseInt(result[3], 16)
-  ] : null;
-}
-
-function rgbToCss(r: number, g: number, b: number): string {
-  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)})`;
-}
-
-// Define the schema for Leva controls
-const backgroundAnimationSchema: LevaFolderSchema = {
-  opacityGentleEnd: { value: 500, min: 0, max: 5000, step: 10, label: 'Opacity Gentle End (px)' },
-  opacityTargetAtGentleEnd: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Opacity at Gentle End' },
-  opacityDrasticStartPixels: { value: 700, min: 0, max: 5000, step: 10, label: 'Opacity Drastic Start (px)' },
-  opacityTargetAtDrasticStart: { value: 0.3, min: 0, max: 1, step: 0.01, label: 'Opacity at Drastic Start' },
-  opacityFullTransparent: { value: 900, min: 0, max: 5000, step: 10, label: 'Opacity Full Transparent (px)' },
-  translateYThreshold: { value: 200, min: 0, max: 5000, step: 10, label: 'Translate Y Start (px)' },
-  translateYMultiplier: { value: 650, min: 0, max: 1000, step: 10, label: 'Translate Y Multiplier (%)' },
-  scaleInitialRate: { value: 4, min: 0, max: 50, step: 0.1, label: 'Initial Scale Rate' },
-  scaleDrasticStartPx: { value: 494, min: 0, max: 5000, step: 1, label: 'Drastic Scale Start (px)' },
-  scaleDrasticRate: { value: 10.6, min: 0, max: 100, step: 0.1, label: 'Drastic Scale Rate' },
-  borderRadiusStartScrollY: { value: 500, min: 0, max: 5000, step: 10, label: 'ClipPath Start Shrink (px)' },
-  clipPathVanishScrollY: { value: 597, min: 0, max: 5000, step: 10, label: 'ClipPath Vanish End (px)' },
-};
-
-// NEW: Schema for BackgroundColor Leva controls
-const backgroundColorControlsSchema: LevaFolderSchema = {
-  colorStop1_Bottom: { value: '#ff3c00', label: 'Stop 1 Bottom' },
-  colorStop1_Top:    { value: '#ff7e33', label: 'Stop 1 Top' },
-  colorStop2_Bottom: { value: '#ff5a00', label: 'Stop 2 Bottom' },
-  colorStop2_Top:    { value: '#ff9966', label: 'Stop 2 Top' },
-  colorStop3_Bottom: { value: '#ff7043', label: 'Stop 3 Bottom' },
-  colorStop3_Top:    { value: '#ffc107', label: 'Stop 3 Top' },
-  colorStop4_Bottom: { value: '#ff5722', label: 'Stop 4 Bottom' },
-  colorStop4_Top:    { value: '#ffab91', label: 'Stop 4 Top' },
-  colorStop5_Bottom: { value: '#ff3c00', label: 'Stop 5 Bottom (Loop)' },
-  colorStop5_Top:    { value: '#ff7e33', label: 'Stop 5 Top (Loop)' },
-  // gradientAngle: { value: 0, min: 0, max: 360, label: 'Gradient Angle (deg)'} // Example if we add angle later
-};
-
-// NEW: Schema for Scrapbook Layout Leva controls
-const scrapbookControlsSchema: LevaFolderSchema = {
-  angleMin: { value: -6, min: -90, max: 90, step: 1, label: 'Min Angle (deg)' },
-  angleMax: { value: 15, min: -90, max: 90, step: 1, label: 'Max Angle (deg)' },
-  radiusFactor: { value: 95, min: 20, max: 300, step: 1, label: 'Spread Radius (%)' },
-  sizeMinPx: { value: 110, min: 50, max: 500, step: 10, label: 'Min Size (px)' },
-  sizeRangePx: { value: 160, min: 0, max: 400, step: 10, label: 'Size Range (px)' },
-  scrollAngleSensitivityMin: { value: 0.0001, min: 0.00001, max: 0.01, step: 0.00001, label: 'Min Scroll Tilt Speed' },
-  scrollAngleSensitivityMax: { value: 0.002, min: 0.00001, max: 0.01, step: 0.00001, label: 'Max Scroll Tilt Speed' },
-  maxImages: { value: 20, min: 1, max: 100, step: 1, label: 'Max Images to Display' },
-};
-
-// NEW: Schema for Scrapbook Parallax Movement Leva controls
-const scrapbookMovementControlsSchema: LevaFolderSchema = {
-  minXMovementSensitivity: { value: -0.08, min: -0.4, max: 0.4, step: 0.01, label: 'Min X Parallax Sens.' },
-  maxXMovementSensitivity: { value: 0.17, min: -0.4, max: 0.4, step: 0.01, label: 'Max X Parallax Sens.' },
-  minYMovementSensitivity: { value: -0.2, min: -0.4, max: 0.4, step: 0.01, label: 'Min Y Parallax Sens.' },
-  maxYMovementSensitivity: { value: 0.23, min: -0.4, max: 0.4, step: 0.01, label: 'Max Y Parallax Sens.' },
-  minZMovementSensitivity: { value: -0.0001, min: -0.001, max: 0.001, step: 0.000001, label: 'Min Z Parallax Sens.' },
-  maxZMovementSensitivity: { value: 0.0001, min: -0.001, max: 0.001, step: 0.000001, label: 'Max Z Parallax Sens.' },
-  baseItemScale: { value: 1, min: 0.1, max: 2, step: 0.05, label: 'Base Item Scale' },
-  movementScrollCap: { value: 7150, min: 200, max: 10000, step: 50, label: 'Scroll Cap for Movement (px)'}
-};
-
-// NEW: Schema for Intro Image Leva controls
-const introImageControlsSchema: LevaFolderSchema = {
-  introImageScaleStart: { value: 1, min: 0.1, max: 5, step: 0.05, label: 'Start Scale' },
-  introImageScaleEnd: { value: 1.2, min: 0.1, max: 5, step: 0.05, label: 'End Scale (at Effect End Y)' },
-  introImageYOffsetStartPx: { value: 0, min: -500, max: 500, step: 1, label: 'Start Y Offset (px)' },
-  introImageYOffsetEndPx: { value: 50, min: -500, max: 500, step: 1, label: 'End Y Offset (px, at Effect End Y)' },
-  introImageOpacityStartScroll: { value: 0, min: 0, max: 3000, step: 10, label: 'Opacity Fade Start Y (scroll)' },
-  introImageOpacityEndScroll: { value: 500, min: 0, max: 3000, step: 10, label: 'Opacity Fade End Y (scroll)' },
-  introImageEffectEndScroll: { value: 1000, min: 0, max: 5000, step: 10, label: 'Scale/Y Effect End Y (scroll)' },
-};
 
 // Modify overallControlsSchemaDefinition slightly for clarity with isSetupMode
 const overallControlsSchemaDefinition = (isSetupModeFromContext: boolean): LevaFolderSchema => ({
   showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' }, // Default based on setup mode
   toggleGuideLines: { value: isSetupModeFromContext, label: 'Toggle Guide Lines' }, // Default based on setup mode
-  springPreset: { 
+  springPreset: {
     value: 'default', // Default preset key
     options: Object.keys(springConfigPresets), // Use keys from our presets
     label: 'Animation Physics Preset',
-    // Optional: render function to display names if keys are not user-friendly
-    // render: (get) => springConfigPresets[get('springPreset')]?.name || get('springPreset'),
   }
 });
 
-// Updated generateScrapbookImageStyle to use Leva controls
-const generateScrapbookImageStyle = (
-  index: number, 
-  totalImages: number, 
-  currentWindow: Window | undefined,
-  controls: {
-    angleMin: number; // For individual image tilt
-    angleMax: number; // For individual image tilt
-    radiusFactor: number; // For circular placement radius
-    sizeMinPx: number;
-    sizeRangePx: number;
-  }
-): React.CSSProperties => {
-  const { angleMin, angleMax, radiusFactor, sizeMinPx, sizeRangePx } = controls;
-
-  const imageWidthPx = Math.random() * sizeRangePx + sizeMinPx;
-  // Assuming aspect ratio is roughly 1 for height, or using auto-height.
-  // For centering adjustment, we'll primarily use imageWidthPx.
-
-  let individualImageTiltDeg = 0;
-  const minTilt = Math.min(angleMin, angleMax);
-  const maxTilt = Math.max(angleMin, angleMax);
-  if (Math.random() < 0.8) { // 80% chance of being tilted
-    individualImageTiltDeg = Math.random() * (maxTilt - minTilt) + minTilt;
-  }
-
-  const effectiveWindowWidth = typeof currentWindow !== 'undefined' ? currentWindow.innerWidth : 1000;
-  const effectiveWindowHeight = typeof currentWindow !== 'undefined' ? currentWindow.innerHeight : 1000;
-
-  // Circular placement logic
-  const centerXPercent = 50;
-  const centerYPercent = 50;
-
-  // radiusFactor (0-100) determines how spread out. 
-  // If 100, images can reach edges. Max radius is 50% of min(viewportWidth, viewportHeight)
-  // To make radiusFactor more intuitive for spread:
-  // Let radiusFactor=100 mean images can spread to 90% of the container radius (45% from center)
-  // Let radiusFactor=0 mean images are very close to center (e.g. 5% radius)
-  const minPlacementRadiusPercent = 5; 
-  const maxPlacementRadiusPercent = 45; // Max distance from center for the *average* image
-  
-  const basePlacementRadiusPercent = minPlacementRadiusPercent + (radiusFactor / 100) * (maxPlacementRadiusPercent - minPlacementRadiusPercent);
-
-  // Add some randomness to the radius for each image
-  const radiusJitterPercent = (Math.random() - 0.5) * basePlacementRadiusPercent * 0.4; // +/- 20% of base radius
-  const actualPlacementRadiusPercent = Math.max(0, basePlacementRadiusPercent + radiusJitterPercent);
-
-  const placementAngleRad = (index / totalImages) * 2 * Math.PI + (Math.random() - 0.5) * 0.3; // Add slight angle jitter
-
-  // Calculate position based on a circular distribution.
-  // We need to consider if the container is not square.
-  // For now, use actualPlacementRadiusPercent for both axes, which will look elliptical on non-square viewports.
-  let leftPercent = centerXPercent + actualPlacementRadiusPercent * Math.cos(placementAngleRad);
-  let topPercent = centerYPercent + actualPlacementRadiusPercent * Math.sin(placementAngleRad);
-
-  // Adjust for image size to center the image on the calculated point
-  const imageWidthAsPercentOfContainer = (imageWidthPx / effectiveWindowWidth) * 100;
-  // Assuming roughly square images for height adjustment, or that 'height: auto' will manage aspect ratio.
-  // For a more accurate centering of height, we'd need naturalHeight or assume aspect ratio.
-  // Let's estimate imageHeightAsPercentOfContainer similar to width for centering.
-  // This is an approximation if height is 'auto' and aspect ratios vary wildly.
-  const imageHeightAsPercentOfContainer = (imageWidthPx / effectiveWindowHeight) * 100; 
-
-  leftPercent -= imageWidthAsPercentOfContainer / 2;
-  topPercent -= imageHeightAsPercentOfContainer / 2;
-  
-  // Clamping (slightly adjusted to be relative to image size for better visibility)
-  // Allow up to 90% of the image to be off-screen
-  const visblePortion = 10; // 10% of image must be visible
-  topPercent = Math.max(-imageHeightAsPercentOfContainer + visblePortion, Math.min(topPercent, 100 - visblePortion));
-  leftPercent = Math.max(-imageWidthAsPercentOfContainer + visblePortion, Math.min(leftPercent, 100 - visblePortion));
-
-  return {
-    position: 'absolute',
-    width: `${imageWidthPx}px`,
-    height: 'auto', // Keep height auto to respect aspect ratio
-    boxShadow: '3px 3px 10px rgba(0,0,0,0.2)',
-    border: '5px solid white',
-    transform: `rotate(${individualImageTiltDeg}deg)`,
-    top: `${topPercent}%`,
-    left: `${leftPercent}%`,
-    opacity: 0.8, // Base opacity
-    transition: 'transform 0.3s ease-out',
-  };
-};
 
 // Helper function to parse rotation from transform string
 const parseRotationFromStyle = (transformString?: string | number): number => {
   if (typeof transformString === 'number') return transformString;
   if (!transformString) return 0;
-  const rotateMatch = transformString.match(/rotate\(([-\d.]+)deg\)/);
+  const rotateMatch = transformString.match(/rotate\\(([-\\d.]+)deg\\)/);
   return rotateMatch && rotateMatch[1] ? parseFloat(rotateMatch[1]) : 0;
 };
 
-const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages }) => {
+const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedScrapbookImages, experienceSettings }) => {
   const { isSetupMode } = useSetupMode();
   const location = useLocation();
 
@@ -290,11 +119,11 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   const [scrollY, setScrollY] = useState(0);
   const [currentWindow, setCurrentWindow] = useState<Window | undefined>(undefined);
 
-  // --- State for Focused Image Logic ---
+  // --- State for Focused Image Logic (Scrapbook - can remain for now) ---
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
-  const [lastPutDownIndex, setLastPutDownIndex] = useState<number | null>(null); // New state
+  const [lastPutDownIndex, setLastPutDownIndex] = useState<number | null>(null);
   // --- End State for Focused Image Logic ---
 
   const [imageNaturalDimensions, setImageNaturalDimensions] = useState<Array<{width: number; height: number; src: string}>>([]);
@@ -317,62 +146,38 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
     }
   }, []);
 
+  // Effect for loading natural dimensions of scrapbook images (can remain)
   useEffect(() => {
-    let isMounted = true; // To prevent state updates on unmounted component or from stale effects
-    console.log('WeddingJourney resolvedScrapbookImages effect running. Length:', resolvedScrapbookImages ? resolvedScrapbookImages.length : 0);
-
+    let isMounted = true;
     if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) {
-      if (isMounted) {
-        setImageNaturalDimensions([]);
-        console.log('Cleared image natural dimensions due to empty resolvedScrapbookImages.');
-      }
+      if (isMounted) setImageNaturalDimensions([]);
     } else {
-      // Ensure refs array is sized correctly - This might be better placed elsewhere or be more resilient
-      // For now, let's assume it's handled or verify its necessity later.
-      // scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
-
-      const dimensionsPromises = resolvedScrapbookImages.map(src => {
-        return new Promise<{width: number; height: number; src: string}>((resolve) => {
+      const dimensionsPromises = resolvedScrapbookImages.map(src =>
+        new Promise<{width: number; height: number; src: string}>((resolve) => {
           if (!src) {
-            console.warn("A null or empty image source was provided for dimension loading.");
-            resolve({ width: 0, height: 0, src: src || '' }); // Ensure src is a string
-            return;
+            resolve({ width: 0, height: 0, src: src || '' }); return;
           }
           const img = new Image();
           img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src });
           img.onerror = () => {
-            console.error(`Failed to load image for dimensions: ${src}`);
-            resolve({ width: 0, height: 0, src }); // Resolve with 0 dimensions on error
+            console.error('Failed to load image for dimensions: ' + src);
+            resolve({ width: 0, height: 0, src });
           };
           img.src = src;
-        });
-      });
-
+        })
+      );
       Promise.all(dimensionsPromises).then(dims => {
-        if (isMounted) {
-          // More detailed logging for the dimensions being set
-          console.log('WJ: DimLoadEffect - SUCCESS. Dims to be set (first 3): ', JSON.stringify(dims.slice(0,3)));
-          if (dims.length > 0 && dims.every(d => d.width === 0 && d.height === 0)) {
-            console.warn("WJ: DimLoadEffect - WARNING: All loaded image dimensions are 0x0. Check image sources/paths.");
-          }
-          setImageNaturalDimensions(dims);
-        } else {
-          console.log('WJ: DimLoadEffect - SKIPPED setting dimensions (effect was stale). Dims would have been (first 3):', JSON.stringify(dims.slice(0,3)));
-        }
+        if (isMounted) setImageNaturalDimensions(dims);
       }).catch(error => {
         if (isMounted) {
           console.error("Error loading image dimensions:", error);
-          // Set to an array of zero dimensions matching the structure
           setImageNaturalDimensions(resolvedScrapbookImages.map(s => ({ width:0, height:0, src: s || ''})));
-        } else {
-          console.log('Skipped setting error image dimensions, effect was stale.');
         }
       });
     }
-    return () => {
-      isMounted = false; // Cleanup when effect re-runs or component unmounts
-    };
+    return () => { isMounted = false; };
   }, [resolvedScrapbookImages]);
+
 
   const updateScrollPosition = useCallback(() => {
     if (parallaxRef.current && parallaxRef.current.container.current) {
@@ -394,718 +199,264 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   // Initialize overallControlsSchema with the current setup mode
   const overallControlsSchema = useMemo(() => overallControlsSchemaDefinition(isSetupMode), [isSetupMode]);
 
-  // --- Leva Controls ---
-  // IMPORTANT: Overall Controls should be registered first for ordering
   const overallControls = useTrackedControls(
-    'Overall Controls', // Store key & Leva folder title
+    'Overall Controls',
     overallControlsSchema,
     { collapsed: isSetupMode, hidden: !isSetupMode }
   );
 
-  // overallControls?.values needs to be defined before this block
   const overallControlsValues = overallControls?.values || {};
-  const { 
-    showHUD: showGlobalHUDEnabled = overallControlsSchemaDefinition(isSetupMode).showHUD.value, 
+  const {
+    showHUD: showGlobalHUDEnabled = overallControlsSchemaDefinition(isSetupMode).showHUD.value,
     toggleGuideLines: guideLinesEnabled = overallControlsSchemaDefinition(isSetupMode).toggleGuideLines.value,
     springPreset: selectedSpringPresetKey = overallControlsSchemaDefinition(isSetupMode).springPreset.value
   } = overallControlsValues;
 
-  // Derive the active spring configuration object (MOVED EARLIER)
   const activeSpringConfig = springConfigPresets[selectedSpringPresetKey as keyof typeof springConfigPresets] || springConfigPresets.default;
   const activeSpringConfigName = activeSpringConfig.name;
 
-  // --- Scrapbook Controls ---
-  const scrapbookControls = useTrackedControls(
-    'Scrapbook Layout', // Store key for Leva folder title
-    scrapbookControlsSchema, // The schema definition
-    { collapsed: isSetupMode, hidden: !isSetupMode } // Options: collapsed by default in setup, hidden otherwise
-  );
 
-  const scrapbookMovementControls = useTrackedControls(
-    'Scrapbook Movement',
-    scrapbookMovementControlsSchema,
-    { collapsed: isSetupMode, hidden: !isSetupMode }
-  );
-
-  // --- Background Animation Controls ---
-  const backgroundAnimControls = useTrackedControls(
-    'Background Animation',
-    backgroundAnimationSchema,
-    { collapsed: isSetupMode, hidden: !isSetupMode }
-  );
-
-  // --- Background Color Controls ---
-  const backgroundColorControls = useTrackedControls(
-    'Background Colors',
-    backgroundColorControlsSchema,
-    { collapsed: isSetupMode, hidden: !isSetupMode }
-  );
-
-  // NEW: Intro Image Controls
-  const introImageControls = useTrackedControls(
-    'Intro Image Controls',
-    introImageControlsSchema,
-    { collapsed: isSetupMode, hidden: !isSetupMode }
-  );
-
-  // --- Access data from Zustand store for HUD ---
-  // New Approach: Select individual pieces and memoize/construct manually
-  const controlValuesFromStore = useLevaStore(state => state.controlValues);
-  const changedKeysFromStore = useLevaStore(state => state.changedKeys);
-  const schemasFromStore = useLevaStore(state => state.schemas);
-
-  // Local state to hold our combined object for HUD dependencies
-  // This local state itself isn't strictly needed if hudData's useMemo directly uses the store pieces.
-  // However, if storeDataForHUD was used elsewhere, this pattern would be useful.
-  // For now, we'll simplify and have hudData's useMemo depend directly on the store pieces.
-
-  // Memoize the result of getDisplayDataForHUD
+  // --- HUD DATA ---
   const hudData = React.useMemo(() => {
-    console.log("[WeddingJourney] Recalculating hudData memo");
-    // getState() is fine here as useMemo dependencies handle re-computation.
     return useLevaStore.getState().getDisplayDataForHUD();
-    // Depend directly on the pieces from the store that getDisplayDataForHUD implicitly depends on.
-  }, [controlValuesFromStore, changedKeysFromStore, schemasFromStore]);
+  }, [useLevaStore(state => state.controlValues), useLevaStore(state => state.changedKeys), useLevaStore(state => state.schemas)]);
 
-  // Calculations for HUD display (derived from animControls and scrollY)
-  const opacityFullTransparent_HUD = backgroundAnimControls?.values?.opacityFullTransparent;
-  const opacityGentleEnd_HUD = backgroundAnimControls?.values?.opacityGentleEnd;
-  const opacityTargetAtGentleEnd_HUD = backgroundAnimControls?.values?.opacityTargetAtGentleEnd;
-  const opacityDrasticStartPixels_HUD = backgroundAnimControls?.values?.opacityDrasticStartPixels;
-  const opacityTargetAtDrasticStart_HUD = backgroundAnimControls?.values?.opacityTargetAtDrasticStart;
-  const scaleDrasticStartPx_HUD = backgroundAnimControls?.values?.scaleDrasticStartPx;
-  const scaleInitialRate_HUD = backgroundAnimControls?.values?.scaleInitialRate;
-  const scaleDrasticRate_HUD = backgroundAnimControls?.values?.scaleDrasticRate;
-  const translateYThreshold_HUD = backgroundAnimControls?.values?.translateYThreshold;
-  const translateYMultiplier_HUD = backgroundAnimControls?.values?.translateYMultiplier;
-  const borderRadiusStartScrollY_HUD = backgroundAnimControls?.values?.borderRadiusStartScrollY;
-  const clipPathVanishScrollY_HUD = backgroundAnimControls?.values?.clipPathVanishScrollY;
+  // --- Simplified Parallax Page Calculation ---
+  const TOTAL_PAGES = experienceSettings.timelineLength > 0 ? experienceSettings.timelineLength / (currentWindow?.innerHeight || 700) : 3;
 
-  let calculatedBackgroundOpacity_HUD = 1.0;
-  if (scrollY <= 0) {
-    calculatedBackgroundOpacity_HUD = 1.0;
-  } else if (opacityGentleEnd_HUD > 0 && scrollY <= opacityGentleEnd_HUD) {
-    const progress = scrollY / opacityGentleEnd_HUD;
-    calculatedBackgroundOpacity_HUD = 1.0 - progress * (1.0 - opacityTargetAtGentleEnd_HUD);
-  } else if (scrollY > opacityGentleEnd_HUD && scrollY <= opacityDrasticStartPixels_HUD) {
-    const durationOfMediumFade = opacityDrasticStartPixels_HUD - opacityGentleEnd_HUD;
-    if (durationOfMediumFade > 0) {
-      const progressInMediumFade = (scrollY - opacityGentleEnd_HUD) / durationOfMediumFade;
-      calculatedBackgroundOpacity_HUD = opacityTargetAtGentleEnd_HUD - progressInMediumFade * (opacityTargetAtGentleEnd_HUD - opacityTargetAtDrasticStart_HUD);
-    } else {
-      calculatedBackgroundOpacity_HUD = (scrollY > opacityGentleEnd_HUD) ? opacityTargetAtDrasticStart_HUD : opacityTargetAtGentleEnd_HUD;
+  // Dummy/default style generation for scrapbook if Leva controls are removed
+  const generateScrapbookImageStyle = useCallback((
+    index: number, totalImages: number, currentWindow: Window | undefined,
+    _controls: any // Dummy controls for now, marked as unused
+  ): React.CSSProperties => {
+    const angle = (Math.random() - 0.5) * 20; // Random angle -10 to 10
+    const size = 100 + Math.random() * 50; // Size 100px to 150px
+    const radius = (currentWindow ? Math.min(currentWindow.innerWidth, currentWindow.innerHeight) * 0.3 : 200) * (0.5 + Math.random() * 0.5);
+    const x = Math.cos((index / totalImages) * 2 * Math.PI) * radius + (currentWindow ? currentWindow.innerWidth / 2 : 500) - size / 2;
+    const y = Math.sin((index / totalImages) * 2 * Math.PI) * radius + (currentWindow ? currentWindow.innerHeight / 2 : 400) - size / 2;
+
+    return {
+      position: 'absolute',
+      width: `${size}px`, height: 'auto',
+      top: `${y}px`, left: `${x}px`,
+      transform: `rotate(${angle}deg)`,
+      border: '5px solid white', boxShadow: '3px 3px 10px rgba(0,0,0,0.2)',
+      opacity: 0.8,
+    };
+  }, []); // Added dependency array for useCallback
+
+  // --- Process experienceSettings to create renderable elements ---
+  const renderableElements = useMemo(() => {
+    if (!experienceSettings || !experienceSettings.elements || !experienceSettings.markers) {
+      return [];
     }
-  } else if (scrollY > opacityDrasticStartPixels_HUD && scrollY <= opacityFullTransparent_HUD) {
-    const durationOfDrasticFade = opacityFullTransparent_HUD - opacityDrasticStartPixels_HUD;
-    if (durationOfDrasticFade > 0) {
-      const progressInDrasticFade = (scrollY - opacityDrasticStartPixels_HUD) / durationOfDrasticFade;
-      calculatedBackgroundOpacity_HUD = opacityTargetAtDrasticStart_HUD - progressInDrasticFade * opacityTargetAtDrasticStart_HUD;
-    } else {
-      calculatedBackgroundOpacity_HUD = (scrollY > opacityDrasticStartPixels_HUD) ? 0.0 : opacityTargetAtDrasticStart_HUD;
-    }
-  } else if (scrollY > opacityFullTransparent_HUD) {
-    calculatedBackgroundOpacity_HUD = 0.0;
-  }
-  const backgroundOpacity_HUD = Math.min(1, Math.max(0, calculatedBackgroundOpacity_HUD));
+    return experienceSettings.elements
+      .filter(el => el.type === 'text' || el.type === 'photo' || el.type === 'background-image') // Include 'background-image'
+      .map(element => {
+        const startMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'start');
+        const endMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'end');
 
-  let scaleIncrease_HUD = 0;
-  const FADE_OUT_SCROLL_RANGE_PIXELS_HUD = opacityFullTransparent_HUD;
-  const overallScrollProgress_HUD = FADE_OUT_SCROLL_RANGE_PIXELS_HUD > 0 ? Math.min(1, Math.max(0, scrollY / FADE_OUT_SCROLL_RANGE_PIXELS_HUD)) : 0;
-  const scaleThresholdProgress_HUD = FADE_OUT_SCROLL_RANGE_PIXELS_HUD > 0 ? Math.min(1, Math.max(0, scaleDrasticStartPx_HUD / FADE_OUT_SCROLL_RANGE_PIXELS_HUD)) : 0;
+        if (!startMarker || !endMarker) return null;
 
-  if (scaleDrasticStartPx_HUD <= 0 || overallScrollProgress_HUD <= scaleThresholdProgress_HUD || scaleDrasticStartPx_HUD >= FADE_OUT_SCROLL_RANGE_PIXELS_HUD) {
-    scaleIncrease_HUD = scaleInitialRate_HUD * overallScrollProgress_HUD;
-  } else {
-    const scaleAtThresholdPoint = scaleInitialRate_HUD * scaleThresholdProgress_HUD;
-    const progressAfterThreshold = overallScrollProgress_HUD - scaleThresholdProgress_HUD;
-    const remainingProgressRangeForDrasticScale = 1 - scaleThresholdProgress_HUD;
-    if (remainingProgressRangeForDrasticScale > 0) {
-         scaleIncrease_HUD = scaleAtThresholdPoint + scaleDrasticRate_HUD * progressAfterThreshold;
-    } else {
-        scaleIncrease_HUD = scaleAtThresholdPoint;
-    }
-  }
-  const currentScale_HUD = 1 + scaleIncrease_HUD;
+        const offset = startMarker.position * (TOTAL_PAGES -1) ;
+        const endPage = endMarker.position * (TOTAL_PAGES-1) ;
+        // const durationInPages = Math.max(0.1, endPage - offset);
 
-  let currentTranslateY_HUD = 0;
-  if (scrollY > translateYThreshold_HUD) {
-    const effectiveScrollRangeForTranslate = FADE_OUT_SCROLL_RANGE_PIXELS_HUD - translateYThreshold_HUD;
-    if (effectiveScrollRangeForTranslate > 0) {
-      const scrollYAfterThreshold = scrollY - translateYThreshold_HUD;
-      const translateYProgress = Math.min(1, Math.max(0, scrollYAfterThreshold / effectiveScrollRangeForTranslate));
-      currentTranslateY_HUD = translateYMultiplier_HUD * translateYProgress;
-    } else {
-      currentTranslateY_HUD = (scrollY > translateYThreshold_HUD) ? translateYMultiplier_HUD : 0;
-    }
-  } else {
-    currentTranslateY_HUD = 0;
-  }
+        return {
+          ...element,
+          key: `exp-el-${element.id}`,
+          pageOffset: offset,
+          sticky: { start: offset, end: endPage }
+        };
+      }).filter(el => el !== null) as Array<ElementConfig & { key: string; pageOffset: number; sticky: { start: number; end: number; } }>; // Added type assertion
+  }, [experienceSettings, TOTAL_PAGES, generateScrapbookImageStyle]);
 
-  let calculatedClipPathValue_HUD = 'circle(70.7107% at 50% 50%)';
-  const localRoundingStart_HUD = borderRadiusStartScrollY_HUD;
-  const localRoundingEnd_HUD = clipPathVanishScrollY_HUD;
 
-  if (currentWindow && localRoundingEnd_HUD > localRoundingStart_HUD && scrollY > localRoundingStart_HUD) {
-    const linearProgress = Math.min(1, Math.max(0, (scrollY - localRoundingStart_HUD) / (localRoundingEnd_HUD - localRoundingStart_HUD)));
-    const easedProgress = Math.pow(linearProgress, 0.5);
-    const w = currentWindow.innerWidth;
-    const h = currentWindow.innerHeight;
-    const R_start_px = Math.sqrt(Math.pow(w / 2, 2) + Math.pow(h / 2, 2));
-    const current_R_px = R_start_px * (1 - easedProgress);
-    const referenceLengthForCirclePercentage = Math.sqrt(Math.pow(w, 2) + Math.pow(h, 2)) / Math.sqrt(2);
-    let current_R_percentage = 70.7107;
-    if (referenceLengthForCirclePercentage > 0) {
-        current_R_percentage = (current_R_px / referenceLengthForCirclePercentage) * 100;
-    }
-    calculatedClipPathValue_HUD = `circle(${current_R_percentage.toFixed(2)}% at 50% 50%)`;
-  } else if (currentWindow && scrollY >= localRoundingEnd_HUD && localRoundingEnd_HUD > localRoundingStart_HUD) {
-    calculatedClipPathValue_HUD = 'circle(0% at 50% 50%)';
-  } else if (scrollY <= localRoundingStart_HUD) {
-    calculatedClipPathValue_HUD = 'circle(70.7107% at 50% 50%)';
-  }
-
-  const changedKeyDetailsOutput = useMemo(() => {
-    let details = "Change Defaults To:\n";
-    let hasChanges = false;
-    hudData.forEach(item => {
-      if (item.isChanged) {
-        hasChanges = true;
-        let formattedValue = String(item.value);
-        if (typeof item.value === 'number') {
-          formattedValue = Number(item.value.toFixed(3)).toString();
-        } else if (typeof item.value === 'string' && item.value.startsWith('#')) {
-          formattedValue = item.value;
-        }
-        details += `${item.label} (${item.folderName}/${item.key}): ${formattedValue}\n`;
-      }
-    });
-    return hasChanges ? details : "";
-  }, [hudData]);
-
-  // Memoize the scrapbook image styles
-  const memoizedScrapbookImageStyles = useMemo(() => {
-      if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-      const layoutControls = {
-      angleMin: scrapbookControls?.values?.angleMin,
-      angleMax: scrapbookControls?.values?.angleMax,
-      radiusFactor: scrapbookControls?.values?.radiusFactor,
-      sizeMinPx: scrapbookControls?.values?.sizeMinPx,
-      sizeRangePx: scrapbookControls?.values?.sizeRangePx,
-      };
-      // Ensure refs array is ready
-      // This will be handled by displayedImagesAndTheirData logic now
-      // if (scrapbookImageRefs.current.length !== resolvedScrapbookImages.length) {
-      //     scrapbookImageRefs.current = Array(resolvedScrapbookImages.length).fill(null);
-      // }
-      return resolvedScrapbookImages.map((_, index) => 
-      generateScrapbookImageStyle(index, resolvedScrapbookImages.length, currentWindow, layoutControls)
-      );
-  }, [resolvedScrapbookImages, currentWindow, scrapbookControls?.values?.angleMin, scrapbookControls?.values?.angleMax, scrapbookControls?.values?.radiusFactor, scrapbookControls?.values?.sizeMinPx, scrapbookControls?.values?.sizeRangePx]);
-
-  // NEW: Memoize scroll sensitivities for each image
-  const memoizedScrollSensitivities = useMemo(() => {
-      if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0) return [];
-      // Ensure scrapbookCtrl is initialized before accessing its properties
-      const minSens = scrapbookControls?.values?.scrollAngleSensitivityMin || 0.0001;
-      const maxSens = scrapbookControls?.values?.scrollAngleSensitivityMax || 0.002;
-      return resolvedScrapbookImages.map(() => 
-      Math.random() * (maxSens - minSens) + minSens
-      );
-  }, [resolvedScrapbookImages, scrapbookControls?.values?.scrollAngleSensitivityMin, scrapbookControls?.values?.scrollAngleSensitivityMax]);
-
-  // NEW: This will be our primary source for rendering scrapbook items
-  const displayedImagesAndTheirData = useMemo(() => {
+  // --- Scrapbook related memoizations (can remain for now) ---
+    const displayedImagesAndTheirData = useMemo(() => {
     if (!resolvedScrapbookImages || resolvedScrapbookImages.length === 0 || !currentWindow || imageNaturalDimensions.length === 0) {
-      // Ensure imageNaturalDimensions is also populated before proceeding
-      // or that resolvedScrapbookImages aligns with imageNaturalDimensions if it's partially loaded.
-      // For safety, check if imageNaturalDimensions has entries for all resolvedScrapbookImages
       const allDimsLoaded = resolvedScrapbookImages.every(src => imageNaturalDimensions.some(dim => dim.src === src && dim.width > 0 && dim.height > 0));
-      if (!allDimsLoaded && resolvedScrapbookImages.length > 0) {
-          // console.warn("WJ: displayedImagesAndTheirData - Not all natural dimensions loaded yet or mismatch. Waiting.");
-          return []; 
-      }
+      if (!allDimsLoaded && resolvedScrapbookImages.length > 0) return [];
       if (resolvedScrapbookImages.length === 0) return [];
     }
-  
-    const numImagesToDisplay = Math.min(scrapbookControls?.values?.maxImages, resolvedScrapbookImages.length);
+    // Max images for scrapbook can come from experienceSettings if a scrapbook element exists
+    const scrapbookElement = experienceSettings.elements.find(el => el.type === 'component' && el.name === 'Scrapbook');
+    const maxScrapbookImagesToShow = (typeof scrapbookElement?.content === 'object' && scrapbookElement.content && 'maxImages' in scrapbookElement.content)
+                                   ? (scrapbookElement.content as {maxImages: number}).maxImages
+                                   : 15; // Default if not set
+
+    const numImagesToDisplay = Math.min(maxScrapbookImagesToShow, resolvedScrapbookImages.length);
     let imagesToProcess: Array<{ src: string; originalIndex: number }> = [];
-  
+
     if (resolvedScrapbookImages.length <= numImagesToDisplay) {
       imagesToProcess = resolvedScrapbookImages.map((src, index) => ({ src, originalIndex: index }));
     } else {
-      // Shuffle resolvedScrapbookImages along with their original indices
       const indexedImages = resolvedScrapbookImages.map((src, index) => ({ src, originalIndex: index }));
       const shuffled = [...indexedImages].sort(() => 0.5 - Math.random());
       imagesToProcess = shuffled.slice(0, numImagesToDisplay);
     }
-    
-    const layoutStyleControls = {
-      angleMin: scrapbookControls?.values?.angleMin,
-      angleMax: scrapbookControls?.values?.angleMax,
-      radiusFactor: scrapbookControls?.values?.radiusFactor,
-      sizeMinPx: scrapbookControls?.values?.sizeMinPx,
-      sizeRangePx: scrapbookControls?.values?.sizeRangePx,
+   // Dummy values for scrapbook layout, as these controls are removed
+    const dummyScrapbookLayoutControls = {
+        angleMin: -5, angleMax: 5, radiusFactor: 90, sizeMinPx: 100, sizeRangePx: 150,
+        scrollAngleSensitivityMin: 0.001, scrollAngleSensitivityMax: 0.002
     };
-  
+    const dummyScrapbookMovementControls = {
+        minXMovementSensitivity: -0.1, maxXMovementSensitivity: 0.1,
+        minYMovementSensitivity: -0.1, maxYMovementSensitivity: 0.1,
+        minZMovementSensitivity: 0, maxZMovementSensitivity: 0,
+        baseItemScale: 1, movementScrollCap: 7000
+    };
+
+
     return imagesToProcess.map((imageInfo, displayIndex) => {
       const { src, originalIndex } = imageInfo;
-      
-      // Generate style using displayIndex and the current number of images being processed for layout
-      const style = generateScrapbookImageStyle(displayIndex, imagesToProcess.length, currentWindow, layoutStyleControls);
-      
-      // Sensitivities are randomized per item instance in the displayed set
-      const scrollSensitivity = (Math.random() * (scrapbookControls?.values?.scrollAngleSensitivityMax - scrapbookControls?.values?.scrollAngleSensitivityMin) + scrapbookControls?.values?.scrollAngleSensitivityMin);
-      const xMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxXMovementSensitivity - scrapbookMovementControls?.values?.minXMovementSensitivity) + scrapbookMovementControls?.values?.minXMovementSensitivity);
-      const yMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxYMovementSensitivity - scrapbookMovementControls?.values?.minYMovementSensitivity) + scrapbookMovementControls?.values?.minYMovementSensitivity);
-      const zMovementSensitivity = (Math.random() * (scrapbookMovementControls?.values?.maxZMovementSensitivity - scrapbookMovementControls?.values?.minZMovementSensitivity) + scrapbookMovementControls?.values?.minZMovementSensitivity);
-  
+      const style = generateScrapbookImageStyle(displayIndex, imagesToProcess.length, currentWindow, dummyScrapbookLayoutControls); // Use dummy controls
+      const scrollSensitivity = (Math.random() * (dummyScrapbookLayoutControls.scrollAngleSensitivityMax - dummyScrapbookLayoutControls.scrollAngleSensitivityMin) + dummyScrapbookLayoutControls.scrollAngleSensitivityMin);
+      const xMovementSensitivity = (Math.random() * (dummyScrapbookMovementControls.maxXMovementSensitivity - dummyScrapbookMovementControls.minXMovementSensitivity) + dummyScrapbookMovementControls.minXMovementSensitivity);
+      const yMovementSensitivity = (Math.random() * (dummyScrapbookMovementControls.maxYMovementSensitivity - dummyScrapbookMovementControls.minYMovementSensitivity) + dummyScrapbookMovementControls.minYMovementSensitivity);
+      const zMovementSensitivity = (Math.random() * (dummyScrapbookMovementControls.maxZMovementSensitivity - dummyScrapbookMovementControls.minZMovementSensitivity) + dummyScrapbookMovementControls.minZMovementSensitivity);
+
       return {
-        src,
-        originalIndex, 
-        displayIndex,  
-        altText: `Scrapbook item ${displayIndex + 1}`,
-        initialStyle: style,
-        scrollSensitivity,
-        xMovementSensitivity,
-        yMovementSensitivity,
-        zMovementSensitivity,
-        // Natural dimensions will be looked up via src when needed for focus
+        src, originalIndex, displayIndex, altText: `Scrapbook item ${displayIndex + 1}`,
+        initialStyle: style, scrollSensitivity, xMovementSensitivity, yMovementSensitivity, zMovementSensitivity,
       };
     });
-  }, [
-    resolvedScrapbookImages, 
-    imageNaturalDimensions, // Added: ensure this is a dependency
-    currentWindow,
-    scrapbookControls?.values?.maxImages, 
-    scrapbookControls?.values?.angleMin, scrapbookControls?.values?.angleMax, scrapbookControls?.values?.radiusFactor, scrapbookControls?.values?.sizeMinPx, scrapbookControls?.values?.sizeRangePx,
-    scrapbookControls?.values?.scrollAngleSensitivityMin, scrapbookControls?.values?.scrollAngleSensitivityMax,
-    scrapbookMovementControls?.values?.minXMovementSensitivity, scrapbookMovementControls?.values?.maxXMovementSensitivity, 
-    scrapbookMovementControls?.values?.minYMovementSensitivity, scrapbookMovementControls?.values?.maxYMovementSensitivity,
-    scrapbookMovementControls?.values?.minZMovementSensitivity, scrapbookMovementControls?.values?.maxZMovementSensitivity,
-    // scrapbookMovementCtrl.baseItemScale, // This is global in ScrapbookImageItem
-    // scrapbookMovementCtrl.movementScrollCap // This is global in ScrapbookImageItem
-  ]);
+  }, [resolvedScrapbookImages, imageNaturalDimensions, currentWindow, experienceSettings.elements, generateScrapbookImageStyle]);
 
-  // Update scrapbookImageRefs based on the length of displayed images
+
   useEffect(() => {
     scrapbookImageRefs.current = Array(displayedImagesAndTheirData.length).fill(null);
   }, [displayedImagesAndTheirData.length]);
 
-  // Animation spring for the focused image backdrop
-  const backdropSpring = useSpring({
-      opacity: focusedImage ? 1 : 0,
-      pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none',
-      position: 'fixed' as any,
-      top: 0,
-      left: 0,
-      width: '100vw',
-      height: '100vh',
-      background: 'rgba(0, 0, 0, 0.7)',
-      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG
-  });
-
-  // Animation spring for the focused image container
-  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
-      opacity: 0,
-      top: '50%', 
-      left: '50%',
-      width: '0px',
-      height: '0px',
-      transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)',
-      position: 'fixed' as any,
-      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Corrected: Removed erroneous delay
-  }));
-
-  // Animation spring for the info box content
-  const infoBoxSpring = useSpring({
-      opacity: focusedImage ? 1 : 0,
-      transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)',
-      config: activeSpringConfig, // USE ACTIVE SPRING CONFIG
-      delay: focusedImage ? 300 : 0 // Delay appearance
-  });
-
-  // DRAG HANDLER FOR FOCUSED IMAGE NAVIGATION (MOVED HERE)
-  const bindFocusedImageDrag = useDrag(({ down, movement: [mx], velocity: [vx], direction: [dx], event, last }) => {
-    event?.stopPropagation();
-    // console.log('[WJ Drag Event]', { down, mx, vx, dx, last, focused: !!focusedImage });
-
+  // --- Focused Image Animation (Scrapbook - can remain) ---
+  const backdropSpring = useSpring({ opacity: focusedImage ? 1 : 0, pointerEvents: focusedImage ? 'auto' : 'none' as 'auto' | 'none', position: 'fixed' as any, top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', config: activeSpringConfig });
+  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ opacity: 0, top: '50%', left: '50%', width: '0px', height: '0px', transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)', position: 'fixed' as any, config: activeSpringConfig }));
+  const infoBoxSpring = useSpring({ opacity: focusedImage ? 1 : 0, transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)', config: activeSpringConfig, delay: focusedImage ? 300 : 0 });
+  const bindFocusedImageDrag = useDrag(({ down, movement: [mx], velocity: [vx], direction: [dx], event, last }) => { 
+    event?.stopPropagation(); 
     if (!focusedImage || !last) return;
-
-    console.log('[WJ Drag End]', { focusedImageNaturalWidth: focusedImage.naturalWidth, mx, vx, dx });
-
-    // Use a fraction of viewport width for distance threshold
-    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920; // Default for SSR/testing
-    const distanceThreshold = viewportWidth / 4; // Drag 25% of viewport width
-    const velocityThreshold = 0.3; // Velocity threshold for a fling
-
-    console.log('[WJ Drag Thresholds]', { distanceThreshold, velocityThreshold, actualMx: Math.abs(mx), actualVx: Math.abs(vx) });
-
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const distanceThreshold = viewportWidth / 4;
+    const velocityThreshold = 0.3;
     if (Math.abs(mx) > distanceThreshold || Math.abs(vx) > velocityThreshold) {
-      console.log('[WJ Drag] Navigation condition MET');
-      if (dx > 0) { // Dragged right (positive X direction) -> Previous Image
-        console.log('[WJ Drag] Attempting handlePreviousImage');
-        const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent;
-        handlePreviousImage(syntheticEvent);
-      } else if (dx < 0) { // Dragged left (negative X direction) -> Next Image
-        console.log('[WJ Drag] Attempting handleNextImage');
-        const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent;
-        handleNextImage(syntheticEvent);
-      }
-    } else {
-      console.log('[WJ Drag] Navigation condition NOT MET (mx:', mx, 'vx:', vx, ')');
+      const syntheticEvent = { stopPropagation: () => {} } as React.MouseEvent;
+      if (dx > 0) { handlePreviousImage(syntheticEvent); }
+      else if (dx < 0) { handleNextImage(syntheticEvent); }
     }
-  }, {
-    axis: 'x', // Only allow horizontal dragging
-    filterTaps: true, // Prevents click firing after a small drag
-  });
-
-  // NEW HELPER FUNCTION: Calculate target dimensions for focused image
-  const calculateFocusTargetDimensions = (
-      naturalW: number,
-      naturalH: number,
-      viewportW: number,
-      viewportH: number
-  ): { targetWidth: number; targetHeight: number } => {
-      const targetViewportWidth = viewportW * 0.8;
-      const targetViewportHeight = viewportH * 0.8;
-      const aspectRatio = naturalW / naturalH;
-
-      let targetWidth = targetViewportWidth;
-      let targetHeight = targetWidth / aspectRatio;
-
-      if (targetHeight > targetViewportHeight) {
+  }, { axis: 'x', filterTaps: true });
+  const calculateFocusTargetDimensions = (naturalW: number, naturalH: number, viewportW: number, viewportH: number): { targetWidth: number; targetHeight: number } => { 
+    const targetViewportWidth = viewportW * 0.8;
+    const targetViewportHeight = viewportH * 0.8;
+    const aspectRatio = naturalW / naturalH;
+    let targetWidth = targetViewportWidth;
+    let targetHeight = targetWidth / aspectRatio;
+    if (targetHeight > targetViewportHeight) {
       targetHeight = targetViewportHeight;
       targetWidth = targetHeight * aspectRatio;
-      }
-      return { targetWidth, targetHeight };
+    }
+    return { targetWidth, targetHeight };
   };
-
-  // USER PROVIDED HELPER FUNCTION: Calculate centered position with optional offset
-  function getCenteredPosition(targetWidth: number, targetHeight: number, offsetXvw: number = 0) {
-      const vw = typeof window !== 'undefined' ? window.innerWidth : 1920; // Fallback for vw
-      const vh = typeof window !== 'undefined' ? window.innerHeight : 1080; // Fallback for vh
-      
-      let leftPx = (vw - targetWidth) / 2;
-      const topPx = (vh - targetHeight) / 2;
-
-      // Apply offsetXvw
-      leftPx -= (vw * offsetXvw / 100);
-  
-      return { top: topPx, left: leftPx };
-  }
-
-  // Moved onClick logic to a dedicated handler
-  const handleImageClick = (details: ScrapbookClickDetails) => {
-    console.log("WJ: ScrapbookImageItem's onClick prop INVOKED. Click Details:", details);
-    console.log("WJ: Current State before click logic: focusedImage:", focusedImage, "imageReturning:", imageReturningToScrapbook, "pendingFocus:", pendingImageToFocus);
-    setLastPutDownIndex(null); // Clear last put down index on new pick up
-    
-    const {
-      imageSrc: clickedSrc,
-      altText: clickedAlt,
-      initialStyle: clickedInitialStyle, // This 'initialStyle' is the base style from memoizedScrapbookImageStyles
-      currentBoundingClientRect: rect,
-      imageElement,
-      index: clickedDisplayIndex // This is now displayIndex from ScrapbookImageItem
-    } = details;
-
-    let naturalDims = imageNaturalDimensions.find(dim => dim.src === clickedSrc);
-    if (!naturalDims || naturalDims.width === 0 || naturalDims.height === 0) {
-      console.warn(`Natural dimensions for ${clickedSrc} not found or are zero. Using imageElement.naturalWidth/Height as fallback.`, naturalDims, imageElement?.naturalWidth, imageElement?.naturalHeight);
-      naturalDims = { width: imageElement?.naturalWidth || 0, height: imageElement?.naturalHeight || 0, src: clickedSrc };
-    }
-
-    if (!naturalDims.width || !naturalDims.height) {
-      console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero or missing after fallback.", { src: clickedSrc, naturalDims });
-      return;
-    }
-
+  const getCenteredPosition = (targetWidth: number, targetHeight: number, offsetXvw: number = 0): { top: number; left: number} => { 
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1920;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 1080;
+    let leftPx = (vw - targetWidth) / 2;
+    const topPx = (vh - targetHeight) / 2;
+    leftPx -= (vw * offsetXvw / 100);
+    return { top: topPx, left: leftPx };
+  };
+  const handleImageClick = (details: ScrapbookClickDetails) => { 
+    setLastPutDownIndex(null);
+    const { imageSrc: clickedSrc, altText: clickedAlt, initialStyle: clickedInitialStyle, currentBoundingClientRect: rect, imageElement, index: clickedDisplayIndex } = details;
+    let naturalDims = imageNaturalDimensions.find(dim => dim.src === clickedSrc) || { width: imageElement?.naturalWidth || 0, height: imageElement?.naturalHeight || 0, src: clickedSrc };
+    if (!naturalDims.width || !naturalDims.height) { console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero."); return; }
     const baseRotateOnClick = parseRotationFromStyle(clickedInitialStyle.transform);
-    // Get the correct scroll sensitivity for the clicked image using its displayIndex from displayedImagesAndTheirData
     const clickedImageData = displayedImagesAndTheirData.find(d => d.displayIndex === clickedDisplayIndex);
-    const itemScrollSensitivityOnClick = clickedImageData ? clickedImageData.scrollSensitivity : ((scrapbookControls?.values?.scrollAngleSensitivityMin + scrapbookControls?.values?.scrollAngleSensitivityMax) / 2);
-    
-    // This is the DYNAMIC part of the angle, matching what's visually rendered
-    // The 'clickedDisplayIndex * 0.5' part is an arbitrary phase offset, ensure it matches rendering if it matters
+    const itemScrollSensitivityOnClick = clickedImageData ? clickedImageData.scrollSensitivity : 0.001;
     const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedDisplayIndex * 0.5) * 45;
     const fullInitialRotateOnClick = baseRotateOnClick + currentDynamicAngleForPickUp;
-
-    // Logging for pick-up:
-    console.log(`WJ: PICK UP IMAGE - Display Index: ${clickedDisplayIndex} ('${clickedSrc}')`, {
-        topPx: rect.top,
-        leftPx: rect.left,
-        widthPx: rect.width,
-        heightPx: rect.height,
-        calculatedInitialRotateDeg: fullInitialRotateOnClick,
-        baseRotateDeg: baseRotateOnClick,
-        dynamicAngleDeg: currentDynamicAngleForPickUp,
-        rawInitialStyleTransform: clickedInitialStyle.transform
-    });
-    
-    const description = `Image ${clickedDisplayIndex + 1} description.`; // Placeholder
-    const photographer = `Photographer ${clickedDisplayIndex + 1}.`; // Placeholder
-
     const clickedImageDetails: FocusedImageState = {
-      src: clickedSrc,
-      altText: clickedAlt,
-      initialTopPx: rect.top,
-      initialLeftPx: rect.left,
-      initialWidthPx: rect.width,
-      initialHeightPx: rect.height,
-      initialRotateDeg: fullInitialRotateOnClick, // Use the full current rotation
-      naturalWidth: naturalDims.width,
-      naturalHeight: naturalDims.height,
-      currentIndex: clickedDisplayIndex, // Store displayIndex as currentIndex
-      description: description,
-      photographer: photographer
+      src: clickedSrc, altText: clickedAlt, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height,
+      initialRotateDeg: fullInitialRotateOnClick, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: clickedDisplayIndex,
+      description: `Image ${clickedDisplayIndex + 1} description.`, photographer: `Photographer ${clickedDisplayIndex + 1}.`
     };
-
-    console.log("WJ: Attempting to set focused image with:", clickedImageDetails);
-
-    if (focusedImage) { // If an image is already focused, put it down first
-      setImageReturningToScrapbook(focusedImage);
-      setPendingImageToFocus(clickedImageDetails);
-      setFocusedImage(null);
-    } else { // No image focused, just pick this one up
-      setFocusedImage(clickedImageDetails);
-    }
+    if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedImageDetails); setFocusedImage(null); }
+    else { setFocusedImage(clickedImageDetails); }
   };
-
-  useEffect(() => {
+   useEffect(() => { 
     let returnTimeoutId: NodeJS.Timeout | null = null;
-
     if (focusedImage) {
-      // === ANIMATE TO CENTER (PICK UP) ===
-      const { targetWidth, targetHeight } = calculateFocusTargetDimensions(
-        focusedImage.naturalWidth,
-        focusedImage.naturalHeight,
-        typeof window !== 'undefined' ? window.innerWidth : 1920,
-        typeof window !== 'undefined' ? window.innerHeight : 1080
-      );
+      const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, currentWindow?.innerWidth || 1920, currentWindow?.innerHeight || 1080);
       const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 1.5);
-      
-      // focusedImage.initial* properties are used here for the "from" state
-      focusedImageApi.start({
-        from: { 
-          opacity: 0.5, 
-          top: `${focusedImage.initialTopPx}px`,
-          left: `${focusedImage.initialLeftPx}px`,
-          width: `${focusedImage.initialWidthPx}px`,
-          height: `${focusedImage.initialHeightPx}px`,
-          transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)`,
-        },
-        to: { 
-          opacity: 1,
-          top: `${calculatedTargetTopPx}px`,
-          left: `${calculatedTargetLeftPx}px`,
-          width: `${targetWidth}px`,
-          height: `${targetHeight}px`,
-          transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
-        },
-        config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Explicitly set gentle config for pick-up
-        onRest: () => {
-          // Potentially clear pending states
-        }
-      });
+      focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${calculatedTargetTopPx}px`, left: `${calculatedTargetLeftPx}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' }, config: activeSpringConfig });
     } else if (imageReturningToScrapbook) {
-      // === ANIMATE BACK TO SCRAPBOOK (PUT DOWN) ===
-      const { currentIndex: returningDisplayIndex, initialWidthPx, initialHeightPx, src: returningSrc } = imageReturningToScrapbook;
+      const { currentIndex: returningDisplayIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook;
       const targetScrapbookElement = scrapbookImageRefs.current[returningDisplayIndex];
-      // Get the current style info from displayedImagesAndTheirData for the returning item
       const currentItemDataForReturn = displayedImagesAndTheirData.find(d => d.displayIndex === returningDisplayIndex);
-
       if (targetScrapbookElement && currentItemDataForReturn) {
-        const currentRect = targetScrapbookElement.getBoundingClientRect(); // Current position of the slot
-        const scrapbookLayoutInfoForReturn = currentItemDataForReturn.initialStyle; // Base style of the slot from displayed data
-
+        const currentRect = targetScrapbookElement.getBoundingClientRect();
+        const scrapbookLayoutInfoForReturn = currentItemDataForReturn.initialStyle;
         const baseRotationPutDown = parseRotationFromStyle(scrapbookLayoutInfoForReturn.transform);
         const itemScrollSensitivityPutDown = currentItemDataForReturn.scrollSensitivity;
         const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * 45;
         const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
-
-        console.log(`WJ: PUT DOWN IMAGE - Display Index: ${returningDisplayIndex} ('${returningSrc}') - Target State for flying image:`, {
-            targetTopPx: currentRect.top, targetLeftPx: currentRect.left,
-            targetWidthPx: initialWidthPx, targetHeightPx: initialHeightPx,
-            targetRotateDeg: totalCurrentRotationForPutDown
-        });
-
-        // Animate position, size, rotation of the "flying" image
-        focusedImageApi.start({
-          to: {
-            top: `${currentRect.top}px`,
-            left: `${currentRect.left}px`,
-            width: `${initialWidthPx}px`,
-            height: `${initialHeightPx}px`,
-            transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`,
-          },
-          config: activeSpringConfig, // USE ACTIVE SPRING CONFIG // Slower travel animation for put-down
-        });
-
-        // Animate opacity of the "flying" image separately and faster
-        focusedImageApi.start({
-          to: { opacity: 0 },
-          config: { tension: 300, friction: 20 }, // Faster config for opacity fade out
-          // No onRest here for setting imageReturningToScrapbook to null
-        });
-        
-        // Schedule the scrapbook item in the grid to reappear very quickly
-        const REAPPEAR_DELAY_MS = 50; // ms
-        console.log(`WJ: Scheduling scrapbook item ${returningDisplayIndex} (in grid) to reappear in ${REAPPEAR_DELAY_MS}ms.`);
-        
+        focusedImageApi.start({ to: { top: `${currentRect.top}px`, left: `${currentRect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`}, config: activeSpringConfig });
+        focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 }});
         returnTimeoutId = setTimeout(() => {
           const currentReturningImageFromRef = imageReturningToScrapbookRef.current;
-          console.log(`WJ: Timeout fired for item ${currentReturningImageFromRef?.currentIndex}. Making it reappear in grid.`);
-          
-          setImageReturningToScrapbook(null); // This triggers reappearance
-
-          if (currentReturningImageFromRef) {
-            setLastPutDownIndex(currentReturningImageFromRef.currentIndex);
-          }
-
+          setImageReturningToScrapbook(null);
+          if (currentReturningImageFromRef) { setLastPutDownIndex(currentReturningImageFromRef.currentIndex); }
           const currentPendingImageFromRef = pendingImageToFocusRef.current;
-          if (currentPendingImageFromRef) {
-            setFocusedImage(currentPendingImageFromRef);
-            setPendingImageToFocus(null);
-            // Note: lastPutDownIndex remains from the item that just landed.
-            // If this newly focused item is later put down, it will become the new lastPutDownIndex.
-            // If another item is *picked up from scratch*, handleImageClick clears lastPutDownIndex.
-          }
-        }, REAPPEAR_DELAY_MS);
-
+          if (currentPendingImageFromRef) { setFocusedImage(currentPendingImageFromRef); setPendingImageToFocus(null); }
+        }, 50);
       } else {
-        console.warn(`WJ: PUT DOWN - Target for scrapbook item index ${returningDisplayIndex} ('${returningSrc}') not found. Hiding focused image and clearing state immediately.`);
-        focusedImageApi.start({ opacity: 0, immediate: true });
-        setImageReturningToScrapbook(null);
-        if (pendingImageToFocus) {
-          setFocusedImage(pendingImageToFocus);
-          setPendingImageToFocus(null);
-        }
+        focusedImageApi.start({ opacity: 0, immediate: true }); setImageReturningToScrapbook(null);
+        if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); }
       }
     } else {
-      // === NO IMAGE FOCUSED OR RETURNING, HIDE CONTAINER ===
       focusedImageApi.start({ opacity: 0, immediate: true });
     }
-
-    // Cleanup function for the timeout
-    return () => {
-      if (returnTimeoutId) {
-        console.log("WJ: Clearing returnTimeoutId in useEffect cleanup.");
-        clearTimeout(returnTimeoutId);
-      }
-    };
-  }, [
-    focusedImage, 
-    imageReturningToScrapbook, 
-    pendingImageToFocus, 
-    focusedImageApi,
-    currentWindow, // Added: affects target dimensions/positions if window resizes
-    displayedImagesAndTheirData, // Added: provides target style and sensitivities
-    scrollY, // Added: for dynamic angle recalculation
-    scrapbookControls?.values?.scrollAngleSensitivityMin, // Kept for fallback if data not found (shouldn't happen)
-    scrapbookControls?.values?.scrollAngleSensitivityMax  // Kept for fallback
-  ]);
-
-  // NEW: Handler for closing the focused image
-  const handleCloseFocusedImage = () => {
-      if (focusedImage) {
-      setImageReturningToScrapbook(focusedImage);
-      setFocusedImage(null);
-      setPendingImageToFocus(null); // Ensure no pending focus on manual close
-      } else if (imageReturningToScrapbook) {
-      // If clicked during a return, just ensure everything clears out
-      setImageReturningToScrapbook(null); 
-      setFocusedImage(null);
-      setPendingImageToFocus(null);
-      }
+    return () => { if (returnTimeoutId) { clearTimeout(returnTimeoutId); } };
+  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, currentWindow, displayedImagesAndTheirData, scrollY, activeSpringConfig, calculateFocusTargetDimensions, getCenteredPosition]);
+  const handleCloseFocusedImage = () => { 
+    if (focusedImage) { setImageReturningToScrapbook(focusedImage); setFocusedImage(null); setPendingImageToFocus(null); }
+    else if (imageReturningToScrapbook) { setImageReturningToScrapbook(null); setFocusedImage(null); setPendingImageToFocus(null); }
   };
-
-  // NEW: Navigation Handlers
-  const updateAndFocusNewImage = (newDisplayIndex: number) => {
-    if (!displayedImagesAndTheirData || displayedImagesAndTheirData.length === 0 || newDisplayIndex < 0 || newDisplayIndex >= displayedImagesAndTheirData.length) {
-      console.warn("Cannot update focused image: invalid newDisplayIndex or no displayed images.", newDisplayIndex, displayedImagesAndTheirData.length);
-      return null;
-    }
-    setLastPutDownIndex(null); // Clear last put down index on navigation pick up
-
+  const updateAndFocusNewImage = (newDisplayIndex: number): FocusedImageState | null => { 
+    if (!displayedImagesAndTheirData || displayedImagesAndTheirData.length === 0 || newDisplayIndex < 0 || newDisplayIndex >= displayedImagesAndTheirData.length) return null;
+    setLastPutDownIndex(null);
     const targetImageData = displayedImagesAndTheirData[newDisplayIndex];
-    const targetImageElement = scrapbookImageRefs.current[newDisplayIndex]; // Use newDisplayIndex for refs
+    const targetImageElement = scrapbookImageRefs.current[newDisplayIndex];
     const newImageSrc = targetImageData.src;
     const naturalDims = imageNaturalDimensions.find(dim => dim.src === newImageSrc);
-    const styleForNewImage = targetImageData.initialStyle; // Get base style from displayed data
-
+    const styleForNewImage = targetImageData.initialStyle;
     if (targetImageElement && newImageSrc && naturalDims && naturalDims.width > 0 && naturalDims.height > 0 && styleForNewImage) {
       const rect = targetImageElement.getBoundingClientRect();
-      
       const baseRotateNav = parseRotationFromStyle(styleForNewImage.transform);
       const itemScrollSensitivityNav = targetImageData.scrollSensitivity;
-      // Recalculate dynamic part for the "from" state, consistent with rendering
       const currentDynamicAngleForNavPickUp = Math.sin(scrollY * itemScrollSensitivityNav + newDisplayIndex * 0.5) * 45;
       const fullInitialRotateNav = baseRotateNav + currentDynamicAngleForNavPickUp;
-      
-      const newDescription = `Image ${newDisplayIndex + 1} description.`; // Placeholder
-      const newPhotographer = `Photographer ${newDisplayIndex + 1}.`; // Placeholder
-
-      // Logging for pick-up during navigation:
-      console.log(`WJ: NAV PICK UP IMAGE - Display Index: ${newDisplayIndex} ('${newImageSrc}')`, {
-          topPx: rect.top,
-          leftPx: rect.left,
-          widthPx: rect.width,
-          heightPx: rect.height,
-          calculatedInitialRotateDeg: fullInitialRotateNav,
-          baseRotateDeg: baseRotateNav,
-          dynamicAngleDeg: currentDynamicAngleForNavPickUp,
-          rawInitialStyleTransform: styleForNewImage.transform
-      });
-
       return {
-        src: newImageSrc,
-        altText: `Scrapbook item ${newDisplayIndex + 1}`,
-        initialTopPx: rect.top,
-        initialLeftPx: rect.left,
-        initialWidthPx: rect.width,
-        initialHeightPx: rect.height,
-        initialRotateDeg: fullInitialRotateNav, // Use the full current rotation
-        naturalWidth: naturalDims.width,
-        naturalHeight: naturalDims.height,
-        currentIndex: newDisplayIndex, // Store displayIndex
-        description: newDescription, 
-        photographer: newPhotographer 
+        src: newImageSrc, altText: `Scrapbook item ${newDisplayIndex + 1}`, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height,
+        initialRotateDeg: fullInitialRotateNav, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex,
+        description: `Image ${newDisplayIndex + 1} description.`, photographer: `Photographer ${newDisplayIndex + 1}.`
       };
-    } else {
-      console.warn(`Could not get details for new focused image at index ${newDisplayIndex}. Missing element, src, dimensions, or style.`, {targetImageElement, newImageSrc, naturalDims, styleForNewImage});
-      return null;
-    }
+    } else { return null; }
   };
-
-  const handlePreviousImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!focusedImage) return; // Can only navigate if an image is currently fully focused
-
+  const handlePreviousImage = (e: React.MouseEvent) => { 
+    e.stopPropagation(); if (!focusedImage) return;
     const newIndex = (focusedImage.currentIndex - 1 + displayedImagesAndTheirData.length) % displayedImagesAndTheirData.length;
     const newImageDetails = updateAndFocusNewImage(newIndex);
-
-    if (newImageDetails) {
-      setImageReturningToScrapbook(focusedImage); 
-      setPendingImageToFocus(newImageDetails);
-      setFocusedImage(null); // This will trigger the return animation first
-    }
+    if (newImageDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newImageDetails); setFocusedImage(null); }
   };
-
-  const handleNextImage = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!focusedImage) return; // Can only navigate if an image is currently fully focused
-
+  const handleNextImage = (e: React.MouseEvent) => { 
+    e.stopPropagation(); if (!focusedImage) return;
     const newIndex = (focusedImage.currentIndex + 1) % displayedImagesAndTheirData.length;
     const newImageDetails = updateAndFocusNewImage(newIndex);
-
-    if (newImageDetails) {
-      setImageReturningToScrapbook(focusedImage);
-      setPendingImageToFocus(newImageDetails);
-      setFocusedImage(null); // This will trigger the return animation first
-    }
+    if (newImageDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newImageDetails); setFocusedImage(null); }
   };
+  // --- End Scrapbook Focused Image ---
 
-  // Define centerStyle here
+
   const centerStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -1114,319 +465,150 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   };
 
   const handleSaveLayout = async () => {
-    if (!currentWeddingId) {
-      console.error("[WeddingJourney] Cannot save layout: weddingId is missing.");
-      alert("Error: Cannot save layout, wedding ID is missing.");
-      return;
-    }
-    try {
-      console.log(`[WeddingJourney] Attempting to save DESKTOP layout for weddingId: ${currentWeddingId}`);
-      await useLevaStore.getState().saveSettingsToServer(String(currentWeddingId), 'desktop'); // Corrected: Added 'desktop'
-      alert('Desktop layout settings saved successfully!');
-      console.log('[WeddingJourney] Desktop layout settings save call completed.');
-    } catch (error) {
-      console.error('[WeddingJourney] Failed to save desktop layout settings:', error);
-      let errorMessage = 'Unknown error';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      }
-      alert(`Error saving desktop layout settings: ${errorMessage}`);
-    }
+     // This function might be removed or adapted if Leva controls for layout are gone
+    console.log("Save Layout clicked - Leva controls might be removed.");
   };
 
-  // Define a ref for the Save Layout button to get its height
   const saveLayoutButtonRef = useRef<HTMLButtonElement>(null);
   const [saveLayoutButtonHeight, setSaveLayoutButtonHeight] = useState(0);
+  useEffect(() => { if (saveLayoutButtonRef.current) setSaveLayoutButtonHeight(saveLayoutButtonRef.current.offsetHeight); }, [isSetupMode]);
 
-  useEffect(() => {
-    if (saveLayoutButtonRef.current) {
-      setSaveLayoutButtonHeight(saveLayoutButtonRef.current.offsetHeight);
-    }
-  }, [isSetupMode]); // Recalculate if button appears/disappears
 
-  // ADDED: Log current path and isSetupMode
-  useEffect(() => {
-    console.log(`[WeddingJourney] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`);
-  }, [location.pathname, isSetupMode]);
-
-  // Load settings on mount or when weddingId/setupMode changes
+  // LOGGING
+  useEffect(() => { console.log(`[WeddingJourney] Path: ${location.pathname}, isSetupMode: ${isSetupMode}`); }, [location.pathname, isSetupMode]);
   useEffect(() => {
     if (currentWeddingId && isSetupMode) {
-      console.log(`[WeddingJourney] Attempting to load DESKTOP layout settings for ${currentWeddingId}`);
-      useLevaStore.getState().loadSettingsFromServer(String(currentWeddingId), 'desktop')
-        .catch(error => console.error('[WeddingJourney] Error during loadSettingsFromServer (desktop):', error));
+      // Leva store loading for 'desktop' can remain if overall controls are still used
     }
-    // Add cleanup or logic to reset Leva if weddingId changes or setupMode turns off, if necessary
   }, [currentWeddingId, isSetupMode]);
 
-  // Background Animation Controls Values
-  const backgroundAnimValues = backgroundAnimControls?.values || {};
-  const {
-    opacityGentleEnd = backgroundAnimationSchema.opacityGentleEnd.value,
-    opacityTargetAtGentleEnd = backgroundAnimationSchema.opacityTargetAtGentleEnd.value,
-    opacityDrasticStartPixels = backgroundAnimationSchema.opacityDrasticStartPixels.value,
-    opacityTargetAtDrasticStart = backgroundAnimationSchema.opacityTargetAtDrasticStart.value,
-    opacityFullTransparent = backgroundAnimationSchema.opacityFullTransparent.value,
-    translateYThreshold = backgroundAnimationSchema.translateYThreshold.value,
-    translateYMultiplier = backgroundAnimationSchema.translateYMultiplier.value,
-    scaleInitialRate = backgroundAnimationSchema.scaleInitialRate.value,
-    scaleDrasticStartPx = backgroundAnimationSchema.scaleDrasticStartPx.value,
-    scaleDrasticRate = backgroundAnimationSchema.scaleDrasticRate.value,
-    borderRadiusStartScrollY = backgroundAnimationSchema.borderRadiusStartScrollY.value,
-    clipPathVanishScrollY = backgroundAnimationSchema.clipPathVanishScrollY.value
-  } = backgroundAnimValues;
-
-  // Background Color Controls Values
-  const backgroundColorValues = backgroundColorControls?.values || {};
-  const {
-    colorStop1_Bottom = backgroundColorControlsSchema.colorStop1_Bottom.value,
-    colorStop1_Top = backgroundColorControlsSchema.colorStop1_Top.value,
-    colorStop2_Bottom = backgroundColorControlsSchema.colorStop2_Bottom.value,
-    colorStop2_Top = backgroundColorControlsSchema.colorStop2_Top.value,
-    colorStop3_Bottom = backgroundColorControlsSchema.colorStop3_Bottom.value,
-    colorStop3_Top = backgroundColorControlsSchema.colorStop3_Top.value,
-    colorStop4_Bottom = backgroundColorControlsSchema.colorStop4_Bottom.value,
-    colorStop4_Top = backgroundColorControlsSchema.colorStop4_Top.value,
-    colorStop5_Bottom = backgroundColorControlsSchema.colorStop5_Bottom.value,
-    colorStop5_Top = backgroundColorControlsSchema.colorStop5_Top.value
-  } = backgroundColorValues;
-
-  // Intro Image Controls Values (Moved and corrected)
-  const introImageCtrlValues = introImageControls?.values || {};
-  const {
-    introImageScaleStart = introImageControlsSchema.introImageScaleStart.value,
-    introImageScaleEnd = introImageControlsSchema.introImageScaleEnd.value,
-    introImageYOffsetStartPx = introImageControlsSchema.introImageYOffsetStartPx.value,
-    introImageYOffsetEndPx = introImageControlsSchema.introImageYOffsetEndPx.value,
-    introImageOpacityStartScroll = introImageControlsSchema.introImageOpacityStartScroll.value,
-    introImageOpacityEndScroll = introImageControlsSchema.introImageOpacityEndScroll.value,
-    introImageEffectEndScroll = introImageControlsSchema.introImageEffectEndScroll.value,
-  } = introImageCtrlValues;
-
-  // Calculations for Intro Image based on scrollY and Leva controls (using destructured values)
-  const introImageScrollProgress = introImageEffectEndScroll > 0 ? Math.min(1, Math.max(0, scrollY / introImageEffectEndScroll)) : 0;
-  const currentIntroImageScale = introImageScaleStart + (introImageScaleEnd - introImageScaleStart) * introImageScrollProgress;
-  const currentIntroImageYOffset = introImageYOffsetStartPx + (introImageYOffsetEndPx - introImageYOffsetStartPx) * introImageScrollProgress;
-  let currentIntroImageOpacity = 1;
-  if (scrollY >= introImageOpacityStartScroll && scrollY <= introImageOpacityEndScroll && introImageOpacityEndScroll > introImageOpacityStartScroll) {
-    const opacityScrollRange = introImageOpacityEndScroll - introImageOpacityStartScroll;
-    const scrollWithinOpacityRange = scrollY - introImageOpacityStartScroll;
-    currentIntroImageOpacity = 1 - (scrollWithinOpacityRange / opacityScrollRange);
-  } else if (scrollY > introImageOpacityEndScroll) {
-    currentIntroImageOpacity = 0;
-  } else if (scrollY < introImageOpacityStartScroll) {
-    currentIntroImageOpacity = 1;
-  }
-  currentIntroImageOpacity = Math.min(1, Math.max(0, currentIntroImageOpacity)); // Clamp opacity
 
   return (
     <>
-      {/* Conditionally configure Leva panel to be hidden or shown based on isSetupMode */}
       <Leva theme={levaTheme} hidden={!isSetupMode} />
 
       <animated.div
-        className="wedding-journey-wrapper" // Ensure this class name is correct if it provides critical styles
-        style={{ 
-          width: '100%', 
-          height: '100vh', 
-          // Dynamically construct background from Leva controls or defaults
-          background: `linear-gradient(to top, 
-                        ${colorStop1_Bottom}, 
-                        ${colorStop1_Top}
-                      ), 
-                      linear-gradient(to bottom, 
-                        ${colorStop2_Bottom}, 
-                        ${colorStop2_Top}
-                      ), 
-                      linear-gradient(to top, 
-                        ${colorStop3_Bottom}, 
-                        ${colorStop3_Top}
-                      ), 
-                      linear-gradient(to bottom, 
-                        ${colorStop4_Bottom}, 
-                        ${colorStop4_Top}
-                      ), 
-                      linear-gradient(to top, 
-                        ${colorStop5_Bottom}, 
-                        ${colorStop5_Top}
-                      )`,
+        className="wedding-journey-wrapper"
+        style={{
+          width: '100%',
+          height: '100vh',
+          background: '#E9Ecce', // Simple background for now
         }}
       >
         {isSetupMode && (
           <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10001 }}>
-            <button 
-              ref={saveLayoutButtonRef} // Add ref here
-              onClick={handleSaveLayout} 
-              style={{ 
-                padding: '8px 15px', 
-                background: '#4CAF50', 
-                color: 'white', 
-                border: 'none', 
-                borderRadius: '4px', 
-                cursor: 'pointer',
-                marginBottom: '5px' // Add some margin below the button
+            {/* <button ref={saveLayoutButtonRef} onClick={handleSaveLayout} style={{ ... }}> Save Layout </button> */}
+          </div>
+        )}
+
+        {isSetupMode && showGlobalHUDEnabled && (
+          <div style={{ position: 'fixed', top: `${10 + saveLayoutButtonHeight + 5}px`, left: '10px', zIndex: 10000 /* ...HUD styles... */ }}>
+            <div style={{ /* ... */ }}>
+              {/* HUD content, e.g., ScrollY, number of pages */}
+              {`ScrollY: ${scrollY.toFixed(0)}\nTotal Pages: ${TOTAL_PAGES.toFixed(1)}\nRenderable Elements: ${renderableElements.length}`}
+            </div>
+             {/* Display Experience Settings for Debugging */}
+            <div style={{ background: 'rgba(0,0,0,0.1)', padding: '5px', marginTop: '5px', maxHeight: '200px', overflowY: 'auto' }}>
+              <pre style={{ fontSize: '10px' }}>{JSON.stringify(experienceSettings, null, 2)}</pre>
+            </div>
+          </div>
+        )}
+
+        <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0' }}>
+          {/* Static Background Layer (if needed) */}
+          <ParallaxLayer
+            offset={0}
+            speed={0} // Static
+            factor={TOTAL_PAGES} // Span all pages
+            style={{ zIndex: -10 }} // Keep this one very low for the absolute fallback background
+          >
+            <div style={{
+              width: '100%', height: '100%',
+              backgroundImage: `url(${introBackground})`, // Use the main intro background for now
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              // opacity: 0.7 // Optional: slight dimming
+            }} />
+          </ParallaxLayer>
+
+          {/* Render dynamic elements from experienceSettings */}
+          {renderableElements.map(element => (
+            <ParallaxLayer
+              key={element.key}
+              sticky={element.sticky}
+              style={{
+                ...centerStyle,
+                // Higher ID = lower zIndex. Element 1 is highest.
+                // Background image should be lowest.
+                zIndex: element.type === 'background-image' ? -5 : (experienceSettings.elements.length - element.id + 1)
               }}
             >
-              Save Layout
-            </button>
-          </div>
-        )}
-
-        {/* HUD Rendering - ensure it only shows if showGlobalHUDEnabled AND isSetupMode */}
-        {isSetupMode && showGlobalHUDEnabled && (
-          <div
-            style={{
-              position: 'fixed',
-              top: `${10 + saveLayoutButtonHeight + 5}px`,
-              left: '10px',
-              zIndex: 10000,
-              fontSize: '12px',
-              borderRadius: '4px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '10px', // Space between segments
-              pointerEvents: 'auto',
-            }}
-          >
-            {/* Segment 1: ScrollY and image count */}
-            <div style={{
-              padding: '5px 10px',
-              background: 'rgba(255, 255, 255, 0.8)',
-              color: 'black',
-              borderRadius: '4px',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {`ScrollY: ${scrollY.toFixed(0)}\nDisplayed Images: ${displayedImagesAndTheirData.length} / ${resolvedScrapbookImages.length} (max: ${(scrapbookControls?.values as any)?.maxImages})`}
-            </div>
-            {/* Segment 2: Background values */}
-            <div style={{
-              padding: '5px 10px',
-              background: 'rgba(255, 255, 255, 0.8)',
-              color: 'black',
-              borderRadius: '4px',
-              whiteSpace: 'pre-wrap',
-            }}>
-              {`Opacity (BG): ${backgroundOpacity_HUD.toFixed(2)}\nScale (BG): ${currentScale_HUD.toFixed(2)}\nTranslateY (BG): ${currentTranslateY_HUD.toFixed(2)}%\nClipPath (BG): ${calculatedClipPathValue_HUD}\nSpring Preset: ${activeSpringConfigName}`}
-            </div>
-            {/* Segment 3: Changed tracked controls */}
-            {changedKeyDetailsOutput.trim() && (
-              <div style={{
-                padding: '5px 10px',
-                background: 'rgba(255, 255, 255, 0.8)',
-                color: 'black',
-                borderRadius: '4px',
-                whiteSpace: 'pre-wrap',
+              <div style={{ 
+                padding: element.type === 'background-image' ? '0px' : '20px', // No padding for background image container
+                textAlign: 'center', 
+                background: element.type === 'background-image' ? 'transparent' : 'rgba(255,255,255,0.3)', 
+                borderRadius:element.type === 'background-image' ? '0px' : '10px',
+                width: element.type === 'background-image' ? '100%' : 'auto', // Full width for background image container
+                height: element.type === 'background-image' ? '100%' : 'auto' // Full height for background image container
               }}>
-                {changedKeyDetailsOutput.trim()}
+                {element.type === 'text' && typeof element.content === 'string' && (
+                  <h2 style={{ color: element.timelineColor !== '#FFFFFF' ? element.timelineColor : '#333' }}>{element.content}</h2>
+                )}
+                {(element.type === 'photo' || element.type === 'background-image') && typeof element.content === 'string' && ( // Render background-image as well
+                  <img
+                    src={element.content}
+                    alt={element.name || 'Wedding image'}
+                    style={{
+                      maxWidth: '100%', // Allow full width for both, container will limit photo
+                      maxHeight: element.type === 'background-image' ? '100vh' : '300px',
+                      width: element.type === 'background-image' ? '100vw' : 'auto',
+                      height: element.type === 'background-image' ? '100vh' : 'auto',
+                      objectFit: element.type === 'background-image' ? 'cover' : 'contain',
+                      borderRadius: element.type === 'background-image' ? '0px' : '8px',
+                      border: element.type === 'background-image' ? 'none' : `${3}px solid ${element.timelineColor}`
+                    }}
+                  />
+                )}
               </div>
-            )}
-          </div>
-        )}
+            </ParallaxLayer>
+          ))}
 
-        <Parallax
-          ref={parallaxRef}
-          pages={3}
-          style={{ top: '0', left: '0' }}
-        >
 
-          {/* Background Layer - Sticky with Pixel-Based Fade Out */}
-          <ParallaxLayer
-            sticky={{ start: 0, end: 1 }}
-            style={{ zIndex: -1, overflow: 'hidden' }}
+          {/* Hardcoded RSVP Form Layer - towards the end */}
+           <ParallaxLayer
+            offset={TOTAL_PAGES - 1.1} // Appears near the end
+            speed={0.5} // Moves with scroll a bit
+            style={{ ...centerStyle, zIndex: 100 }} // High z-index for RSVP
           >
-            <ParallaxBackgroundImage
-              introBackgroundUrl={introBackground}
-              scrollY={scrollY}
-              animControls={backgroundAnimControls?.values as BackgroundAnimControlValues} // Pass the correctly typed animControls object
-              currentWindow={currentWindow}
-              backgroundStickyStart={0}
-              backgroundStickyEnd={1}
-              // parallaxBgStateForHUD and setParallaxBgStateForHUD removed
-            />
+            <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
           </ParallaxLayer>
 
-          {/* Intro Couple Image Layer */}
-          <ParallaxLayer
-            offset={0.3}
-            speed={0.4} // Keep speed for initial parallax effect before scroll-based transform takes over
-            style={{ 
-              ...centerStyle, 
-              zIndex: 1,
-              opacity: currentIntroImageOpacity,
-              transform: `translateY(${currentIntroImageYOffset}px) scale(${currentIntroImageScale})` 
-            }}
-          >
-            <img src={introCouple} alt="Couple" className="introCoupleImage" />
-          </ParallaxLayer>
 
-          {/* Text Layers */}
+          {/* Hardcoded Scrapbook Layer - can be placed based on a fixed page or derived */}
+          {/* For now, placing it on a middle page, e.g. page 1 if TOTAL_PAGES = 3 */}
           <ParallaxLayer
-            offset={0.6}
-            speed={0.5}
-            style={{ ...centerStyle, zIndex: 2 }}
+            offset={Math.min(1.5, TOTAL_PAGES - 1.5)} // Example: middle page for scrapbook
+            speed={0.2}
+            style={{ ...centerStyle, zIndex: (experienceSettings.elements.length + 2) }} // Ensure scrapbook is above dynamic text/photos but below RSVP
           >
-            <div className="textLayerContent">
-              <h1>{brideName}</h1>
-              <h1 className="ampersand">&</h1>
-              <h1>{groomName}</h1>
-              <p>{weddingDate}</p>
-            </div>
-          </ParallaxLayer>
-
-          {/* RSVP Form Layer */}
-          <ParallaxLayer
-            offset={2}
-            speed={0.1}
-            style={{ ...centerStyle, zIndex: 100 }}
-          >
-            {/* Scrapbook Images Container */}
-            <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              zIndex: 1 // Lower zIndex for scrapbook images container
-            }}>
-              {/* Map over displayedImagesAndTheirData */}
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
               {displayedImagesAndTheirData.map((imageData, displayIndex) => {
-                const {
-                  src: imageSrc,
-                  altText,
-                  initialStyle,
-                  scrollSensitivity: itemScrollSensitivity,
-                  xMovementSensitivity: itemXSensitivity,
-                  yMovementSensitivity: itemYSensitivity,
-                  zMovementSensitivity: itemZSensitivity
-                } = imageData;
+                 if (!imageData || !imageData.initialStyle) return null;
+                 const { src: imageSrc, altText, initialStyle } = imageData;
 
-                if (!initialStyle) return null;
-
-                // console.log(`[WeddingJourney.tsx] Rendering ScrapbookImageItem (Display Index ${displayIndex}), imageSrc: ${imageSrc}`);
-
-                const dynamicAngle = Math.sin(scrollY * itemScrollSensitivity + displayIndex * 0.5) * 45;
-
-                const cappedScrollYForMovement = Math.min(scrollY, scrapbookMovementControls?.values?.movementScrollCap);
-
-                const parallaxTranslateX = cappedScrollYForMovement * itemXSensitivity;
-                const parallaxTranslateY = cappedScrollYForMovement * itemYSensitivity;
-
-                let parallaxScale = scrapbookMovementControls?.values?.baseItemScale + (cappedScrollYForMovement * itemZSensitivity);
-                parallaxScale = Math.max(0.1, parallaxScale);
+                const dynamicAngle = 0; // Simplified
+                const parallaxTranslateX = 0; // Simplified
+                const parallaxTranslateY = 0; // Simplified
+                let parallaxScale = 1; // Simplified
 
                 let isEffectivelyHidden = false;
-                if (focusedImage && focusedImage.currentIndex === displayIndex) {
-                  isEffectivelyHidden = true;
-                } else if (imageReturningToScrapbook && imageReturningToScrapbook.currentIndex === displayIndex) {
-                  isEffectivelyHidden = true;
-                }
+                if (focusedImage && focusedImage.currentIndex === displayIndex) isEffectivelyHidden = true;
+                else if (imageReturningToScrapbook && imageReturningToScrapbook.currentIndex === displayIndex) isEffectivelyHidden = true;
 
                 return (
                   <ScrapbookImageItem
                     key={imageSrc || displayIndex}
-                    imageSrc={imageSrc}
+                    imageSrc={imageSrc!}
                     initialStyle={initialStyle}
                     altText={altText}
                     dynamicAngleOffsetDeg={dynamicAngle}
@@ -1442,133 +624,30 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
                 );
               })}
             </div>
-
-            {/* RSVP Form - ensure it's on top */}
-            <div style={{ position: 'relative', zIndex: 10 }}>
-              <RSVPForm weddingData={weddingData} backendUrl={rsvpEndpoint} />
-            </div>
+             <h2 style={{ position: 'relative', zIndex: 2, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '5px', marginTop: '20px' }}>Photo Scrapbook</h2>
           </ParallaxLayer>
+
 
         </Parallax>
 
-        {/* Focused Image Modal - should work in both modes */}
-        <> {/* Fragment to group focused image related elements */}
-        <animated.div 
-            style={{
-                ...backdropSpring, 
-                zIndex: 1000, 
-            }}
-            onClick={handleCloseFocusedImage}
-        />
+        {/* Focused Image Modal for Scrapbook (can remain) */}
+        <>
+          <animated.div style={{ ...backdropSpring, zIndex: 1000 }} onClick={handleCloseFocusedImage} />
         {(focusedImage || imageReturningToScrapbook) && (
-            <animated.div 
-                {...bindFocusedImageDrag()} // APPLY GESTURE BINDER HERE
-                style={{
-                    ...focusedImageContainerSpring, 
-                    zIndex: 1001,
-                    touchAction: 'none', // PREVENT SCROLL ON TOUCH DEVICES
-                }}
-            >
+            <animated.div {...bindFocusedImageDrag()} style={{ ...focusedImageContainerSpring, zIndex: 1001, touchAction: 'none' }}>
               {(focusedImage || imageReturningToScrapbook) && (
-                <div
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}
-                >
+                <div onClick={(e) => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}>
                   <img
                     src={focusedImage?.src || imageReturningToScrapbook?.src || ''}
                     alt={focusedImage?.altText || imageReturningToScrapbook?.altText || 'Focused image'}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'contain',
-                      boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
-                      border: '10px solid white',
-                      borderRadius: '3px',
-                    }}
+                    style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', boxShadow: '0px 10px 30px rgba(0,0,0,0.5)', border: '10px solid white', borderRadius: '3px' }}
                   />
-                  {focusedImage && (focusedImage.description || focusedImage.photographer) && (
-                    <animated.div style={{
-                      ...infoBoxSpring, // Contains opacity and transform
-                      position: 'absolute', // Keep this for layout relative to parent
-                      bottom: '-60px',
-                      left: '50%',
-                      transform: infoBoxSpring.transform.to(t => `${t} translateX(-50%)`), // Ensure translateX(-50%) is part of the transform
-                      width: 'calc(100% - 20px)',
-                      maxWidth: '400px',
-                      backgroundColor: 'rgba(0,0,0,0.75)',
-                      color: 'white',
-                      padding: '15px',
-                      borderRadius: '5px',
-                      textAlign: 'left',
-                      boxSizing: 'border-box',
-                      zIndex: 1002,
-                    }}>
-                      {focusedImage.description && <p style={{ margin: '0 0 5px 0' }}><strong>Description:</strong> {focusedImage.description}</p>}
-                      {focusedImage.photographer && <p style={{ margin: 0 }}><strong>Photographer:</strong> {focusedImage.photographer}</p>}
-                    </animated.div>
-                  )}
+                  {/* Info box for focused image */}
                 </div>
               )}
             </animated.div>
         )}
-        {/* Navigation Arrows for focused image */}
-        {focusedImage && displayedImagesAndTheirData && displayedImagesAndTheirData.length > 1 && (
-            <>
-                <button
-                  onClick={handlePreviousImage}
-                  aria-label="Previous image"
-                  style={{
-                    position: 'fixed',
-                    left: '11vw',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    zIndex: 1003,
-                    background: 'rgba(0,0,0,0.6)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '50px',
-                    height: '50px',
-                    fontSize: '28px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    pointerEvents: 'auto',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                  }}
-                >
-                  &lt;
-                </button>
-                <button
-                  onClick={handleNextImage}
-                  aria-label="Next image"
-                  style={{
-                    position: 'fixed',
-                    right: '11vw',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    zIndex: 1003,
-                    background: 'rgba(0,0,0,0.6)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '50px',
-                    height: '50px',
-                    fontSize: '28px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    pointerEvents: 'auto',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.3)'
-                  }}
-                >
-                  &gt;
-                </button>
-            </>
-        )}
+          {/* Navigation arrows for scrapbook focused image */}
         </>
       </animated.div>
     </>

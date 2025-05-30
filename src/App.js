@@ -84,7 +84,8 @@ const transformWeddingData = (sourceData) => {
     platedOptions: sourceData.platedOptions || [],
     eventAddress: sourceData.eventAddress,
     // Pass through the raw scrapbookImages array as well, as WeddingJourneyWrapperForSetup uses it for resolvedScrapbookImages
-    scrapbookImages: sourceData.scrapbookImages || [], 
+    scrapbookImages: sourceData.scrapbookImages || [],
+    experienceSettings: sourceData.experienceSettings || { elements: [], markers: [], timelineLength: 1000 } // Include experienceSettings
   };
 };
 
@@ -210,8 +211,9 @@ const WeddingPageController = ({ /*setShowGuideLines REMOVED*/ }) => {
   }
 
   console.log('[App.js] Passing resolvedScrapbookImages to WeddingJourney:', JSON.stringify(resolvedScrapbookImages));
+  console.log('[App.js] Passing experienceSettings to WeddingJourney:', JSON.stringify(currentWeddingData.experienceSettings)); // Log experienceSettings
   const JourneyComponent = isMobile ? WeddingJourneyMobile : WeddingJourney;
-  return <JourneyComponent weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} /*setShowGuideLines={setShowGuideLines} REMOVED*/ />;
+  return <JourneyComponent weddingData={currentWeddingData} resolvedScrapbookImages={resolvedScrapbookImages} experienceSettings={currentWeddingData.experienceSettings} /*setShowGuideLines={setShowGuideLines} REMOVED*/ />;
 };
 
 // Define MainAppContent to use useLocation
@@ -349,7 +351,7 @@ const WeddingJourneyWrapperForSetup = () => {
   // Decide which journey component to render based on isMobile
   const JourneyComponent = isMobile ? WeddingJourneyMobile : WeddingJourney;
 
-  return <JourneyComponent weddingData={weddingDataForLeva} resolvedScrapbookImages={weddingDataForLeva.scrapbookImages.map(img => img.fileName)} /*setShowGuideLines={() => {}} REMOVED*/ />;
+  return <JourneyComponent weddingData={weddingDataForLeva} resolvedScrapbookImages={weddingDataForLeva.scrapbookImages.map(img => img.fileName)} experienceSettings={weddingDataForLeva.experienceSettings} /*setShowGuideLines={() => {}} REMOVED*/ />;
 };
 
 export default App; 

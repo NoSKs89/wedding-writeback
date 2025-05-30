@@ -61,6 +61,26 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     }
   }, [element.content, element.type, element.name]);
 
+  useEffect(() => {
+    // Sync filePreview for photo/background-image
+    if ((element.type === 'photo' || element.type === 'background-image')) {
+      if (typeof element.content === 'string') {
+        setFilePreview(element.content); // Set if content is a string URL
+        setSelectedFile(null); // Clear any selected file if content is a URL string
+      } else if (element.content instanceof File) {
+        // If content is a File object (e.g., newly selected for upload but not yet a URL)
+        // This case is mostly handled by handlePhotoUpload directly setting selectedFile and filePreview.
+      } else if (element.content === null) {
+         setFilePreview(null);
+         setSelectedFile(null); // Ensure selectedFile is also cleared
+      }
+    } else {
+      // If type is not photo/background-image, ensure preview is cleared
+      setFilePreview(null);
+      setSelectedFile(null);
+    }
+  }, [element.type, element.content]);
+
   const handleSlotClick = (event: React.MouseEvent) => {
     event.stopPropagation(); // Prevent click from bubbling to document listener
     onFocus(element.id);
@@ -100,8 +120,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
                            : 15; // Default to 15
         setMaxScrapbookImages(currentMax);
         onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
-    } else if (newTypeValue === 'photo' || newTypeValue === 'text') {
-        onUpdate({ type: newTypeValue as 'photo' | 'text', content: null, name: undefined });
+    } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image') {
+        onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image', content: null, name: undefined });
     } else {
         onUpdate({ type: 'empty', content: null, name: undefined });
     }
@@ -114,7 +134,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       const reader = new FileReader();
       reader.onloadend = () => {
         setFilePreview(reader.result as string);
-        onUpdate({ type: 'photo', content: reader.result as string, name: file.name });
+        onUpdate({ type: element.type as 'photo' | 'background-image', content: reader.result as string, name: file.name });
       };
       reader.readAsDataURL(file);
     }
@@ -252,6 +272,10 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     } else {
       dropdownValue = 'empty';
     }
+  } else if (element.type === 'background-image') {
+    dropdownValue = 'background-image';
+  } else {
+    dropdownValue = element.type;
   }
 
   return (
@@ -274,15 +298,16 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
               <option value="empty"> - inactive - </option>
               <option value="photo">Photo</option>
               <option value="text">Text</option>
-              <option value={"component-rsvp" as string}>RSVP Form</option>
-              <option value={"component-scrapbook" as string}>Scrapbook</option>
+              <option value="component-rsvp">RSVP Form</option>
+              <option value="component-scrapbook">Scrapbook</option>
+              <option value="background-image">Background Image</option>
             </select>
           </div>
         </div>
 
         {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
         {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}
-        {element.type === 'photo' && (
+        {(element.type === 'photo' || element.type === 'background-image') && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '10px' }}>
             {filePreview && 
               <img 

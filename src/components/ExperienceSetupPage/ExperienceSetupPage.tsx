@@ -26,7 +26,7 @@ export interface TimelineMarker {
 
 export interface ElementConfig {
   id: number; // Now 1-8
-  type: 'empty' | 'photo' | 'text' | 'component';
+  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image'; // Added 'background-image'
   content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
@@ -54,7 +54,7 @@ interface WeddingData {
 
 const INITIAL_DEFINED_ELEMENT_COUNT = 7; // For the 7 predefined slots
 const MAX_DISPLAY_ELEMENTS_INITIAL = 8; // For TimelineBar's visual calculations and initial array sizing if needed for colors.
-const INITIAL_TIMELINE_LENGTH = 1000;
+const INITIAL_TIMELINE_LENGTH = 5000; // Changed to 5000
 
 // Updated color palette based on user's new list
 const ELEMENT_COLORS = [
@@ -108,8 +108,8 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
       name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3],
     },
     {
-      id: 5, type: 'photo', content: weddingData.introBackground || null,
-      name: 'Intro Background Image', timelineColor: ELEMENT_COLORS[4],
+      id: 5, type: 'background-image', content: weddingData.introBackground || null, // Changed type to 'background-image'
+      name: 'Background Scene Image', timelineColor: ELEMENT_COLORS[4],
     },
     {
       id: 6, type: 'component', content: 'RSVP Form', name: 'RSVP Form',
@@ -151,6 +151,8 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
       } else if (el.type === 'component') {
         previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
       } else if (el.type === 'photo' && typeof el.content === 'string') {
+        previewImageUrl = el.content;
+      } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
         previewImageUrl = el.content;
       }
 
@@ -281,12 +283,17 @@ const ExperienceSetupPage: React.FC = () => {
       if (el.type !== 'empty') {
         let textPreviewContent: string | undefined = undefined;
         let iconPreviewContent: string | undefined = undefined;
+        let previewImageUrl: string | undefined = undefined;
 
         if (el.type === 'text' && typeof el.content === 'string' && el.content.trim()) {
           const fullText = el.content.trim();
           textPreviewContent = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
         } else if (el.type === 'component') {
-          iconPreviewContent = 'settings'; // Using a generic icon name for now
+          iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+        } else if (el.type === 'photo' && typeof el.content === 'string') {
+          previewImageUrl = el.content;
+        } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
+          previewImageUrl = el.content;
         }
 
         // Default positions based on element ID if markers don't exist
@@ -298,14 +305,16 @@ const ExperienceSetupPage: React.FC = () => {
             id: `element-${el.id}-start`, elementId: el.id, type: 'start',
             position: defaultBasePosition, // Default start
             color: el.timelineColor,
-            previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
-            textPreview: textPreviewContent, previewIcon: iconPreviewContent,
+            previewImageUrl: previewImageUrl,
+            textPreview: textPreviewContent,
+            previewIcon: iconPreviewContent,
           };
         } else {
           startMarker = {
             ...startMarker,
-            previewImageUrl: el.type === 'photo' && typeof el.content === 'string' ? el.content : undefined,
-            textPreview: textPreviewContent, previewIcon: iconPreviewContent,
+            previewImageUrl: previewImageUrl,
+            textPreview: textPreviewContent,
+            previewIcon: iconPreviewContent,
           };
         }
 
@@ -365,6 +374,8 @@ const ExperienceSetupPage: React.FC = () => {
             } else if (el.type === 'component') {
                 previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
             } else if (el.type === 'photo' && typeof el.content === 'string') {
+                previewImageUrl = el.content;
+            } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image
                 previewImageUrl = el.content;
             }
 
@@ -568,6 +579,7 @@ const ExperienceSetupPage: React.FC = () => {
         const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(currentWeddingData);
         setElements(initialElements);
         setMarkers(initialMarkers);
+        setTimelineLength(INITIAL_TIMELINE_LENGTH); // Set timeline length to new default
         setFocusedElementId(null);
       } else {
         // Handle case where currentWeddingData might be null (e.g., if called before data load)
