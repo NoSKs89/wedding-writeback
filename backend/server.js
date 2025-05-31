@@ -246,7 +246,7 @@ exports.handler = async (event, context) => {
           
           return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
-
+      
       // GET /api/weddings/:customId/experience-settings
       const getExperienceSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/experience-settings$/);
       if (httpMethod === "GET" && getExperienceSettingsMatch) {
