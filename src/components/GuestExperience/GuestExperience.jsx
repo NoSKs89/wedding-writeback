@@ -5,6 +5,8 @@ import { Parallax, ParallaxLayer } from '@react-spring/parallax';
 import { Leva, useControls } from 'leva';
 // import { getApiBaseUrl } from '../../config/apiConfig'; // No longer needed
 import RSVPForm from '../RSVPForm';
+// import ScrapbookDisplay from './ScrapbookDisplay'; // IMPORT ScrapbookDisplay
+import InteractiveScrapbook from './InteractiveScrapbook'; // IMPORT InteractiveScrapbook
 // We might need a Scrapbook component later
 // import ScrapbookDisplay from './ScrapbookDisplay'; // Placeholder
 
@@ -21,6 +23,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [isLoading, setIsLoading] = useState(false); // Initially false, parent will handle loading state
   const [error, setError] = useState(null); // Parent can pass errors if needed, or this can be removed
   const parallaxRef = useRef();
+  const [scrollY, setScrollY] = useState(0); // ADD scrollY state
   const [windowHeight, setWindowHeight] = useState(window.innerHeight);
 
   useEffect(() => {
@@ -30,6 +33,19 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // ADD useEffect to update scrollY from parallaxRef
+  useEffect(() => {
+    const parallaxContainer = parallaxRef.current?.container?.current;
+    if (!parallaxContainer) return;
+
+    const handleScroll = () => {
+      setScrollY(parallaxContainer.scrollTop);
+    };
+
+    parallaxContainer.addEventListener('scroll', handleScroll);
+    return () => parallaxContainer.removeEventListener('scroll', handleScroll);
+  }, [parallaxRef.current]); // Rerun if parallaxRef itself changes (though unlikely)
 
   // Internal data fetching useEffect is removed.
   // useEffect(() => { ... fetchData ... }, [weddingId, experienceSettings]);
@@ -119,7 +135,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                 if (element.name === 'RSVP Form' && weddingData && weddingData.rsvpEndpoint) {
                   contentToRender = <RSVPForm weddingData={weddingData} backendUrl={weddingData.rsvpEndpoint} />;
                 } else if (element.name === 'Scrapbook') {
-                  contentToRender = <div>Scrapbook Placeholder (Max Images: {element.content?.maxImages || 'N/A'})</div>;
+                  const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
+                  //contentToRender = <ScrapbookDisplay weddingData={weddingData} config={scrapbookConfig} />;
+                  contentToRender = <InteractiveScrapbook weddingData={weddingData} config={scrapbookConfig} scrollY={scrollY} />;
                 } else {
                   contentToRender = <div>Dynamic Component: {element.name}</div>;
                 }
@@ -149,6 +167,26 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                 </div>
               );
             };
+
+            // Conditional rendering for scrapbook to bypass ElementWrapper for testing clicks
+            if (element.name === 'Scrapbook') {
+              const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
+              // Render InteractiveScrapbook directly in ParallaxLayer without ElementWrapper
+              return (
+                <ParallaxLayer
+                  key={element.key}
+                  sticky={element.sticky}
+                  style={{
+                    ...centerStyle,
+                    // Ensure scrapbook has a high enough zIndex to be clickable
+                    // Let's give it a distinct zIndex for testing, e.g., 50, assuming other elements are lower.
+                    zIndex: 50, 
+                  }}
+                >
+                  <InteractiveScrapbook weddingData={weddingData} config={scrapbookConfig} scrollY={scrollY} />
+                </ParallaxLayer>
+              );
+            }
 
             return (
               <ParallaxLayer
