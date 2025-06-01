@@ -52,7 +52,7 @@ const ElementWrapper = ({
     controlsSchema = {
       ...controlsSchema,
       landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+      fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
@@ -63,7 +63,7 @@ const ElementWrapper = ({
       endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
       scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
       scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+      fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
     };
@@ -133,7 +133,7 @@ const ElementWrapper = ({
 
   if (lockIsActive) {
     if (lockToViewportEdge === 'imageBottom-viewportBottom') {
-      yTransform = (windowHeight - actualDisplayedHeight) / 2 + landingYPosition; 
+      yTransform = (windowHeight - actualDisplayedHeight) / 2 + landingYPosition + 3; 
     } else if (lockToViewportEdge === 'imageTop-viewportTop') {
       yTransform = -(windowHeight - actualDisplayedHeight) / 2 + landingYPosition;
     }
@@ -156,11 +156,12 @@ const ElementWrapper = ({
     });
   }
 
-  const elementStyle = {
+  let elementOuterStyle = {
     opacity: finalOpacity,
     transform: `translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
     width: element.type === 'background-image' ? '100%' : 'auto',
     height: element.type === 'background-image' ? '100%' : 'auto',
+    // Default pointer-events, can be overridden for RSVP form
   };
 
   let childToRender = children;
@@ -168,12 +169,14 @@ const ElementWrapper = ({
      childToRender = React.cloneElement(children, { ref: currentChildRef });
   } else if (element.type === 'component' && element.name === 'RSVP Form' && React.isValidElement(children)) {
     // RSVPForm is now created with its ref directly in GuestExperience, so children here is the already-ref'd component
-    childToRender = children; 
+    childToRender = <div style={{ pointerEvents: 'auto' }}>{children}</div>; 
+    // Add pointerEvents: 'none' to the outer style for RSVP form's ElementWrapper
+    elementOuterStyle = { ...elementOuterStyle, pointerEvents: 'none' };
   } else if (React.isValidElement(children)) {
     childToRender = children;
   }
 
-  return <div style={elementStyle}>{childToRender}</div>;
+  return <div style={elementOuterStyle}>{childToRender}</div>;
 };
 
 
@@ -190,8 +193,10 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [isLoading, setIsLoading] = useState(false); // Initially false, parent will handle loading state
   const [error, setError] = useState(null); // Parent can pass errors if needed, or this can be removed
   const parallaxRef = useRef();
+  const rsvpFormRef = useRef(null); 
   const [scrollY, setScrollY] = useState(0); // ADD scrollY state
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 1080);
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1920);
   const isMobile = useIsMobile(); // Determine if mobile view
 
   // REMOVED: const elementChildRef = useRef(null); // This ref is now inside ElementWrapper or used directly for RSVPForm
@@ -209,6 +214,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   useEffect(() => {
     const handleResize = () => {
       setWindowHeight(window.innerHeight);
+      setWindowWidth(window.innerWidth);
     };
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', handleResize);
@@ -240,7 +246,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     return Math.max(1, experienceSettings.timelineLength / windowHeight);
   }, [experienceSettings, windowHeight]);
 
-  const renderableElements = useMemo(() => {
+  const allRenderableElements = useMemo(() => {
     if (!experienceSettings || !experienceSettings.elements || !experienceSettings.markers) {
       return [];
     }
@@ -265,9 +271,26 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
         ...element,
         key: `ge-el-${element.id}`,
         sticky: { start: pageOffset, end: actualEndPage },
+        pageOffset: pageOffset, 
+        speed: element.speed || 0.5, // Default speed, adjust as needed
       };
     }).filter(el => el !== null);
   }, [experienceSettings, TOTAL_PAGES]);
+
+  const rsvpElement = useMemo(() => 
+    allRenderableElements.find(el => el.name === 'RSVP Form' && el.type === 'component')
+  , [allRenderableElements]);
+
+  const scrapbookElement = useMemo(() => 
+    allRenderableElements.find(el => el.name === 'Scrapbook' && el.type === 'component')
+  , [allRenderableElements]);
+
+  const genericRenderableElements = useMemo(() => 
+    allRenderableElements.filter(el => 
+        (!rsvpElement || el.id !== rsvpElement.id) && 
+        (!scrapbookElement || el.id !== scrapbookElement.id)
+    )
+  , [allRenderableElements, rsvpElement, scrapbookElement]);
 
   // Loading and error states are now primarily managed by the parent component (WeddingPageController)
   // We can keep minimal checks here for robustness or rely on parent providing valid props.
@@ -348,12 +371,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0' }}>
           
-          {renderableElements.map((element) => {
-            // The ref for RSVPForm needs to be created here if it's to be measured by ElementWrapper
-            // However, RSVPForm is a component, its measurement should ideally be handled by itself if it needs to affect its own layout
-            // For ElementWrapper to measure it, it would need to be a direct child, and RSVPForm would need to forwardRef.
-            // const rsvpFormRef = useRef(null); 
-
+          {/* Generic Elements */}
+          {genericRenderableElements.map((element) => {
             let contentToRender = null;
             switch (element.type) {
               case 'text':
@@ -381,37 +400,11 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                   />
                 );
                 break;
-              case 'component':
-                if (element.name === 'RSVP Form' && weddingData && weddingData.rsvpEndpoint) {
-                  // Pass the ref to RSVPForm. ElementWrapper will then use currentChildRef on this instance via its children prop.
-                  contentToRender = <RSVPForm weddingData={weddingData} backendUrl={weddingData.rsvpEndpoint} />;
-                } else if (element.name === 'Scrapbook') {
-                  const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
-                  contentToRender = <InteractiveScrapbook weddingData={weddingData} config={scrapbookConfig} scrollY={scrollY} />;
-                } else {
-                  contentToRender = <div>Dynamic Component: {element.name}</div>;
-                }
-                break;
               default:
                 contentToRender = <div>Unsupported element type: {element.type}</div>;
             }
 
-            // Conditional rendering for scrapbook to bypass ElementWrapper
-            if (element.name === 'Scrapbook') {
-              const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
-              return (
-                <ParallaxLayer
-                  key={element.key}
-                  sticky={element.sticky}
-                  style={{
-                    ...centerStyle,
-                    zIndex: 50, 
-                  }}
-                >
-                  <InteractiveScrapbook weddingData={weddingData} config={scrapbookConfig} scrollY={scrollY} />
-                </ParallaxLayer>
-              );
-            }
+            if (!contentToRender) return null; 
 
             return (
               <ParallaxLayer
@@ -428,13 +421,54 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                   scrollY={scrollY}
                   windowHeight={windowHeight}
                   TOTAL_PAGES={TOTAL_PAGES}
-                  // animationCurves and centerStyle are available in the scope where ElementWrapper is defined
                 >
                   {contentToRender}
                 </ElementWrapper>
               </ParallaxLayer>
             );
-          })}
+          }).filter(Boolean)}
+
+          {/* RSVP Form Layer */}
+          {rsvpElement && (
+            <ParallaxLayer
+              offset={rsvpElement.pageOffset}
+              sticky={rsvpElement.sticky}
+              speed={rsvpElement.speed || 0.5}
+              style={{ ...centerStyle, zIndex: 150, pointerEvents: 'none' }}
+            >
+              <ElementWrapper 
+                element={rsvpElement} 
+                experienceSettings={experienceSettings} 
+                scrollY={scrollY} 
+                windowHeight={windowHeight} 
+                TOTAL_PAGES={TOTAL_PAGES}
+              >
+                <RSVPForm 
+                  ref={rsvpFormRef}
+                  weddingData={weddingData} 
+                  backendUrl={weddingData.rsvpEndpoint} 
+                />
+              </ElementWrapper>
+            </ParallaxLayer>
+          )}
+
+          {/* Interactive Scrapbook Layer */}
+          {scrapbookElement && (
+            <ParallaxLayer
+              offset={scrapbookElement.pageOffset}
+              sticky={scrapbookElement.sticky}
+              speed={scrapbookElement.speed || 0.2}
+              style={{ ...centerStyle, zIndex: 100, pointerEvents: 'auto' }}
+            >
+              <InteractiveScrapbook 
+                weddingData={weddingData} 
+                config={typeof scrapbookElement.content === 'object' ? scrapbookElement.content : {}} 
+                scrollY={scrollY} 
+                windowHeight={windowHeight}
+                windowWidth={windowWidth}
+              />
+            </ParallaxLayer>
+          )}
         </Parallax>
       </div>
     </>

@@ -2,8 +2,18 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useSpring, animated } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
 import ScrapbookImageItem from '../ScrapbookImageItem'; // Check path relative to new file
+import { useTrackedControls } from '../../hooks/useTrackedControls'; // ADDED
 
 // --- Logic and Components from WeddingJourney.tsx (adapted) ---
+
+// ADDED: Leva schema for scrapbook layout
+const scrapbookLayoutControlsSchema = {
+  centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
+  centerYOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center Y Offset (%)' },
+  spreadRadiusFactor: { value: 0.35, min: 0.1, max: 0.7, step: 0.01, label: 'Spread Radius Factor' },
+  maxImages: { value: 15, min: 1, max: 50, step: 1, label: 'Max Images Displayed' },
+  // Add other layout controls here if needed, e.g., angle range, size range
+};
 
 const springConfigPresets = {
   default: { tension: 170, friction: 26, name: 'Default (react-spring)' },
@@ -39,26 +49,31 @@ interface FocusedImageState {
 }
 */
 
-const generateInitialScrapbookStyle = (index, totalImages, currentWindow) => {
-  const angle = (Math.random() - 0.5) * 30; // Random angle -15 to 15 (closer to WJ)
-  const size = 120 + Math.random() * 80;  // Size 120px to 200px (closer to WJ defaults)
+const generateInitialScrapbookStyle = (index, totalImages, currentWindow, layoutControls) => {
+  const { centerXOffset, centerYOffset, spreadRadiusFactor } = layoutControls;
+
+  const angle = (Math.random() - 0.5) * 30; // Random angle -15 to 15
+  const size = 120 + Math.random() * 80;  // Size 120px to 200px
   
-  // Adjusted radius calculation to be more like WeddingJourney's effective radius
-  // WeddingJourney used: Math.min(currentWindow.innerWidth, currentWindow.innerHeight) * (radiusFactor/100) * (random_scalar)
-  // Assuming radiusFactor ~0.8 to 0.9 from WJ's dummy controls for a wider spread.
-  const baseRadiusPercentage = 0.35; // Increased from 0.25 for wider spread
+  const baseRadiusPercentage = spreadRadiusFactor; // Use Leva controlled factor
   const radiusRandomFactor = 0.6 + Math.random() * 0.4; // Range 0.6 to 1.0
 
   const radius = currentWindow 
     ? Math.min(currentWindow.innerWidth * 0.45, currentWindow.innerHeight * 0.45) * baseRadiusPercentage * radiusRandomFactor
-    : 200 * radiusRandomFactor; // Fallback if currentWindow is not yet available
+    : 200 * radiusRandomFactor;
 
-  // Center calculation with jitter for more organic look
-  const centerX = currentWindow ? currentWindow.innerWidth / 2 : 400;
-  const centerY = currentWindow ? currentWindow.innerHeight / 2 : 300;
+  // Center calculation with Leva-controlled offsets
+  const baseCenterX = currentWindow ? currentWindow.innerWidth / 2 : 400;
+  const baseCenterY = currentWindow ? currentWindow.innerHeight / 2 : 300;
+
+  const offsetX = currentWindow ? (currentWindow.innerWidth * centerXOffset / 100) : (800 * centerXOffset / 100);
+  const offsetY = currentWindow ? (currentWindow.innerHeight * centerYOffset / 100) : (600 * centerYOffset / 100);
+
+  const finalCenterX = baseCenterX + offsetX;
+  const finalCenterY = baseCenterY + offsetY;
   
-  const x = Math.cos((index / totalImages) * 2 * Math.PI) * radius + centerX - (size / 2) + (Math.random() - 0.5) * 50;
-  const y = Math.sin((index / totalImages) * 2 * Math.PI) * radius + centerY - (size / 2) + (Math.random() - 0.5) * 50;
+  const x = Math.cos((index / totalImages) * 2 * Math.PI) * radius + finalCenterX - (size / 2) + (Math.random() - 0.5) * 50;
+  const y = Math.sin((index / totalImages) * 2 * Math.PI) * radius + finalCenterY - (size / 2) + (Math.random() - 0.5) * 50;
 
   return {
     position: 'absolute',
@@ -83,6 +98,19 @@ const InteractiveScrapbook = ({ weddingData, config, scrollY }) => {
   const [lastPutDownIndex, setLastPutDownIndex] = useState(null);
   const [imageNaturalDimensions, setImageNaturalDimensions] = useState([]);
   const [currentWindow, setCurrentWindow] = useState(undefined);
+
+  // ADDED: Leva controls for scrapbook layout
+  const layoutControls = useTrackedControls(
+    'Scrapbook Layout',
+    scrapbookLayoutControlsSchema,
+    { collapsed: true } 
+  );
+  const { 
+    centerXOffset = 0, 
+    centerYOffset = 0, 
+    spreadRadiusFactor = 0.35,
+    maxImages = 15 // Get maxImages from controls
+  } = layoutControls.values || scrapbookLayoutControlsSchema; // Fallback to schema defaults
 
   const imageReturningToScrapbookRef = useRef(null);
   const pendingImageToFocusRef = useRef(null);
@@ -157,7 +185,7 @@ const InteractiveScrapbook = ({ weddingData, config, scrollY }) => {
       if (resolvedScrapbookImages.length === 0) return [];
     }
 
-    const maxScrapbookImagesToShow = config?.maxImages || 15;
+    const maxScrapbookImagesToShow = maxImages; // Use Leva controlled maxImages
     const numImagesToDisplay = Math.min(maxScrapbookImagesToShow, resolvedScrapbookImages.length);
     
     let imagesToProcess = []; 
@@ -180,7 +208,7 @@ const InteractiveScrapbook = ({ weddingData, config, scrollY }) => {
 
     return imagesToProcess.map((imageInfo, displayIndex) => {
       const { src, originalIndex, alt, id } = imageInfo;
-      const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, currentWindow);
+      const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, currentWindow, { centerXOffset, centerYOffset, spreadRadiusFactor });
       
       return {
         src, originalIndex, displayIndex, altText: alt, id,
@@ -193,7 +221,7 @@ const InteractiveScrapbook = ({ weddingData, config, scrollY }) => {
         movementScrollCap,
       };
     });
-  }, [resolvedScrapbookImages, imageNaturalDimensions, currentWindow, config?.maxImages]);
+  }, [resolvedScrapbookImages, imageNaturalDimensions, currentWindow, maxImages, centerXOffset, centerYOffset, spreadRadiusFactor]);
 
   useEffect(() => {
     scrapbookImageRefs.current = Array(displayedImagesAndTheirData.length).fill(null);
