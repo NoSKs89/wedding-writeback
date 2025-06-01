@@ -30,6 +30,153 @@ const animationCurves = {
   // Add other curves here
 };
 
+// STANDALONE ELEMENTWRAPPER COMPONENT
+const ElementWrapper = ({ 
+  children, 
+  element, 
+  experienceSettings, 
+  scrollY, 
+  windowHeight, 
+  TOTAL_PAGES,
+  // animationCurves, // Already defined in this scope, no need to pass if ElementWrapper is in the same file
+  // centerStyle // Not directly used by ElementWrapper's logic, but by ParallaxLayer
+}) => {
+  const [measuredHeight, setMeasuredHeight] = useState(0);
+  const currentChildRef = useRef(null);
+
+  let controlsSchema = {
+    opacity: { value: 1, min: 0, max: 1, step: 0.01 },
+  };
+
+  if (element.type === 'text') {
+    controlsSchema = {
+      ...controlsSchema,
+      landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+    };
+  } else if (element.type === 'photo' && element.name !== 'background-image') {
+    controlsSchema = {
+      ...controlsSchema,
+      landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+      startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
+      endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+      scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
+      scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
+      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+      lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+    };
+  } else if (element.type === 'component' && element.name === 'RSVP Form') {
+    // RSVP Form specific controls can be added here if needed, or managed within RSVPForm itself.
+    // For now, ElementWrapper only handles opacity for RSVP Form.
+  }
+  
+  const folderName = `Element ${element.id} (${element.name || element.type})`;
+  const controls = useTrackedControls(
+    folderName, 
+    controlsSchema, 
+    { collapsed: true }
+  );
+
+  const { 
+    opacity = 1, 
+    landingYPosition = 0,
+    startingScale = 1, 
+    endingScale = 1, 
+    scaleEndYPosition = 0.5, 
+    scaleAnimationCurve = 'linear',
+    fadeOutEndYPosition = 1,
+    fadeOutAnimationCurve = 'disabled',
+    lockToViewportEdge = 'disabled'
+  } = controls.values;
+
+  useEffect(() => {
+    if (currentChildRef.current) {
+      setMeasuredHeight(currentChildRef.current.offsetHeight);
+    }
+  }, [children, currentChildRef.current]);
+
+  const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
+  const startMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'start');
+  const endMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'end');
+  
+  const elementStartScroll = startMarker ? startMarker.position * pageMultiplier * windowHeight : 0;
+  const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
+  const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
+
+  let currentScale = 1;
+  if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
+    const scaleAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * scaleEndYPosition);
+    const scaleProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (scaleAnimationEndScrollPoint - elementStartScroll || 1)));
+    const selectedScaleCurve = animationCurves[scaleAnimationCurve] || linear;
+    currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
+  }
+
+  let finalOpacity = opacity;
+  if (fadeOutAnimationCurve !== 'disabled') {
+    const fadeOutStartScrollPoint = elementStartScroll;
+    const fadeOutDurationScroll = elementScrollDuration * fadeOutEndYPosition;
+    const safeFadeOutDurationScroll = fadeOutDurationScroll <= 0 ? 1 : fadeOutDurationScroll;
+    const fadeOutProgress = Math.min(1, Math.max(0, (scrollY - fadeOutStartScrollPoint) / safeFadeOutDurationScroll));
+    const selectedFadeOutCurve = animationCurves[fadeOutAnimationCurve] || linear;
+    finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
+  }
+
+  const isCentered = true; 
+  const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
+  let initialYFromLanding = landingYPosition; 
+  let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
+
+  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY < elementEndScroll;
+  const actualDisplayedHeight = measuredHeight * currentScale;
+
+  if (lockIsActive) {
+    if (lockToViewportEdge === 'imageBottom-viewportBottom') {
+      yTransform = (windowHeight - actualDisplayedHeight) / 2 + landingYPosition; 
+    } else if (lockToViewportEdge === 'imageTop-viewportTop') {
+      yTransform = -(windowHeight - actualDisplayedHeight) / 2 + landingYPosition;
+    }
+  }
+  const finalCalculatedYTransform = yTransform;
+  
+  if (element.id === 4 && console.log) {
+    console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
+      scrollY: scrollY,
+      landingYPosition: landingYPosition,
+      lockToViewportEdge: lockToViewportEdge,
+      lockIsActive: lockIsActive,
+      measuredHeight: measuredHeight,
+      currentScale: currentScale,
+      actualDisplayedHeight: actualDisplayedHeight,
+      elementStartScroll,
+      elementEndScroll,
+      windowHeight,
+      finalCalculatedYTransform: finalCalculatedYTransform
+    });
+  }
+
+  const elementStyle = {
+    opacity: finalOpacity,
+    transform: `translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
+    width: element.type === 'background-image' ? '100%' : 'auto',
+    height: element.type === 'background-image' ? '100%' : 'auto',
+  };
+
+  let childToRender = children;
+  if (React.isValidElement(children) && (element.type === 'photo' || element.type === 'text')) {
+     childToRender = React.cloneElement(children, { ref: currentChildRef });
+  } else if (element.type === 'component' && element.name === 'RSVP Form' && React.isValidElement(children)) {
+    // RSVPForm is now created with its ref directly in GuestExperience, so children here is the already-ref'd component
+    childToRender = children; 
+  } else if (React.isValidElement(children)) {
+    childToRender = children;
+  }
+
+  return <div style={elementStyle}>{childToRender}</div>;
+};
+
+
 // const GuestExperience = () => { // Old signature
 const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp }) => {
   // const { weddingId } = useParams(); // Replaced by weddingIdFromApp
@@ -46,6 +193,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [scrollY, setScrollY] = useState(0); // ADD scrollY state
   const [windowHeight, setWindowHeight] = useState(typeof window !== 'undefined' ? window.innerHeight : 1080);
   const isMobile = useIsMobile(); // Determine if mobile view
+
+  // REMOVED: const elementChildRef = useRef(null); // This ref is now inside ElementWrapper or used directly for RSVPForm
 
   // Load settings from server on mount
   useEffect(() => {
@@ -200,6 +349,11 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0' }}>
           
           {renderableElements.map((element) => {
+            // The ref for RSVPForm needs to be created here if it's to be measured by ElementWrapper
+            // However, RSVPForm is a component, its measurement should ideally be handled by itself if it needs to affect its own layout
+            // For ElementWrapper to measure it, it would need to be a direct child, and RSVPForm would need to forwardRef.
+            // const rsvpFormRef = useRef(null); 
+
             let contentToRender = null;
             switch (element.type) {
               case 'text':
@@ -229,10 +383,10 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                 break;
               case 'component':
                 if (element.name === 'RSVP Form' && weddingData && weddingData.rsvpEndpoint) {
+                  // Pass the ref to RSVPForm. ElementWrapper will then use currentChildRef on this instance via its children prop.
                   contentToRender = <RSVPForm weddingData={weddingData} backendUrl={weddingData.rsvpEndpoint} />;
                 } else if (element.name === 'Scrapbook') {
                   const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
-                  //contentToRender = <ScrapbookDisplay weddingData={weddingData} config={scrapbookConfig} />;
                   contentToRender = <InteractiveScrapbook weddingData={weddingData} config={scrapbookConfig} scrollY={scrollY} />;
                 } else {
                   contentToRender = <div>Dynamic Component: {element.name}</div>;
@@ -242,155 +396,15 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                 contentToRender = <div>Unsupported element type: {element.type}</div>;
             }
 
-            const ElementWrapper = ({ children }) => {
-              let defaultLandingY = 0;
-              let defaultStartingScale = 1;
-              let defaultEndingScale = 1;
-              let defaultScaleEndYPosition = 0.5; // Mid-point of element's duration
-              let defaultAnimationCurve = 'linear';
-              let defaultFadeOutEndYPosition = 1; // Default to fade out by the end of duration
-              let defaultFadeOutAnimationCurve = 'disabled'; // Default to no fade-out effect
-
-              // Set default landing Y for text elements
-              if (element.type === 'text') {
-                if (element.id === 1) defaultLandingY = -275; // Bride Name
-                else if (element.id === 2) defaultLandingY = -215; // Groom Name
-                else if (element.id === 3) defaultLandingY = -400; // Wedding Date
-              } else if (element.type === 'photo' && element.name !== 'Background Scene Image') {
-                // Specific defaults for photos if needed, e.g.:
-                // defaultStartingScale = 0.8;
-                // defaultEndingScale = 1.1;
-              }
-
-              const controlsConfig = {
-                opacity: { value: 1, min: 0, max: 1, step: 0.01 },
-              };
-
-              if (element.type === 'text' || (element.type === 'photo' && element.name !== 'Background Scene Image')) {
-                controlsConfig.landingYPosition = { value: defaultLandingY, step: 1, label: 'Landing Y (px)' };
-                // Add fade-out controls for these types
-                controlsConfig.fadeOutEndYPosition = { value: defaultFadeOutEndYPosition, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% dur)' };
-                controlsConfig.fadeOutAnimationCurve = { value: defaultFadeOutAnimationCurve, options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Curve' };
-              }
-
-              // Add scale controls for 'photo' elements (excluding background-image type)
-              if (element.type === 'photo' && element.name !== 'Background Scene Image') {
-                controlsConfig.startingScale = { value: defaultStartingScale, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' };
-                controlsConfig.endingScale = { value: defaultEndingScale, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' };
-                controlsConfig.scaleEndYPosition = { value: defaultScaleEndYPosition, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' };
-                controlsConfig.scaleAnimationCurve = { value: defaultAnimationCurve, options: Object.keys(animationCurves), label: 'Scale Animation Curve' };
-              }
-
-              const trackedControls = useTrackedControls(
-                `Element ${element.id} (${element.name || element.type})`, 
-                controlsConfig, 
-                { collapsed: true }
-              );
-              const controls = trackedControls.values; // Get the values from the hook's return
-            
-              // Calculate current scale based on scroll position
-              let currentScale = 1;
-              let yTransform = controls.landingYPosition || 0;
-              let finalOpacity = controls.opacity; // Start with the base opacity
-
-              if (element.type === 'photo' && element.name !== 'Background Scene Image' && controls.startingScale !== undefined) {
-                const startMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'start');
-                const endMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'end');
-
-                if (startMarker && endMarker && parallaxRef.current) {
-                  // Consistent page multiplier for scroll calculations
-                  const pageMultiplierForScroll = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
-
-                  const elementScrollStart = startMarker.position * pageMultiplierForScroll * windowHeight;
-                  
-                  const elementMarkerDurationScroll = (endMarker.position - startMarker.position) * pageMultiplierForScroll * windowHeight;
-                  const scaleAnimationEndScrollPoint = elementScrollStart + (elementMarkerDurationScroll * controls.scaleEndYPosition);
-
-                  let progress = 0;
-                  if (scrollY <= elementScrollStart) {
-                    progress = 0;
-                  } else if (scrollY >= scaleAnimationEndScrollPoint) {
-                    progress = 1;
-                  } else if (scaleAnimationEndScrollPoint > elementScrollStart) { // Avoid division by zero
-                    // Progress is calculated over the range from elementScrollStart to scaleAnimationEndScrollPoint
-                    progress = (scrollY - elementScrollStart) / (scaleAnimationEndScrollPoint - elementScrollStart);
-                  } else {
-                    // If scaleAnimationEndScrollPoint is at or before elementScrollStart (e.g. scaleEndYPosition is 0)
-                    // and scrollY is past elementScrollStart, progress should be 1 if scaleEndYPosition > 0, or 0 if scaleEndYPosition is 0.
-                    // However, with min value of scaleEndYPosition being 0, if it's 0, scaleAnimationEndScrollPoint will be elementScrollStart.
-                    // In this case, if scrollY > elementScrollStart, progress should be 1 (instant completion at start).
-                    // The (scrollY >= scaleAnimationEndScrollPoint) condition above handles this if scaleEndYPosition is 0.
-                    // If scaleEndYPosition is > 0 but very small, leading to scaleAnimationEndScrollPoint being very close to elementScrollStart,
-                    // this path might be taken. If scaleAnimationEndScrollPoint === elementScrollStart, progress is 1 via prior condition.
-                    // This handles the edge case where scaleEndYPosition is 0, making the denominator 0.
-                    progress = (controls.scaleEndYPosition > 0) ? 1 : 0; 
-                  }
-                  
-                  const easingFunction = animationCurves[controls.scaleAnimationCurve] || linear;
-                  const easedProgress = easingFunction(progress);
-                  
-                  currentScale = controls.startingScale + (controls.endingScale - controls.startingScale) * easedProgress;
-                }
-              }
-
-              // Fade-out Logic (for text and non-background photos)
-              if ((element.type === 'text' || (element.type === 'photo' && element.name !== 'Background Scene Image')) && controls.fadeOutAnimationCurve !== 'disabled') {
-                const startMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'start');
-                const endMarker = experienceSettings.markers.find(m => m.elementId === element.id && m.type === 'end');
-
-                if (startMarker && endMarker && parallaxRef.current) {
-                  const pageMultiplierForScroll = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
-                  const elementScrollStart = startMarker.position * pageMultiplierForScroll * windowHeight;
-                  const elementMarkerDurationScroll = (endMarker.position - startMarker.position) * pageMultiplierForScroll * windowHeight;
-                  const fadeOutAnimationEndScrollPoint = elementScrollStart + (elementMarkerDurationScroll * controls.fadeOutEndYPosition);
-
-                  let fadeProgress = 0;
-                  if (scrollY <= elementScrollStart) {
-                    fadeProgress = 0;
-                  } else if (scrollY >= fadeOutAnimationEndScrollPoint) {
-                    fadeProgress = 1;
-                  } else if (fadeOutAnimationEndScrollPoint > elementScrollStart) {
-                    fadeProgress = (scrollY - elementScrollStart) / (fadeOutAnimationEndScrollPoint - elementScrollStart);
-                  } else {
-                    fadeProgress = (controls.fadeOutEndYPosition > 0) ? 1 : 0;
-                  }
-
-                  const fadeEasingFunction = animationCurves[controls.fadeOutAnimationCurve] || linear;
-                  const easedFadeProgress = fadeEasingFunction(fadeProgress);
-
-                  // Opacity goes from controls.opacity down to 0
-                  finalOpacity = controls.opacity * (1 - easedFadeProgress);
-                }
-              }
-
-              return (
-                <div style={{ 
-                  opacity: finalOpacity, // Use the calculated finalOpacity
-                  transform: `translateY(${yTransform}px) scale(${currentScale})`,
-                  width: element.type === 'background-image' ? '100%' : 'auto',
-                  height: element.type === 'background-image' ? '100%' : 'auto',
-                  padding: element.type === 'background-image' ? '0' : '20px',
-                  // Remove the default semi-transparent white background for most elements
-                  background: 'transparent', 
-                  borderRadius: (element.type !== 'background-image' && element.type !== 'component') ? '10px' : '0px',
-                 }}>
-                  {children}
-                </div>
-              );
-            };
-
-            // Conditional rendering for scrapbook to bypass ElementWrapper for testing clicks
+            // Conditional rendering for scrapbook to bypass ElementWrapper
             if (element.name === 'Scrapbook') {
               const scrapbookConfig = typeof element.content === 'object' ? element.content : {};
-              // Render InteractiveScrapbook directly in ParallaxLayer without ElementWrapper
               return (
                 <ParallaxLayer
                   key={element.key}
                   sticky={element.sticky}
                   style={{
                     ...centerStyle,
-                    // Ensure scrapbook has a high enough zIndex to be clickable
-                    // Let's give it a distinct zIndex for testing, e.g., 50, assuming other elements are lower.
                     zIndex: 50, 
                   }}
                 >
@@ -408,7 +422,14 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                   zIndex: element.type === 'background-image' ? -5 : (experienceSettings.elements.length - element.id + 1),
                 }}
               >
-                <ElementWrapper>
+                <ElementWrapper 
+                  element={element}
+                  experienceSettings={experienceSettings}
+                  scrollY={scrollY}
+                  windowHeight={windowHeight}
+                  TOTAL_PAGES={TOTAL_PAGES}
+                  // animationCurves and centerStyle are available in the scope where ElementWrapper is defined
+                >
                   {contentToRender}
                 </ElementWrapper>
               </ParallaxLayer>
