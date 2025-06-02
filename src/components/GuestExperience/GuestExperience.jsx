@@ -17,6 +17,7 @@ import { useTrackedControls } from '../../hooks/useTrackedControls'; // ADDED: I
 import { useSetupMode } from '../../contexts/SetupModeContext'; // Import useSetupMode
 import ShiftingBackgroundColors from './ShiftingBackgroundColors'; // Added import
 import { ElementConfig, TimelineMarker, ExperienceSettings as ExperienceSettingsType } from '../ExperienceSetupPage/ExperienceSetupPage';
+import '../../App.css'; // Assuming App.css contains general styles like .center
 
 // Easing functions (can be moved to a utils file)
 const easeInOutQuad = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -38,10 +39,28 @@ const animationCurves = {
 // Default spring configuration (can be adjusted)
 const defaultSpringConfig = { tension: 170, friction: 26 };
 
+// Define the spring configuration presets (copied from WeddingJourney.tsx)
+const springConfigPresets = {
+  default: { tension: 170, friction: 26, name: 'Default (react-spring)' },
+  gentle: { tension: 120, friction: 14, name: 'Gentle (react-spring)' },
+  wobbly: { tension: 180, friction: 12, name: 'Wobbly (react-spring)' },
+  stiff: { tension: 210, friction: 20, name: 'Stiff (react-spring)' },
+  slow: { tension: 280, friction: 60, name: 'Slow (react-spring)' },
+  molasses: { tension: 280, friction: 120, name: 'Molasses (react-spring)' },
+  responsive: { tension: 200, friction: 22, name: 'Responsive (Custom)' },
+  snappy: { tension: 250, friction: 18, name: 'Snappy (Custom)' },
+  delicate: { tension: 100, friction: 10, name: 'Delicate (Custom)' },
+  strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
+};
+
 // Define overall controls schema for HUD toggle (similar to WeddingJourney)
 const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
-  showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' },
-  springPreset: { value: 'default', options: ['default', 'gentle', 'wobbly', 'stiff', 'slow'], label: 'Animation Physics' },
+  showHUD: { value: false, label: 'Show Debug HUD (Guest)' }, // Default to false for guest
+  springPreset: {
+    value: 'default',
+    options: Object.keys(springConfigPresets),
+    label: 'Animation Physics Preset (Guest)',
+  }
 });
 
 // --- Helper functions from WeddingJourney (for focused image) ---
@@ -306,11 +325,14 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     overallControlsSchema,
     { collapsed: false, hidden: false } // Always visible for Guest path
   );
-  const { values: overallCtrlValues } = overallControls || {};
-  const showGlobalHUDEnabled = overallCtrlValues?.showHUD ?? overallControlsSchema.showHUD.value;
-  const { 
-    springPreset: selectedSpringPresetKey = overallControlsSchema.springPreset.value
-  } = overallCtrlValues || {};
+  const overallControlsGuestValues = overallControls?.values || {};
+  const {
+    showHUD: showGlobalHUDEnabledGuest = overallControlsSchema.showHUD.value,
+    springPreset: selectedSpringPresetKeyGuest = overallControlsSchema.springPreset.value
+  } = overallControlsGuestValues;
+
+  const activeSpringConfigGuest = springConfigPresets[selectedSpringPresetKeyGuest] || springConfigPresets.default;
+  const activeSpringConfigNameGuest = activeSpringConfigGuest.name;
 
   // --- State for Save/Load Status Messages (for save button)
   const [isSaving, setIsSaving] = useState(false);
@@ -323,7 +345,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [saveLayoutButtonHeight, setSaveLayoutButtonHeight] = useState(0);
   useEffect(() => { 
     if (saveLayoutButtonRef.current) setSaveLayoutButtonHeight(saveLayoutButtonRef.current.offsetHeight + 10); // +10 for margin
-  }, [isSetupMode, saveLayoutButtonRef.current, showGlobalHUDEnabled]); // Re-check if button appears/disappears or resizes
+  }, [isSetupMode, saveLayoutButtonRef.current, showGlobalHUDEnabledGuest]); // Re-check if button appears/disappears or resizes
 
   // --- ADDED: centerStyle object ---
   const centerStyle = useMemo(() => ({
@@ -355,7 +377,6 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     stiff: { tension: 210, friction: 20, name: 'Stiff' },
     slow: { tension: 280, friction: 60, name: 'Slow' },
   };
-  const activeSpringConfig = springPresets[selectedSpringPresetKey] || springPresets.default;
 
   // --- Hooks for Focused Image Animation (Moved to top level) ---
   const backdropSpring = useSpring({ 
@@ -364,24 +385,22 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     position: 'fixed',
     top: 0, left: 0, width: '100vw', height: '100vh', 
     background: 'rgba(0, 0, 0, 0.7)', 
-    config: activeSpringConfig
+    config: activeSpringConfigGuest
   });
 
   const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ 
     opacity: 0, 
-    top: '50%', 
-    left: '50%', 
-    width: '0px', 
-    height: '0px', 
+    top: '50%', left: '50%', 
+    width: '0px', height: '0px', 
     transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)', 
-    position: 'fixed', 
-    config: activeSpringConfig 
+    position: 'fixed',
+    config: activeSpringConfigGuest
   }));
 
   const infoBoxSpring = useSpring({ 
     opacity: focusedImage ? 1 : 0, 
     transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)', 
-    config: activeSpringConfig, 
+    config: activeSpringConfigGuest,
     delay: focusedImage ? 300 : 0 
   });
 
@@ -551,113 +570,46 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight);
       const { top: calculatedTargetTopPx, left: calculatedTargetLeftPx } = getCenteredPosition(targetWidth, targetHeight, 1.5);
       focusedImageApi.start({ 
-        from: { 
-          opacity: 0.5, 
-          top: `${focusedImage.initialTopPx}px`, 
-          left: `${focusedImage.initialLeftPx}px`, 
-          width: `${focusedImage.initialWidthPx}px`, 
-          height: `${focusedImage.initialHeightPx}px`, 
-          transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` 
-        }, 
-        to: { 
-          opacity: 1, 
-          top: `${calculatedTargetTopPx}px`, 
-          left: `${calculatedTargetLeftPx}px`, 
-          width: `${targetWidth}px`, 
-          height: `${targetHeight}px`, 
-          transform: 'translate(0px, 0px) rotate(0deg) scale(1)' 
-        }, 
-        config: activeSpringConfig 
+        from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, 
+        to: { opacity: 1, top: `${calculatedTargetTopPx}px`, left: `${calculatedTargetLeftPx}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' }, 
+        config: activeSpringConfigGuest
       });
     } else if (imageReturningToScrapbook) {
-      const { 
-        currentIndex: returningDisplayIndex, 
-        // These were the dimensions of the FOCUSED image, not the original scrapbook item's target return dimensions.
-        // initialWidthPx: focusedWidthBeforeReturn,
-        // initialHeightPx: focusedHeightBeforeReturn 
-      } = imageReturningToScrapbook;
-      
+      const { currentIndex: returningDisplayIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook;
       const targetScrapbookElement = scrapbookImageRefs.current[returningDisplayIndex];
       const currentItemDataForReturn = displayedImagesAndTheirData.find(d => d.displayIndex === returningDisplayIndex);
-
-      if (targetScrapbookElement && currentItemDataForReturn && currentItemDataForReturn.initialStyle) {
-        const currentRect = targetScrapbookElement.getBoundingClientRect(); // Get fresh rect OF THE SCRAPBOOK ITEM
-        
-        const targetReturnTopPx = currentRect.top;
-        const targetReturnLeftPx = currentRect.left;
-        const targetReturnWidthPx = currentRect.width;   // Use currentRect.width for return target
-        const targetReturnHeightPx = currentRect.height; // Use currentRect.height for return target
-
+      if (targetScrapbookElement && currentItemDataForReturn) {
+        const currentRect = targetScrapbookElement.getBoundingClientRect();
         const scrapbookLayoutInfoForReturn = currentItemDataForReturn.initialStyle;
         const baseRotationPutDown = parseRotationFromStyle(scrapbookLayoutInfoForReturn.transform);
-        
-        const itemScrollSensitivityPutDown = currentItemDataForReturn.scrollSensitivity || 0;
-        const itemDynamicRotationRange = currentItemDataForReturn.dynamicRotationRange || 45;
-        const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * itemDynamicRotationRange;
-        
-        let totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
-        // Ensure rotation is a finite number
-        if (!Number.isFinite(totalCurrentRotationForPutDown)) {
-          console.warn(`Calculated NaN for totalCurrentRotationForPutDown for index ${returningDisplayIndex}. Defaulting to 0. Base: ${baseRotationPutDown}, Dynamic: ${currentDynamicAngleForPutDown}`);
-          totalCurrentRotationForPutDown = 0;
-        }
-        
-        const animationToValues = {
-          top: `${targetReturnTopPx}px`,
-          left: `${targetReturnLeftPx}px`,
-          width: `${targetReturnWidthPx}px`,
-          height: `${targetReturnHeightPx}px`,
-          transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`
-        };
-
-        // console.log(`[GuestExperience] Returning image ${returningDisplayIndex}. Animation TO values:`, animationToValues);
-        // console.log(`[GuestExperience] currentRect for return:`, currentRect);
-        // console.log(`[GuestExperience] currentItemDataForReturn for return:`, currentItemDataForReturn);
-
+        const itemScrollSensitivityPutDown = currentItemDataForReturn.scrollSensitivity;
+        const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * 45;
+        const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
         focusedImageApi.start({ 
-          to: animationToValues,
-          config: activeSpringConfig 
+          to: { top: `${currentRect.top}px`, left: `${currentRect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`}, 
+          config: activeSpringConfigGuest
         });
-        focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } }); // Fade out
-        
+        // Opacity fade out for returning image can use a different, perhaps faster config
+        focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 }}); // This specific one can be different if needed
         returnTimeoutId = setTimeout(() => {
           const currentReturningImageFromRef = imageReturningToScrapbookRef.current;
           setImageReturningToScrapbook(null);
           if (currentReturningImageFromRef) { setLastPutDownIndex(currentReturningImageFromRef.currentIndex); }
-          
           const currentPendingImageFromRef = pendingImageToFocusRef.current;
-          if (currentPendingImageFromRef) { 
-            setFocusedImage(currentPendingImageFromRef); 
-            setPendingImageToFocus(null); 
-          }
-        }, defaultSpringConfig.tension > 250 ? 100 : 50);
+          if (currentPendingImageFromRef) { setFocusedImage(currentPendingImageFromRef); setPendingImageToFocus(null); }
+        }, 50); // Reduced timeout for quicker transition
       } else {
-        console.warn("[GuestExperience] Focused image return: Target scrapbook element or its data not found for index", returningDisplayIndex, "Or initialStyle missing. Refs available:", scrapbookImageRefs.current.length, "Displayed data available:", displayedImagesAndTheirData.length);
-        focusedImageApi.start({ opacity: 0, immediate: true });
+        // Fallback if target element for return animation isn't found
+        focusedImageApi.start({ opacity: 0, immediate: true }); // Hide immediately
         setImageReturningToScrapbook(null);
-        if (pendingImageToFocusRef.current) { 
-          setFocusedImage(pendingImageToFocusRef.current);
-          setPendingImageToFocus(null);
-        }
+        if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); }
       }
     } else {
+      // If neither focused nor returning, ensure it's hidden
       focusedImageApi.start({ opacity: 0, immediate: true });
     }
-    return () => { if (returnTimeoutId) clearTimeout(returnTimeoutId); };
-  }, [
-    isScrapbookEnabled, 
-    focusedImage, 
-    imageReturningToScrapbook, 
-    focusedImageApi, 
-    windowWidth, 
-    windowHeight, 
-    displayedImagesAndTheirData, 
-    scrollY, 
-    activeSpringConfig,
-    // pendingImageToFocus is not directly in dep array as its ref is used in timeout,
-    // but the effect re-runs on focusedImage/imageReturningToScrapbook which are affected by pending.
-  ]);
-  // --- End Main Focused Image Animation Orchestration useEffect ---
+    return () => { if (returnTimeoutId) { clearTimeout(returnTimeoutId); } };
+  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollY, activeSpringConfigGuest, calculateFocusTargetDimensions, getCenteredPosition]); // Added currentScrollY and activeSpringConfigGuest
 
 
   // --- Event Handlers (Resize, Scroll) ---
@@ -893,7 +845,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       {/* --- END ADDED --- */}
 
       {/* --- ADDED: Debug HUD --- */}
-      {isSetupMode && showGlobalHUDEnabled && (
+      {isSetupMode && showGlobalHUDEnabledGuest && (
         <div style={{
           position: 'fixed',
           top: `${saveLayoutButtonHeight}px`, // Position below the save button
@@ -912,7 +864,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
           <div>Scroll %: {(scrollPercentage * 100).toFixed(1)}%</div>
           <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div>
           <div>Renderable Elements: {renderableElements.length}</div>
-          <div>Spring Preset: {activeSpringConfig.name}</div>
+          <div>Spring Preset: {activeSpringConfigGuest.name}</div>
           {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>}
           {imageReturningToScrapbook && <div>Returning Img: {imageReturningToScrapbook.currentIndex}</div>}
           {/* Add more debug info as needed */}
@@ -930,7 +882,11 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
             factor={TOTAL_PAGES} // Span all pages
             style={{ zIndex: -20 }} // Ensure it is behind everything
           >
-            <ShiftingBackgroundColors scrollY={scrollY} />
+            <ShiftingBackgroundColors 
+              scrollY={scrollY} 
+              TOTAL_PAGES={TOTAL_PAGES} // Pass TOTAL_PAGES (which is TOTAL_PAGES_GUEST in this scope)
+              windowHeight={windowHeight} // Pass windowHeight
+            />
           </ParallaxLayer>
 
           {/* Generic Elements */}
