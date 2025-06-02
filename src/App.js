@@ -101,20 +101,20 @@ const WeddingPageController = () => {
   useEffect(() => {
     const fetchWeddingData = async () => {
       if (!weddingId) return;
-      console.log('[App.js] WeddingPageController - useEffect (data loading) triggered for weddingId:', weddingId);
+      // console.log('[App.js] WeddingPageController - useEffect (data loading) triggered for weddingId:', weddingId);
       try {
         // Construct the backend API URL.
         const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}`; // Use imported getApiBaseUrl()
         const response = await axios.get(apiUrl);
         const sourceData = response.data;
-        console.log('[App.js] Fetched data from backend:', sourceData);
+        // console.log('[App.js] Fetched data from backend:', sourceData);
         if (sourceData && sourceData.scrapbookImages) {
-          console.log('[App.js] Raw sourceData.scrapbookImages from backend:', JSON.stringify(sourceData.scrapbookImages));
+          // console.log('[App.js] Raw sourceData.scrapbookImages from backend:', JSON.stringify(sourceData.scrapbookImages));
         }
 
         if (sourceData && sourceData.customId) {
           const transformedData = transformWeddingData(sourceData);
-          console.log('[App.js] Transformed data for GuestExperience:', transformedData);
+          // console.log('[App.js] Transformed data for GuestExperience:', transformedData);
           setCurrentWeddingData(transformedData);
           setError(null); // Clear any previous errors
 
@@ -129,7 +129,7 @@ const WeddingPageController = () => {
           // }
 
         } else {
-          console.log('[App.js] No matching wedding data found or data is malformed from API for ID:', weddingId);
+          // console.log('[App.js] No matching wedding data found or data is malformed from API for ID:', weddingId);
           setCurrentWeddingData(null);
           setError(`Wedding data for "${weddingId}" not found or is malformed.`);
         }
@@ -318,10 +318,10 @@ const WeddingJourneyWrapperForSetup = () => {
         }
 
         const viewType = isMobile ? 'mobile' : 'desktop';
-        console.log(`[App.js] WeddingJourneyWrapperForSetup: Attempting to load ${viewType} layout settings for ${weddingId}`);
+        // console.log(`[App.js] WeddingJourneyWrapperForSetup: Attempting to load ${viewType} layout settings for ${weddingId}`);
         const layoutSettingsResponse = await axios.get(`${getApiBaseUrl()}/weddings/${weddingId}/layout-settings?view=${viewType}`);
         setElementLayoutsForLeva(layoutSettingsResponse.data || {});
-        console.log(`[App.js] WeddingJourneyWrapperForSetup: Layout settings for ${viewType} loaded:`, layoutSettingsResponse.data);
+        // console.log(`[App.js] WeddingJourneyWrapperForSetup: Layout settings for ${viewType} loaded:`, layoutSettingsResponse.data);
 
       } catch (err) {
         console.error('[App.js] WeddingJourneyWrapperForSetup: Error fetching/transforming data or loading settings for ' + weddingId + ':', err);

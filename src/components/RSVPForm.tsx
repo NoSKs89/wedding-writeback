@@ -1,4 +1,4 @@
-import React, { useState, useEffect, FormEvent, ChangeEvent } from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent, forwardRef, useImperativeHandle, useRef } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
 import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useTrackedControls
 import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
@@ -113,9 +113,16 @@ const rsvpFormControlsSchema: LevaFolderSchema = {
   stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'}
 };
 
-const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
+const RSVPForm: React.FC<RSVPFormProps> = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl }, ref) => {
   const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode(); // ADDED
+
+  const internalFormRef = useRef<HTMLDivElement>(null);
+  // Expose the internalFormRef to the parent component (GuestExperience)
+  // This allows GuestExperience to potentially measure or interact with the form's DOM element
+  // if that's the intention of passing rsvpFormRef to it.
+  // If GuestExperience just needs a ref for presence, this might be overkill, but it's safe.
+  useImperativeHandle(ref, () => internalFormRef.current as HTMLDivElement);
 
   // Leva controls now use useTrackedControls, which connects to the Zustand store
   const rsvpStyleControlsHook = useTrackedControls(
@@ -523,6 +530,6 @@ const RSVPForm: React.FC<RSVPFormProps> = ({ weddingData, backendUrl }) => {
     );
   }
   return <></>; // Return an empty fragment instead of null as a fallback
-};
+});
 
 export default RSVPForm; 

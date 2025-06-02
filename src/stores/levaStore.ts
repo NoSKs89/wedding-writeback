@@ -72,7 +72,7 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   levaSetters: {},
 
   registerControls: (folderName, schema, initialValuesFromLevaSchema, setter) => set(state => {
-    // console.log(`[LevaStore] registerControls for folder: ${folderName}`, { schemaInput: JSON.stringify(initialValuesFromLevaSchema), existingInitial: JSON.stringify(state.initialControlValues[folderName]), existingControl: JSON.stringify(state.controlValues[folderName]) });
+    console.log(`[LevaStore] registerControls CALLED for folder: "${folderName}"`);
 
     // Determine the effective initial values for this folder.
     // If initialControlValues for this folder already exist in the store (e.g., from DB load or previous save), use them as the baseline.
@@ -101,12 +101,9 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
     // differ from what the store believes the control values should be (effectiveControlValuesForFolder, possibly from DB),
     // then update the Leva panel to reflect the store's state.
     if (!shallowCompareObjects(initialValuesFromLevaSchema, effectiveControlValuesForFolder)) {
-      // console.log(`[LevaStore RegisterControls] Updating Leva panel for ${folderName}. Store values: ${JSON.stringify(effectiveControlValuesForFolder)}, Leva initial mount values: ${JSON.stringify(initialValuesFromLevaSchema)}`);
       setter(effectiveControlValuesForFolder);
     }
     
-    // console.log(`[LevaStore RegisterControls] Finalizing state for ${folderName}. Initial: ${JSON.stringify(effectiveInitialValuesForFolder)}, Control: ${JSON.stringify(effectiveControlValuesForFolder)}, Changed: ${Array.from(preservedChangedKeysForFolder).join(',')}`);
-
     return {
       ...state,
       schemas: { ...state.schemas, [folderName]: schema },
@@ -195,7 +192,7 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   },
 
   loadSettingsFromDB: (settings) => set(state => {
-    console.log('[LevaStore] loadSettingsFromDB called with:', JSON.stringify(settings));
+    console.log('[LevaStore] loadSettingsFromDB CALLED with:', JSON.stringify(settings));
     const newControlValues = { ...state.controlValues };
     const newChangedKeys = { ...state.changedKeys }; // Preserve existing changedKeys by default
     const newInitialControlValues = { ...state.initialControlValues }; // ADDED: To update initial values
@@ -208,17 +205,22 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
         // 1. Update controlValues with DB values
         const currentFolderLiveValues = { ...(newControlValues[folderName] || {}), ...folderSettingsFromDB };
         newControlValues[folderName] = currentFolderLiveValues;
+        console.log(`[LevaStore loadSettingsFromDB] For "${folderName}", set controlValues to:`, JSON.stringify(currentFolderLiveValues));
 
         // 2. Update initialControlValues with a deep copy of DB values
         newInitialControlValues[folderName] = JSON.parse(JSON.stringify(folderSettingsFromDB));
+        console.log(`[LevaStore loadSettingsFromDB] For "${folderName}", set initialControlValues to:`, JSON.stringify(newInitialControlValues[folderName]));
 
         // 3. Reset changedKeys for this folder
         newChangedKeys[folderName] = new Set<string>();
+        console.log(`[LevaStore loadSettingsFromDB] For "${folderName}", cleared changedKeys.`);
 
         // 4. If Leva setter exists, update Leva UI
         if (state.levaSetters[folderName]) {
-          // console.log(`[LevaStore] Calling Leva setter for ${folderName} with DB values.`);
+          console.log(`[LevaStore loadSettingsFromDB] Calling Leva setter for "${folderName}" with DB values.`);
           state.levaSetters[folderName](folderSettingsFromDB);
+        } else {
+          console.warn(`[LevaStore loadSettingsFromDB] No Leva setter found for "${folderName}" during DB load.`);
         }
 
         // console.log(`[LevaStore] Updated controlValues for ${folderName} from DB:`, JSON.stringify(currentFolderLiveValues));
@@ -271,7 +273,7 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
     try {
       const apiBase = getApiBaseUrl();
       const endpoint = `${apiBase}/weddings/${weddingId}/layout-settings?view=${viewType}`;
-      console.log(`[LevaStore] Saving ${viewType} layout settings for ${weddingId} to ${endpoint}`, JSON.stringify(settingsToSave));
+      console.log(`[LevaStore] Saving ${viewType} layout settings for ${weddingId} to ${endpoint}`);
       await axios.post(endpoint, settingsToSave);
       console.log(`[LevaStore] ${viewType} layout settings saved successfully to server.`);
 
@@ -300,13 +302,13 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
     try {
       const apiBase = getApiBaseUrl();
       const endpoint = `${apiBase}/weddings/${weddingId}/layout-settings?view=${viewType}`;
-      console.log(`[LevaStore] Loading ${viewType} layout settings for ${weddingId} from ${endpoint}`);
+      console.log(`[LevaStore] loadSettingsFromServer CALLED for weddingId: "${weddingId}", viewType: "${viewType}"`);
       const response = await axios.get(endpoint);
-      console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - raw response.data:`, response.data);
+      // console.log(`[LevaStore] loadSettingsFromServer - raw response.data for "${weddingId}" (${viewType}):`, response.data);
       
       let dataToProcess = response.data;
       if (typeof response.data === 'string') {
-        console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - response.data is a string. Attempting to decode.`);
+        // console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - response.data is a string. Attempting to decode.`);
         try {
           const binaryString = atob(response.data);
           const bytes = new Uint8Array(binaryString.length);
@@ -314,9 +316,9 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
             bytes[i] = binaryString.charCodeAt(i);
           }
           const decodedString = new TextDecoder('utf-8').decode(bytes);
-          console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - decodedString (after TextDecoder):`, decodedString);
+          // console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - decodedString (after TextDecoder):`, decodedString);
           dataToProcess = JSON.parse(decodedString);
-          console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - dataToProcess (after JSON.parse):`, dataToProcess);
+          // console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - dataToProcess (after JSON.parse):`, dataToProcess);
         } catch (e) {
           console.error(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - Failed to decode/parse base64. Error:`, e, 'Raw data:', response.data);
           // If it's not JSON, and not an empty object (which can be valid), it might be an error message from server
@@ -330,11 +332,11 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
       }
       
       const loadedSettings = dataToProcess;
-      console.log(`[LevaStore PROD LOG] loadSettingsFromServer (${viewType}) - final loadedSettings before loadSettingsFromDB:`, loadedSettings);
+      // console.log(`[LevaStore] loadSettingsFromServer - final loadedSettings for "${weddingId}" (${viewType}) before calling loadSettingsFromDB:`, loadedSettings);
       if (loadedSettings && typeof loadedSettings === 'object' && Object.keys(loadedSettings).length > 0) {
         get().loadSettingsFromDB(loadedSettings);
       } else {
-        console.log(`[LevaStore] No ${viewType} layout settings found on server or empty/invalid settings object for`, weddingId, 'Processed data:', loadedSettings);
+        // console.log(`[LevaStore] No ${viewType} layout settings found on server or empty/invalid settings object for "${weddingId}". Processed data:`, loadedSettings);
         // If no settings are found, explicitly reset/clear Leva for the current view context if necessary
         // This might involve calling loadSettingsFromDB with an empty object or a specific reset action.
         // For now, loadSettingsFromDB with an empty object will effectively clear values if schemas are registered.

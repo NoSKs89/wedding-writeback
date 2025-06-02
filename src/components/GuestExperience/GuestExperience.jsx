@@ -36,6 +36,12 @@ const animationCurves = {
 // Default spring configuration (can be adjusted)
 const defaultSpringConfig = { tension: 170, friction: 26 };
 
+// Define overall controls schema for HUD toggle (similar to WeddingJourney)
+const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
+  showHUD: { value: isSetupModeFromContext, label: 'Show Debug HUD' },
+  springPreset: { value: 'default', options: ['default', 'gentle', 'wobbly', 'stiff', 'slow'], label: 'Animation Physics' },
+});
+
 // --- Helper functions from WeddingJourney (for focused image) ---
 const parseRotationFromStyle = (transformString) => {
   if (typeof transformString === 'number') return transformString;
@@ -160,38 +166,53 @@ const ElementWrapper = ({
     finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
   }
 
-  const isCentered = true; 
-  const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
-  let initialYFromLanding = landingYPosition; 
-  let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
+  // const isCentered = true; // ParallaxLayer with centerStyle already handles centering.
+  // const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
+  // let initialYFromLanding = landingYPosition; 
+  // let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
+  
+  // SIMPLIFIED Y TRANSFORM: landingYPosition is now a direct offset from the ParallaxLayer's centered position.
+  let yTransform = landingYPosition; 
 
-  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY < elementEndScroll;
+  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll; // Ensure lock is within element duration
   const actualDisplayedHeight = measuredHeight * currentScale;
 
   if (lockIsActive) {
+    // When locked, the ElementWrapper is trying to position itself relative to the viewport edges.
+    // The ParallaxLayer is already centering it. We need to calculate the offset
+    // from this centered position to achieve the lock.
+    // Example: If image bottom should align with viewport bottom:
+    // The center of the image is at windowHeight / 2 (due to ParallaxLayer centering).
+    // Its bottom is at (windowHeight / 2) + (actualDisplayedHeight / 2).
+    // We want its bottom to be at windowHeight.
+    // So, we need to shift it down by: windowHeight - ((windowHeight / 2) + (actualDisplayedHeight / 2))
+    // = (windowHeight / 2) - (actualDisplayedHeight / 2)
     if (lockToViewportEdge === 'imageBottom-viewportBottom') {
-      yTransform = (windowHeight - actualDisplayedHeight) / 2 + landingYPosition + 3; 
+      yTransform = (windowHeight / 2) - (actualDisplayedHeight / 2) + landingYPosition; // landingYPosition acts as an additional offset
     } else if (lockToViewportEdge === 'imageTop-viewportTop') {
-      yTransform = -(windowHeight - actualDisplayedHeight) / 2 + landingYPosition;
+      // Image top at (windowHeight / 2) - (actualDisplayedHeight / 2)
+      // We want its top to be at 0.
+      // Shift it up by: ((windowHeight / 2) - (actualDisplayedHeight / 2))
+      yTransform = -((windowHeight / 2) - (actualDisplayedHeight / 2)) + landingYPosition; // landingYPosition acts as an additional offset
     }
   }
   const finalCalculatedYTransform = yTransform;
   
-  if (element.id === 4 && console.log) {
-    console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
-      scrollY: scrollY,
-      landingYPosition: landingYPosition,
-      lockToViewportEdge: lockToViewportEdge,
-      lockIsActive: lockIsActive,
-      measuredHeight: measuredHeight,
-      currentScale: currentScale,
-      actualDisplayedHeight: actualDisplayedHeight,
-      elementStartScroll,
-      elementEndScroll,
-      windowHeight,
-      finalCalculatedYTransform: finalCalculatedYTransform
-    });
-  }
+  // if (element.id === 4 && console.log) {
+  //   console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
+  //     scrollY: scrollY,
+  //     landingYPosition: landingYPosition,
+  //     lockToViewportEdge: lockToViewportEdge,
+  //     lockIsActive: lockIsActive,
+  //     measuredHeight: measuredHeight,
+  //     currentScale: currentScale,
+  //     actualDisplayedHeight: actualDisplayedHeight,
+  //     elementStartScroll,
+  //     elementEndScroll,
+  //     windowHeight,
+  //     finalCalculatedYTransform: finalCalculatedYTransform
+  //   });
+  // }
 
   let elementOuterStyle = {
     opacity: finalOpacity,
@@ -219,7 +240,8 @@ const ElementWrapper = ({
 
 // const GuestExperience = () => { // Old signature
 const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp }) => {
-  const { isSetupMode } = useSetupMode(); // From context
+  // const { isSetupMode } = useSetupMode(); // From context - TEMPORARILY OVERRIDDEN
+  const isSetupMode = true; // TEMPORARILY HARDCODED FOR DEBUGGING
   const isMobile = useIsMobile(); // Custom hook for mobile detection
 
   // --- Core State ---
@@ -232,36 +254,85 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const parallaxRef = useRef(null);
   const rsvpFormRef = useRef(null);
 
-  // --- ADDED: scrollPercentage calculation ---
-  const scrollPercentage = useMemo(() => {
-    if (!parallaxRef.current || !parallaxRef.current.space)
-      return 0;
-    // Calculate total scrollable height
-    const totalScrollableHeight = parallaxRef.current.space - windowHeight;
-    if (totalScrollableHeight <= 0) return 0;
-    return Math.min(1, scrollY / totalScrollableHeight);
-  }, [scrollY, windowHeight, parallaxRef.current?.space]);
+  // --- ADDED: useEffect to load initial Leva settings from weddingDataFromApp ---
+  useEffect(() => {
+    if (weddingDataFromApp && weddingDataFromApp.initialElementLayouts) {
+      console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts found, calling loadSettingsFromDB.', weddingDataFromApp.initialElementLayouts);
+      useLevaStore.getState().loadSettingsFromDB(weddingDataFromApp.initialElementLayouts);
+    } else {
+      console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts NOT found. Leva will use defaults.');
+    }
+  }, [weddingDataFromApp]); // Dependency on weddingDataFromApp
   // --- END ADDED ---
 
-  // --- Leva Controls & HUD ---
-  // const overallControlsSchema = useMemo(() => ({ // KEEPING THIS COMMENTED as per existing working code
-  //   showHUD: { value: isSetupMode, label: 'Show Debug HUD' },
-  //   toggleGuideLines: { value: isSetupMode, label: 'Toggle Guide Lines' },
-  //   springPreset: { value: 'default', options: Object.keys(springConfigs), label: 'Animation Physics Preset' }
-  // }), [isSetupMode]);
+  // --- Calculate TOTAL_PAGES for Parallax ---
+  const TOTAL_PAGES = useMemo(() => {
+    const calculated = (experienceSettings?.timelineLength > 0 && windowHeight > 0 
+      ? Math.max(1.1, experienceSettings.timelineLength / windowHeight) 
+      : 3);
+    console.log(`[GuestExperience] Calculated TOTAL_PAGES: ${calculated} (timelineLength: ${experienceSettings?.timelineLength}, windowHeight: ${windowHeight})`);
+    return calculated;
+  }, [experienceSettings?.timelineLength, windowHeight]);
+  // console.log(`[GuestExperience] DEBUG: TOTAL_PAGES is hardcoded to: ${TOTAL_PAGES}`); // Remove hardcoded log
 
-  // const overallControls = useTrackedControls(
-  //   'Overall Controls (Guest)',
-  //   overallControlsSchema,
-  //   { collapsed: !isSetupMode, hidden: !isSetupMode }
-  // );
-  // const { 
-  //   showHUD: showGlobalHUDEnabled = overallControlsSchema.showHUD.value,
-  //   springPreset: selectedSpringPresetKey = overallControlsSchema.springPreset.value 
-  // } = overallControls.values || {};
-  // TEMP: Hardcode activeSpringConfig if overallControls are not used in GuestExperience for now
-  const activeSpringConfig = defaultSpringConfig; 
-  const showGlobalHUDEnabled = isSetupMode; // Simple default for HUD visibility
+  // useEffect to specifically log parallaxRef.current.space changes
+  useEffect(() => {
+    const currentTimelineLength = experienceSettings?.timelineLength;
+    console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}. TOTAL_PAGES: ${TOTAL_PAGES}, timelineLength: ${currentTimelineLength}`);
+    if (parallaxRef.current?.space) {
+      // This log is now part of the one above
+      // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space updated to: ${parallaxRef.current.space}`);
+    } else {
+      // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}`);
+    }
+  }, [parallaxRef.current?.space, TOTAL_PAGES, experienceSettings?.timelineLength]); // Added TOTAL_PAGES and timelineLength to dependencies
+
+  // --- Calculate Scroll Percentage for HUD ---
+  const scrollPercentage = useMemo(() => {
+    // console.log(`[GuestExperience] Calculating scrollPercentage: {scrollY: ${scrollY}, windowHeight: ${windowHeight}, TOTAL_PAGES: ${TOTAL_PAGES}}`);
+    if (TOTAL_PAGES > 1 && windowHeight > 0) {
+      // Calculate total scrollable height based on TOTAL_PAGES and windowHeight
+      const totalScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+
+      // console.log(`[GuestExperience] DEBUG scrollPercentage: scrollY=${scrollY}, totalScrollableHeight=${totalScrollableHeight}, windowHeight=${windowHeight}, TOTAL_PAGES=${TOTAL_PAGES}`);
+
+      if (totalScrollableHeight <= 0) {
+        // console.log(`[GuestExperience] DEBUG scrollPercentage: totalScrollableHeight is ${totalScrollableHeight}, returning 0.`);
+        return 0;
+      }
+      // Ensure scrollPercentage is between 0 and 1
+      return Math.min(1, Math.max(0, scrollY / totalScrollableHeight));
+    }
+    // console.log(`[GuestExperience] DEBUG scrollPercentage: Conditions not met, returning 0. TOTAL_PAGES: ${TOTAL_PAGES}, windowHeight: ${windowHeight}`);
+    return 0;
+  }, [scrollY, windowHeight, TOTAL_PAGES]); // Dependencies are scrollY, windowHeight, and TOTAL_PAGES
+
+  // --- Leva Controls & HUD ---
+  // Overall controls for HUD visibility
+  const overallControlsSchema = useMemo(() => overallControlsSchemaDefinitionGuest(isSetupMode), [isSetupMode]);
+  const overallControls = useTrackedControls(
+    'Overall Controls (Guest)',
+    overallControlsSchema,
+    { collapsed: false, hidden: false } // Always visible for Guest path
+  );
+  const { values: overallCtrlValues } = overallControls || {};
+  const showGlobalHUDEnabled = overallCtrlValues?.showHUD ?? overallControlsSchema.showHUD.value;
+  const { 
+    springPreset: selectedSpringPresetKey = overallControlsSchema.springPreset.value
+  } = overallCtrlValues || {};
+
+  // --- State for Save/Load Status Messages (for save button)
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccessMessage, setSaveSuccessMessage] = useState(null);
+  const [saveErrorMessage, setSaveErrorMessage] = useState(null);
+  // --- End State for Save/Load Status Messages
+
+  // --- Ref for Save Button Height (if HUD positioning depends on it) ---
+  const saveLayoutButtonRef = useRef(null);
+  const [saveLayoutButtonHeight, setSaveLayoutButtonHeight] = useState(0);
+  useEffect(() => { 
+    if (saveLayoutButtonRef.current) setSaveLayoutButtonHeight(saveLayoutButtonRef.current.offsetHeight + 10); // +10 for margin
+  }, [isSetupMode, saveLayoutButtonRef.current, showGlobalHUDEnabled]); // Re-check if button appears/disappears or resizes
 
   // --- ADDED: centerStyle object ---
   const centerStyle = useMemo(() => ({
@@ -283,17 +354,26 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const pendingImageToFocusRef = useRef(null);
   const scrapbookImageRefs = useRef([]); // MOVED TO TOP - For InteractiveScrapbook items
 
+  // Determine active spring config from Leva or default
+  // Add springPresets to overallControlsSchemaDefinitionGuest if not already there
+  // For now, assuming it might be added, or fallback to defaultSpringConfig
+  const springPresets = { 
+    default: { tension: 170, friction: 26, name: 'Default' },
+    gentle: { tension: 120, friction: 14, name: 'Gentle' },
+    wobbly: { tension: 180, friction: 12, name: 'Wobbly' },
+    stiff: { tension: 210, friction: 20, name: 'Stiff' },
+    slow: { tension: 280, friction: 60, name: 'Slow' },
+  };
+  const activeSpringConfig = springPresets[selectedSpringPresetKey] || springPresets.default;
+
   // --- Hooks for Focused Image Animation (Moved to top level) ---
   const backdropSpring = useSpring({ 
     opacity: focusedImage ? 1 : 0, 
-    pointerEvents: focusedImage ? 'auto' : 'none', 
-    position: 'fixed', 
-    top: 0, 
-    left: 0, 
-    width: '100vw', 
-    height: '100vh', 
+    pointerEvents: focusedImage ? 'auto' : 'none',
+    position: 'fixed',
+    top: 0, left: 0, width: '100vw', height: '100vh', 
     background: 'rgba(0, 0, 0, 0.7)', 
-    config: activeSpringConfig 
+    config: activeSpringConfig
   });
 
   const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ 
@@ -344,10 +424,6 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // --- Dynamic Content Calculation (Elements, Pages, etc.) ---
   const { elements: elementsFromProps = [], markers: markersFromProps = [], timelineLength: timelineLengthFromProps = 1000 } = experienceSettings || {};
 
-  const TOTAL_PAGES = useMemo(() => {
-    return timelineLengthFromProps > 0 ? timelineLengthFromProps / windowHeight : 3;
-  }, [timelineLengthFromProps, windowHeight]);
-
   const renderableElements = useMemo(() => {
     if (!experienceSettings || !experienceSettings.elements || !experienceSettings.markers) {
       return [];
@@ -385,19 +461,31 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState([]);
 
+  // --- Function to Save Configuration (Modified) ---
   const handleSaveConfiguration = async () => {
-    // This function's implementation might be different in GuestExperience
-    // compared to WeddingJourney or Setup pages. For now, a placeholder:
-    console.log("handleSaveConfiguration called in GuestExperience - to be implemented if needed");
-    // Example: if you needed to save some guest-specific interaction state:
-    // try {
-    //   const settingsToSave = { someGuestSetting: guestValue };
-    //   await axios.post(`${getApiBaseUrl()}/weddings/${currentWeddingId}/guest-settings`, settingsToSave);
-    //   console.log('Guest settings saved.');
-    // } catch (error) {
-    //   console.error('Error saving guest settings:', error);
-    // }
+    if (!currentWeddingId) {
+      setSaveErrorMessage('Cannot save: Wedding ID is missing.');
+      setTimeout(() => setSaveErrorMessage(null), 5000);
+      return;
+    }
+    setIsSaving(true);
+    setSaveSuccessMessage(null);
+    setSaveErrorMessage(null);
+    try {
+      const viewType = isMobile ? 'mobile' : 'desktop';
+      console.log(`[GuestExperience] Attempting to save ${viewType} layout settings for ${currentWeddingId}`);
+      await useLevaStore.getState().saveSettingsToServer(currentWeddingId, viewType);
+      setSaveSuccessMessage(`Layout for ${viewType} view saved successfully!`);
+      setTimeout(() => setSaveSuccessMessage(null), 3000);
+    } catch (error) {
+      console.error(`[GuestExperience] Error saving ${isMobile ? 'mobile' : 'desktop'} layout settings:`, error);
+      const errorMsg = error.message || (error.response?.data?.message) || 'Unknown error';
+      setSaveErrorMessage(`Failed to save layout. Error: ${errorMsg}`);
+      setTimeout(() => setSaveErrorMessage(null), 7000);
+    }
+    setIsSaving(false);
   };
+  // --- END ADDED ---
 
   // --- Callback for InteractiveScrapbook to update GuestExperience ---
   const handleDisplayedImagesUpdate = useCallback((newImageData) => {
@@ -551,7 +639,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
             setFocusedImage(currentPendingImageFromRef); 
             setPendingImageToFocus(null); 
           }
-        }, activeSpringConfig.tension > 250 ? 100 : 50);
+        }, defaultSpringConfig.tension > 250 ? 100 : 50);
       } else {
         console.warn("[GuestExperience] Focused image return: Target scrapbook element or its data not found for index", returningDisplayIndex, "Or initialStyle missing. Refs available:", scrapbookImageRefs.current.length, "Displayed data available:", displayedImagesAndTheirData.length);
         focusedImageApi.start({ opacity: 0, immediate: true });
@@ -599,12 +687,23 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     if (!parallaxContainer) return;
 
     const handleScroll = () => {
-      setScrollY(parallaxContainer.scrollTop);
+      const currentScrollY = parallaxContainer.scrollTop;
+      console.log('[GuestExperience] handleScroll - scrollY:', currentScrollY);
+      setScrollY(currentScrollY);
     };
 
     parallaxContainer.addEventListener('scroll', handleScroll);
     return () => parallaxContainer.removeEventListener('scroll', handleScroll);
   }, [parallaxRef.current]); // Rerun if parallaxRef itself changes (though unlikely)
+
+  // useEffect to specifically log parallaxRef.current.space changes
+  useEffect(() => {
+    if (parallaxRef.current?.space) {
+      console.log(`[GuestExperience] DEBUG: parallaxRef.current.space updated to: ${parallaxRef.current.space}`);
+    } else {
+      console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}`);
+    }
+  }, [parallaxRef.current?.space]);
 
   // Internal data fetching useEffect is removed.
   // useEffect(() => { ... fetchData ... }, [weddingId, experienceSettings]);
@@ -773,40 +872,62 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
 
   return (
     <>
-      <Leva />
-      {/* Scroll Percentage Indicator */}
-      <div style={{
-        position: 'fixed',
-        top: '20px',
-        left: '20px',
-        zIndex: 10001, // Higher than save button
-        background: 'rgba(0,0,0,0.7)',
-        color: 'white',
-        padding: '5px 10px',
-        borderRadius: '4px',
-        fontSize: '0.9em'
-      }}>
-        Scroll: {scrollPercentage.toFixed(0)}%
-      </div>
+      <Leva hidden={!isSetupMode} />
 
-      {/* Save Configuration Button - Moved to top left */}
-      <button 
-        onClick={handleSaveConfiguration} 
-        style={{ 
-          position: 'fixed', 
-          top: '60px', // Below scroll indicator
-          left: '20px', 
-          zIndex: 10000, 
-          padding: '10px 15px', 
-          backgroundColor: '#007bff', 
-          color: 'white', 
-          border: 'none', 
-          borderRadius: '5px', 
-          cursor: 'pointer' 
-        }}
-      >
-        Save Layout Configuration
-      </button>
+      {/* --- ADDED: Save Button --- */}
+      {isSetupMode && (
+        <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10001 }}>
+          <button 
+            ref={saveLayoutButtonRef}
+            onClick={handleSaveConfiguration} 
+            disabled={isSaving}
+            style={{
+              padding: '10px 20px',
+              fontSize: '0.9rem',
+              color: 'white',
+              backgroundColor: isSaving ? '#cf5200' : '#007bff',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: isSaving ? 'not-allowed' : 'pointer',
+              opacity: isSaving ? 0.7 : 1,
+              boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+            }}
+          >
+            {isSaving ? 'Saving Layout...' : 'Save Layout Configuration'}
+          </button>
+          {saveSuccessMessage && <div style={{color: 'lime', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveSuccessMessage}</div>}
+          {saveErrorMessage && <div style={{color: 'red', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveErrorMessage}</div>}
+        </div>
+      )}
+      {/* --- END ADDED --- */}
+
+      {/* --- ADDED: Debug HUD --- */}
+      {isSetupMode && showGlobalHUDEnabled && (
+        <div style={{
+          position: 'fixed',
+          top: `${saveLayoutButtonHeight}px`, // Position below the save button
+          left: '10px',
+          zIndex: 10000,
+          background: 'rgba(0,0,0,0.6)',
+          color: 'white',
+          padding: '8px',
+          borderRadius: '0 0 5px 5px',
+          fontSize: '13px',
+          fontFamily: 'monospace',
+          minWidth: '200px',
+          boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
+        }}>
+          <div>ScrollY: {scrollY.toFixed(0)}</div>
+          <div>Scroll %: {(scrollPercentage * 100).toFixed(1)}%</div>
+          <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div>
+          <div>Renderable Elements: {renderableElements.length}</div>
+          <div>Spring Preset: {activeSpringConfig.name}</div>
+          {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>}
+          {imageReturningToScrapbook && <div>Returning Img: {imageReturningToScrapbook.currentIndex}</div>}
+          {/* Add more debug info as needed */}
+        </div>
+      )}
+      {/* --- END ADDED --- */}
 
       <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>

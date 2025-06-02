@@ -16,7 +16,7 @@ function shallowCompare(obj1: Record<string, any> | undefined, obj2: Record<stri
 }
 
 export function useTrackedControls(folderName: string, schema: LevaFolderSchema, options?: object) {
-  console.log(`[useTrackedControls] INIT for folder: ${folderName}`);
+  // console.log(`[useTrackedControls] INIT for folder: "${folderName}"`);
 
   const registerControls = useLevaStore(state => state.registerControls);
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
@@ -51,12 +51,14 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
       }
       if (hasNonUndefinedValues) {
         initialSchemaValuesRef.current = { ...levaValues };
+        // console.log(`[useTrackedControls "${folderName}"] Set initialSchemaValuesRef.current:`, JSON.stringify(initialSchemaValuesRef.current));
       }
     }
   }, [levaValues, folderName]);
 
   useEffect(() => {
     if (!isRegisteredRef.current && initialSchemaValuesRef.current) {
+      // console.log(`[useTrackedControls "${folderName}"] Calling registerControls in LevaStore.`);
       registerControls(folderName, schema, initialSchemaValuesRef.current, levaSetRef.current);
       isRegisteredRef.current = true;
     } else if (!initialSchemaValuesRef.current) {
@@ -75,7 +77,7 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
         clearTimeout(debounceTimeoutRef.current);
       }
       debounceTimeoutRef.current = setTimeout(() => {
-        console.log(`[useTrackedControls] Leva->Store (debounced): Updating store for ${folderName}.`);
+        // console.log(`[useTrackedControls] Leva->Store (debounced): Updating store for ${folderName}.`);
         updateControlValuesInStore(folderName, levaValues);
       }, 300);
     }
@@ -92,7 +94,12 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
       return;
     }
     if (storeFolderValues && Object.keys(storeFolderValues).length > 0 && !shallowCompare(storeFolderValues, levaValues)) {
-      console.log(`[useTrackedControls] Store->Leva: Updating Leva panel for ${folderName}.`);
+      // console.log(`[useTrackedControls "${folderName}"] Store->Leva: Store values differ from Leva. Updating Leva panel.`, 
+      //   { 
+      //     storeValues: JSON.stringify(storeFolderValues), 
+      //     levaCurrentValues: JSON.stringify(levaValues) 
+      //   }
+      // );
       levaSetRef.current(storeFolderValues);
     }
   }, [storeFolderValues, folderName, initialSchemaValuesRef.current]);

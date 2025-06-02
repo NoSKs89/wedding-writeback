@@ -237,10 +237,10 @@ const InteractiveScrapbook = ({
 
   return (
     <>
-      <h2 style={{ position: 'relative', zIndex: 2, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '5px', marginTop: '20px', textAlign: 'center' }}>
+      {/* <h2 style={{ position: 'relative', zIndex: 2, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '5px', marginTop: '20px', textAlign: 'center' }}>
         {scrapbookTitle}
-      </h2>
-      <div style={{ position: 'relative', width: '100%', height: 'calc(100% - 70px)', minHeight: '350px' /* Adjust if title height changes */ }}>
+      </h2> */}
+      <div style={{ position: 'relative', width: '100%', height: 'calc(100% - 0px)', minHeight: '350px' /* Adjust if title height changes, removed 70px for title */ }}>
         {displayedImagesAndTheirData.map((imageData, displayIndex) => {
           if (!imageData || !imageData.initialStyle) {
             console.warn("Skipping render for scrapbook image due to missing data:", imageData);
