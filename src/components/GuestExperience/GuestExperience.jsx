@@ -15,6 +15,8 @@ import { useLevaStore } from '../../stores/levaStore'; // Import useLevaStore
 import { useIsMobile } from '../../utils/deviceDetect'; // Import useIsMobile
 import { useTrackedControls } from '../../hooks/useTrackedControls'; // ADDED: Import useTrackedControls
 import { useSetupMode } from '../../contexts/SetupModeContext'; // Import useSetupMode
+import ShiftingBackgroundColors from './ShiftingBackgroundColors'; // Added import
+import { ElementConfig, TimelineMarker, ExperienceSettings as ExperienceSettingsType } from '../ExperienceSetupPage/ExperienceSetupPage';
 
 // Easing functions (can be moved to a utils file)
 const easeInOutQuad = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -921,6 +923,16 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>
           
+          {/* Dynamic Shifting Background Layer */}
+          <ParallaxLayer
+            offset={0}
+            speed={0} // Fixed layer, scrollY prop will handle the shift
+            factor={TOTAL_PAGES} // Span all pages
+            style={{ zIndex: -20 }} // Ensure it is behind everything
+          >
+            <ShiftingBackgroundColors scrollY={scrollY} />
+          </ParallaxLayer>
+
           {/* Generic Elements */}
           {renderableElements.map((element) => {
             let contentToRender = null;
