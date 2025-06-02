@@ -48,14 +48,15 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   if (element.type === 'text') {
     controlsSchema = {
       ...controlsSchema,
-      landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+      landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
       fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
       ...controlsSchema,
-      landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+      landingXPosition: { value: 0, step: 1, label: 'X Offset (px)' },
+      landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
       startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
       endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
       scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
@@ -73,6 +74,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   }
   
   const folderName = `Element ${element.id} (${element.name || element.type})`;
+
   const controls = useTrackedControls(
     folderName, 
     controlsSchema, 
@@ -82,6 +84,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const {
     opacity = 1,
     landingYPosition = 0,
+    landingXPosition = 0,
     startingScale = 1,
     endingScale = 1,
     scaleEndYPosition = 0.5,
@@ -131,24 +134,6 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const effectiveLockTo = (controls.values.lockToViewportEdge !== undefined ? controls.values.lockToViewportEdge : explicitLockTo) || 'disabled';
   const lockIsActive = effectiveLockTo !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
 
-  if (typeof console?.log === 'function') { 
-    console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name || element.type})] --- ScrollY: ${scrollY.toFixed(0)} ---`, {
-      scrollY: scrollY.toFixed(0),
-      elementStartScroll: elementStartScroll.toFixed(0),
-      elementEndScroll: elementEndScroll.toFixed(0),
-      elementScrollDuration: elementScrollDuration.toFixed(0),
-      levaControl_lockToViewportEdge: controls.values.lockToViewportEdge,
-      prop_explicitLockTo: explicitLockTo,
-      effectiveLockTo: effectiveLockTo,
-      lockIsActive: lockIsActive,
-      measuredHeight: measuredHeight.toFixed(0),
-      currentScale: currentScale.toFixed(2),
-      actualDisplayedHeight: actualDisplayedHeight.toFixed(0),
-      windowHeight: windowHeight.toFixed(0),
-      landingYPosition: landingYPosition.toFixed(0),
-    });
-  }
-
   if (lockIsActive && effectiveLockTo === 'imageBottom-viewportBottom') {
     yTransformBase = (windowHeight - actualDisplayedHeight) / 2;
   } else if (lockIsActive && effectiveLockTo === 'imageTop-viewportTop') {
@@ -160,18 +145,9 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   
   const finalCalculatedYTransform = yTransformBase + landingYPosition;
   
-  if (typeof console?.log === 'function') { 
-    console.log(`[ElementWrapper Transform CALC - ID: ${element.id}]`, {
-      yTransformBase: yTransformBase.toFixed(0),
-      finalCalculatedYTransform: finalCalculatedYTransform.toFixed(0),
-      opacity: finalOpacity.toFixed(2),
-      scale: currentScale.toFixed(2)
-    });
-  }
-
   const elementStyle: React.CSSProperties = {
     opacity: finalOpacity,
-    transform: `translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
+    transform: `translateX(${landingXPosition}px) translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
     width: element.type === 'background-image' ? '100%' : 'auto',
     height: element.type === 'background-image' ? '100%' : 'auto',
     position: 'relative',

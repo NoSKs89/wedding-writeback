@@ -101,6 +101,7 @@ const ElementWrapper = ({
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
       ...controlsSchema,
+      landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
       landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
       startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
       endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
@@ -124,6 +125,7 @@ const ElementWrapper = ({
 
   const { 
     opacity = 1, 
+    landingXPosition = 0,
     landingYPosition = 0,
     startingScale = 1, 
     endingScale = 1, 
@@ -169,6 +171,7 @@ const ElementWrapper = ({
   const isCentered = true; 
   const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
   let initialYFromLanding = landingYPosition; 
+  let xTransform = landingXPosition;
   let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
 
   const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY < elementEndScroll;
@@ -186,6 +189,7 @@ const ElementWrapper = ({
   if (element.id === 4 && console.log) {
     console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
       scrollY: scrollY,
+      landingXPosition: landingXPosition,
       landingYPosition: landingYPosition,
       lockToViewportEdge: lockToViewportEdge,
       lockIsActive: lockIsActive,
@@ -201,7 +205,7 @@ const ElementWrapper = ({
 
   let elementOuterStyle = {
     opacity: finalOpacity,
-    transform: `translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
+    transform: `translateX(${xTransform}px) translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
     width: element.type === 'background-image' ? '100%' : 'auto',
     height: element.type === 'background-image' ? '100%' : 'auto',
     // Default pointer-events, can be overridden for RSVP form

@@ -74,42 +74,69 @@ export const useLevaStore = createWithEqualityFn<LevaStoreState>()(
   registerControls: (folderName, schema, initialValuesFromLevaSchema, setter) => set(state => {
     console.log(`[LevaStore] registerControls CALLED for folder: "${folderName}"`);
 
-    // Determine the effective initial values for this folder.
-    // If initialControlValues for this folder already exist in the store (e.g., from DB load or previous save), use them as the baseline.
-    // Otherwise, this is the first time we're seeing this folder, so use the schema's defaults.
-    let effectiveInitialValuesForFolder = state.initialControlValues[folderName];
-    if (!effectiveInitialValuesForFolder) {
-      effectiveInitialValuesForFolder = { ...initialValuesFromLevaSchema };
-    }
+    // 1. Schema is the source of truth for what controls exist and their default values.
+    const schemaDefaults = { ...initialValuesFromLevaSchema };
 
-    // Determine the effective control (live) values for this folder.
-    // If controlValues for this folder already exist (e.g., from DB load or user interaction), use them.
-    // Otherwise, initialize them with the effectiveInitialValuesForFolder.
-    let effectiveControlValuesForFolder = state.controlValues[folderName];
-    if (!effectiveControlValuesForFolder) {
-      effectiveControlValuesForFolder = { ...effectiveInitialValuesForFolder };
+    // 2. See if there are previously loaded/stored initial values for this folder.
+    const storedInitialValues = state.initialControlValues[folderName];
+
+    // 3. Effective initial values: Start with schema defaults, then overlay any stored initial values.
+    const effectiveInitialValuesForFolder = { ...schemaDefaults };
+    if (storedInitialValues) {
+      for (const key in schemaDefaults) {
+        if (storedInitialValues.hasOwnProperty(key)) {
+          effectiveInitialValuesForFolder[key] = storedInitialValues[key];
+        }
+      }
     }
     
-    // `changedKeys` should be preserved as they are currently in the store.
-    // They are managed by `loadSettingsFromDB` (cleared on load),
-    // `saveSettingsToServer`/`saveMobileSettingsToServer` (cleared on save),
-    // and `updateControlValues` (populated on user edit).
-    // `registerControls` itself doesn't constitute a user change that should populate `changedKeys`.
-    const preservedChangedKeysForFolder = state.changedKeys[folderName] || new Set<string>();
+    // 4. Effective control (live) values: Start with effective initial values, then overlay current live values from store.
+    const currentLiveValuesFromStore = state.controlValues[folderName];
+    let effectiveControlValuesForFolder = { ...effectiveInitialValuesForFolder };
+    if (currentLiveValuesFromStore) {
+       for (const key in schemaDefaults) {
+        if (currentLiveValuesFromStore.hasOwnProperty(key)) {
+          effectiveControlValuesForFolder[key] = currentLiveValuesFromStore[key];
+        }
+      }
+    }
 
-    // If the Leva panel's current mounted values (initialValuesFromLevaSchema)
-    // differ from what the store believes the control values should be (effectiveControlValuesForFolder, possibly from DB),
-    // then update the Leva panel to reflect the store's state.
-    if (!shallowCompareObjects(initialValuesFromLevaSchema, effectiveControlValuesForFolder)) {
-      setter(effectiveControlValuesForFolder);
+    // 5. `changedKeys` are based on comparing `effectiveControlValuesForFolder` to `effectiveInitialValuesForFolder`.
+    const newChangedKeysForFolder = new Set<string>();
+    for (const key in effectiveControlValuesForFolder) {
+      if (effectiveInitialValuesForFolder.hasOwnProperty(key) &&
+          effectiveControlValuesForFolder[key] !== effectiveInitialValuesForFolder[key]) {
+        newChangedKeysForFolder.add(key);
+      }
+    }
+
+    // Sync Leva panel if needed
+    const finalValuesForLevaSetter = { ...schemaDefaults, ...effectiveControlValuesForFolder };
+    if (!shallowCompareObjects(initialValuesFromLevaSchema, finalValuesForLevaSetter)) {
+        console.log(`[LevaStore registerControls - "${folderName}"] Syncing store to Leva panel. Leva will be set to:`, JSON.stringify(finalValuesForLevaSetter));
+        setter(finalValuesForLevaSetter);
     }
     
+    // Check if a meaningful update to the store is actually needed
+    const needsStoreUpdate =
+      !shallowCompareObjects(state.schemas[folderName], schema) ||
+      !shallowCompareObjects(state.initialControlValues[folderName], effectiveInitialValuesForFolder) ||
+      !shallowCompareObjects(state.controlValues[folderName], effectiveControlValuesForFolder) ||
+      (state.changedKeys[folderName]?.size !== newChangedKeysForFolder.size || 
+       Array.from(newChangedKeysForFolder).some(key => !state.changedKeys[folderName]?.has(key))) ||
+      state.levaSetters[folderName] !== setter;
+
+    if (!needsStoreUpdate) {
+      // console.log(`[LevaStore registerControls - "${folderName}"] No change to store state needed.`);
+      return state; // Return current state if no changes are necessary
+    }
+
     return {
       ...state,
       schemas: { ...state.schemas, [folderName]: schema },
       initialControlValues: { ...state.initialControlValues, [folderName]: effectiveInitialValuesForFolder },
       controlValues: { ...state.controlValues, [folderName]: effectiveControlValuesForFolder },
-      changedKeys: { ...state.changedKeys, [folderName]: preservedChangedKeysForFolder },
+      changedKeys: { ...state.changedKeys, [folderName]: newChangedKeysForFolder },
       levaSetters: { ...state.levaSetters, [folderName]: setter },
     };
   }),
