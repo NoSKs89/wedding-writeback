@@ -127,8 +127,8 @@ const RSVPForm: React.FC<RSVPFormProps> = forwardRef<HTMLDivElement, RSVPFormPro
   // Leva controls now use useTrackedControls, which connects to the Zustand store
   const rsvpStyleControlsHook = useTrackedControls(
     "RSVP Form Style", // Store key & Leva folder title
-    rsvpFormControlsSchema,
-    { collapsed: isSetupMode, hidden: !isSetupMode } // CORRECTED: collapsed when isSetupMode is true
+    rsvpFormControlsSchema, // Use the memoized or directly passed schema
+    { collapsed: true, hidden: !isSetupMode } // SET collapsed: true HERE
   );
   // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
   const {

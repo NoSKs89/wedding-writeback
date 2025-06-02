@@ -25,7 +25,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight }) => {
   const controls = useTrackedControls(
     'Dynamic Background Gradient',
     dynamicGradientControlsSchema,
-    { collapsed: false, hidden: !isSetupMode } // Keep expanded for easier access
+    { collapsed: true, hidden: !isSetupMode } // Keep expanded in setup, hidden otherwise, AND COLLAPSED
   );
 
   const {

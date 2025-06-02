@@ -319,16 +319,16 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
 
   // --- Leva Controls & HUD ---
   // Overall controls for HUD visibility
-  const overallControlsSchema = useMemo(() => overallControlsSchemaDefinitionGuest(isSetupMode), [isSetupMode]);
-  const overallControls = useTrackedControls(
+  const overallControlsSchemaGuest = useMemo(() => overallControlsSchemaDefinitionGuest(isSetupMode), [isSetupMode]);
+  const overallControlsGuest = useTrackedControls(
     'Overall Controls (Guest)',
-    overallControlsSchema,
-    { collapsed: false, hidden: false } // Always visible for Guest path
+    overallControlsSchemaGuest,
+    { collapsed: true, hidden: !isSetupMode } // Ensure collapsed is true
   );
-  const overallControlsGuestValues = overallControls?.values || {};
+  const overallControlsGuestValues = overallControlsGuest?.values || {};
   const {
-    showHUD: showGlobalHUDEnabledGuest = overallControlsSchema.showHUD.value,
-    springPreset: selectedSpringPresetKeyGuest = overallControlsSchema.springPreset.value
+    showHUD: showGlobalHUDEnabledGuest = overallControlsSchemaGuest.showHUD.value,
+    springPreset: selectedSpringPresetKeyGuest = overallControlsSchemaGuest.springPreset.value
   } = overallControlsGuestValues;
 
   const activeSpringConfigGuest = springConfigPresets[selectedSpringPresetKeyGuest] || springConfigPresets.default;
