@@ -4,8 +4,19 @@ import { useTrackedControls } from '../../hooks/useTrackedControls';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 
 const dynamicGradientControlsSchema = {
-  gradientColorStart: { value: '#ee0038', label: 'Grad. Start Color' }, 
-  gradientColorStop: { value: '#00e1fe', label: 'Grad. Stop Color' },  
+  gradientMode: {
+    value: 'Scheme: Primary & Secondary',
+    options: [
+      'Scheme: Primary & Secondary',
+      'Scheme: Primary & Accent',
+      'Scheme: Secondary & Accent',
+      'Scheme: Text & Background',
+      'Override'
+    ],
+    label: 'Gradient Colors Source'
+  },
+  gradientColorStart: { value: '#ee0038', label: 'Grad. Start Color (Override)' },
+  gradientColorStop: { value: '#00e1fe', label: 'Grad. Stop Color (Override)' },
   gradientAngleOffset: { value: -160, min: -360, max: 360, step: 1, label: 'Grad. Angle Offset (deg)' },
   gradientScrollFactor: { value: 0.34, min: -0.5, max: 0.5, step: 0.001, label: 'Grad. Scroll Angle Factor' },
   maxGradientOpacity: { value: 1.0, min: 0, max: 1, step: 0.01, label: 'Max Opacity' },
@@ -19,7 +30,7 @@ const dynamicGradientControlsSchema = {
   }
 };
 
-const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight }) => {
+const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selectedColorScheme }) => {
   const { isSetupMode } = useSetupMode();
 
   const controls = useTrackedControls(
@@ -29,6 +40,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight }) => {
   );
 
   const {
+    gradientMode = dynamicGradientControlsSchema.gradientMode.value,
     gradientColorStart = dynamicGradientControlsSchema.gradientColorStart.value,
     gradientColorStop = dynamicGradientControlsSchema.gradientColorStop.value,
     gradientAngleOffset = dynamicGradientControlsSchema.gradientAngleOffset.value,
@@ -39,6 +51,35 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight }) => {
     endFadeYPercent = dynamicGradientControlsSchema.endFadeYPercent.value,
     opacityFadeCurve = dynamicGradientControlsSchema.opacityFadeCurve.value,
   } = controls?.values || {};
+
+  // Determine actual gradient colors based on mode and scheme
+  let actualStartColor = gradientColorStart;
+  let actualEndColor = gradientColorStop;
+
+  if (selectedColorScheme && gradientMode !== 'Override') {
+    switch (gradientMode) {
+      case 'Scheme: Primary & Secondary':
+        actualStartColor = selectedColorScheme.primary || gradientColorStart;
+        actualEndColor = selectedColorScheme.secondary || gradientColorStop;
+        break;
+      case 'Scheme: Primary & Accent':
+        actualStartColor = selectedColorScheme.primary || gradientColorStart;
+        actualEndColor = selectedColorScheme.accent || gradientColorStop;
+        break;
+      case 'Scheme: Secondary & Accent':
+        actualStartColor = selectedColorScheme.secondary || gradientColorStart;
+        actualEndColor = selectedColorScheme.accent || gradientColorStop;
+        break;
+      case 'Scheme: Text & Background':
+        actualStartColor = selectedColorScheme.text || gradientColorStart;
+        actualEndColor = selectedColorScheme.background || gradientColorStop;
+        break;
+      default:
+        // Fallback to override if mode is unknown, though options should prevent this
+        actualStartColor = gradientColorStart;
+        actualEndColor = gradientColorStop;
+    }
+  }
 
   const currentAngle = gradientAngleOffset + scrollY * gradientScrollFactor;
 
@@ -83,7 +124,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight }) => {
       style={{
         width: '100%',
         height: '100%',
-        background: `linear-gradient(${currentAngle.toFixed(2)}deg, ${gradientColorStart}, ${gradientColorStop})`,
+        background: `linear-gradient(${currentAngle.toFixed(2)}deg, ${actualStartColor}, ${actualEndColor})`,
         position: 'absolute',
         top: 0,
         left: 0,

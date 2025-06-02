@@ -34,6 +34,7 @@ const animationCurves = {
   easeOutCubic: easeOutCubic,
   easeInQuint: easeInQuint,
   // Add other curves here
+  strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
 };
 
 // Default spring configuration (can be adjusted)
@@ -53,6 +54,75 @@ const springConfigPresets = {
   strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
 };
 
+// --- BEGIN ADDED Color Schemes ---
+const weddingColorSchemes = [
+  {
+    name: "Classic Elegance",
+    primary: '#FDFDFD', // Ivory White
+    secondary: '#B08D57', // Antique Gold
+    accent: '#D8BFD8', // Thistle
+    text: '#36454F', // Charcoal
+    background: '#F5F5F5' // White Smoke
+  },
+  {
+    name: "Romantic Blush",
+    primary: '#FADADD', // Pale Pink
+    secondary: '#F4C2C2', // Baby Pink/Blush
+    accent: '#C0C0C0', // Silver
+    text: '#5A5A5A', // Dark Gray
+    background: '#FFF0F5' // Lavender Blush
+  },
+  {
+    name: "Rustic Charm",
+    primary: '#DEB887', // Burly Wood
+    secondary: '#8FBC8F', // Dark Sea Green
+    accent: '#A0522D', // Sienna
+    text: '#4A4A4A', // Dark Slate Gray
+    background: '#FAF0E6' // Linen
+  },
+  {
+    name: "Ocean Breeze",
+    primary: '#ADD8E6', // Light Blue
+    secondary: '#B0E0E6', // Powder Blue
+    accent: '#F0E68C', // Khaki/Sandy
+    text: '#2F4F4F', // Dark Slate Gray
+    background: '#F0FFFF' // Azure
+  },
+  {
+    name: "Enchanted Forest",
+    primary: '#228B22', // Forest Green
+    secondary: '#556B2F', // Dark Olive Green
+    accent: '#DAA520', // Goldenrod
+    text: '#F8F8FF', // Ghost White
+    background: '#F5F5DC' // Beige
+  },
+  {
+    name: "Modern Minimalist",
+    primary: '#FFFFFF', // White
+    secondary: '#E0E0E0', // Light Gray
+    accent: '#333333', // Near Black
+    text: '#212121', // Charcoal Black
+    background: '#F9F9F9' // Off White
+  },
+  {
+    name: "Vintage Glamour",
+    primary: '#E6E6FA', // Lavender
+    secondary: '#778899', // Light Slate Gray
+    accent: '#FFD700', // Gold
+    text: '#483D8B', // Dark Slate Blue
+    background: '#FFF5EE' // SeaShell
+  },
+  {
+    name: "Sunset Glow",
+    primary: '#FF7F50', // Coral
+    secondary: '#FFDAB9', // Peach Puff
+    accent: '#FFA07A', // Light Salmon
+    text: '#8B4513', // Saddle Brown
+    background: '#FFF8DC' // Cornsilk
+  }
+];
+// --- END ADDED Color Schemes ---
+
 // Define overall controls schema for HUD toggle (similar to WeddingJourney)
 const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
   showHUD: { value: false, label: 'Show Debug HUD (Guest)' }, // Default to false for guest
@@ -60,6 +130,11 @@ const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
     value: 'default',
     options: Object.keys(springConfigPresets),
     label: 'Animation Physics Preset (Guest)',
+  },
+  colorScheme: { // ADDED colorScheme control
+    value: weddingColorSchemes[0].name, // Default to the first theme's name
+    options: weddingColorSchemes.map(scheme => scheme.name),
+    label: 'Color Scheme',
   }
 });
 
@@ -118,6 +193,7 @@ const ElementWrapper = ({
       landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
       fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+      textColor: { value: '#333333', label: 'Text Color' },
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -154,7 +230,8 @@ const ElementWrapper = ({
     scaleAnimationCurve = 'linear',
     fadeOutEndYPosition = 1,
     fadeOutAnimationCurve = 'disabled',
-    lockToViewportEdge = 'disabled'
+    lockToViewportEdge = 'disabled',
+    textColor = '#333333'
   } = controls.values;
 
   useEffect(() => {
@@ -234,7 +311,12 @@ const ElementWrapper = ({
 
   let childToRender = children;
   if (React.isValidElement(children) && (element.type === 'photo' || element.type === 'text')) {
-     childToRender = React.cloneElement(children, { ref: currentChildRef });
+     const newProps = { ref: currentChildRef };
+     if (element.type === 'text') {
+       // @ts-ignore
+       newProps.style = { ...children.props.style, color: textColor };
+     }
+     childToRender = React.cloneElement(children, newProps);
   } else if (element.type === 'component' && element.name === 'RSVP Form' && React.isValidElement(children)) {
     // RSVPForm is now created with its ref directly in GuestExperience, so children here is the already-ref'd component
     childToRender = <div style={{ pointerEvents: 'auto' }}>{children}</div>; 
@@ -328,11 +410,15 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const overallControlsGuestValues = overallControlsGuest?.values || {};
   const {
     showHUD: showGlobalHUDEnabledGuest = overallControlsSchemaGuest.showHUD.value,
-    springPreset: selectedSpringPresetKeyGuest = overallControlsSchemaGuest.springPreset.value
+    springPreset: selectedSpringPresetKeyGuest = overallControlsSchemaGuest.springPreset.value,
+    colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name // ADDED selectedColorSchemeName
   } = overallControlsGuestValues;
 
   const activeSpringConfigGuest = springConfigPresets[selectedSpringPresetKeyGuest] || springConfigPresets.default;
   const activeSpringConfigNameGuest = activeSpringConfigGuest.name;
+
+  // ADDED: Find the selected color scheme object
+  const selectedColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
 
   // --- State for Save/Load Status Messages (for save button)
   const [isSaving, setIsSaving] = useState(false);
@@ -886,6 +972,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
               scrollY={scrollY} 
               TOTAL_PAGES={TOTAL_PAGES} // Pass TOTAL_PAGES (which is TOTAL_PAGES_GUEST in this scope)
               windowHeight={windowHeight} // Pass windowHeight
+              selectedColorScheme={selectedColorScheme} // ADDED: Pass the selected color scheme object
             />
           </ParallaxLayer>
 
@@ -894,7 +981,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
             let contentToRender = null;
             switch (element.type) {
               case 'text':
-                contentToRender = <h2 style={{ color: element.timelineColor !== '#FFFFFF' ? element.timelineColor : '#333' }}>{element.content}</h2>;
+                contentToRender = <h2>{element.content}</h2>;
                 break;
               case 'photo':
                 contentToRender = (
