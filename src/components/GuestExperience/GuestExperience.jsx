@@ -166,53 +166,38 @@ const ElementWrapper = ({
     finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
   }
 
-  // const isCentered = true; // ParallaxLayer with centerStyle already handles centering.
-  // const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
-  // let initialYFromLanding = landingYPosition; 
-  // let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
-  
-  // SIMPLIFIED Y TRANSFORM: landingYPosition is now a direct offset from the ParallaxLayer's centered position.
-  let yTransform = landingYPosition; 
+  const isCentered = true; 
+  const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
+  let initialYFromLanding = landingYPosition; 
+  let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
 
-  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll; // Ensure lock is within element duration
+  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY < elementEndScroll;
   const actualDisplayedHeight = measuredHeight * currentScale;
 
   if (lockIsActive) {
-    // When locked, the ElementWrapper is trying to position itself relative to the viewport edges.
-    // The ParallaxLayer is already centering it. We need to calculate the offset
-    // from this centered position to achieve the lock.
-    // Example: If image bottom should align with viewport bottom:
-    // The center of the image is at windowHeight / 2 (due to ParallaxLayer centering).
-    // Its bottom is at (windowHeight / 2) + (actualDisplayedHeight / 2).
-    // We want its bottom to be at windowHeight.
-    // So, we need to shift it down by: windowHeight - ((windowHeight / 2) + (actualDisplayedHeight / 2))
-    // = (windowHeight / 2) - (actualDisplayedHeight / 2)
     if (lockToViewportEdge === 'imageBottom-viewportBottom') {
-      yTransform = (windowHeight / 2) - (actualDisplayedHeight / 2) + landingYPosition; // landingYPosition acts as an additional offset
+      yTransform = (windowHeight - actualDisplayedHeight) / 2 + landingYPosition; 
     } else if (lockToViewportEdge === 'imageTop-viewportTop') {
-      // Image top at (windowHeight / 2) - (actualDisplayedHeight / 2)
-      // We want its top to be at 0.
-      // Shift it up by: ((windowHeight / 2) - (actualDisplayedHeight / 2))
-      yTransform = -((windowHeight / 2) - (actualDisplayedHeight / 2)) + landingYPosition; // landingYPosition acts as an additional offset
+      yTransform = -(windowHeight - actualDisplayedHeight) / 2 + landingYPosition;
     }
   }
   const finalCalculatedYTransform = yTransform;
   
-  // if (element.id === 4 && console.log) {
-  //   console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
-  //     scrollY: scrollY,
-  //     landingYPosition: landingYPosition,
-  //     lockToViewportEdge: lockToViewportEdge,
-  //     lockIsActive: lockIsActive,
-  //     measuredHeight: measuredHeight,
-  //     currentScale: currentScale,
-  //     actualDisplayedHeight: actualDisplayedHeight,
-  //     elementStartScroll,
-  //     elementEndScroll,
-  //     windowHeight,
-  //     finalCalculatedYTransform: finalCalculatedYTransform
-  //   });
-  // }
+  if (element.id === 4 && console.log) {
+    console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
+      scrollY: scrollY,
+      landingYPosition: landingYPosition,
+      lockToViewportEdge: lockToViewportEdge,
+      lockIsActive: lockIsActive,
+      measuredHeight: measuredHeight,
+      currentScale: currentScale,
+      actualDisplayedHeight: actualDisplayedHeight,
+      elementStartScroll,
+      elementEndScroll,
+      windowHeight,
+      finalCalculatedYTransform: finalCalculatedYTransform
+    });
+  }
 
   let elementOuterStyle = {
     opacity: finalOpacity,

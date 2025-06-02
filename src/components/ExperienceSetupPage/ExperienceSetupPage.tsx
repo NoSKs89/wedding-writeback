@@ -34,7 +34,7 @@ export interface ElementConfig {
 }
 
 // Define the structure for the experience settings to be saved/loaded
-interface ExperienceSettings {
+export interface ExperienceSettings {
   elements: ElementConfig[];
   markers: TimelineMarker[];
   timelineLength: number;
