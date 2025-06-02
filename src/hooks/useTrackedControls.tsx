@@ -69,10 +69,9 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
     if (!isRegisteredRef.current || !initialSchemaValuesRef.current) {
       return;
     }
-    const levaChangedFromInitial = !shallowCompare(levaValues, initialSchemaValuesRef.current);
     const levaDifferentFromStore = !shallowCompare(levaValues, storeFolderValues);
 
-    if (levaChangedFromInitial && levaDifferentFromStore) {
+    if (levaDifferentFromStore) {
       if (debounceTimeoutRef.current) {
         clearTimeout(debounceTimeoutRef.current);
       }
