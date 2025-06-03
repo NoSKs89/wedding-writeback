@@ -18,6 +18,8 @@ import { useSetupMode } from '../../contexts/SetupModeContext'; // Import useSet
 import ShiftingBackgroundColors from './ShiftingBackgroundColors'; // Added import
 import { ElementConfig, TimelineMarker, ExperienceSettings as ExperienceSettingsType } from '../ExperienceSetupPage/ExperienceSetupPage';
 import '../../App.css'; // Assuming App.css contains general styles like .center
+import { fontFamilyOptions, googleFontNames, isGoogleFont } from '../../config/fontConfig'; // ADDED
+import FontGrabber from '../FontGrabber'; // ADDED
 
 // Easing functions (can be moved to a utils file)
 const easeInOutQuad = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -135,7 +137,12 @@ const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
     value: weddingColorSchemes[0].name, // Default to the first theme's name
     options: weddingColorSchemes.map(scheme => scheme.name),
     label: 'Color Scheme',
-  }
+  },
+  overallFontFamily: { // ADDED overallFontFamily control
+    value: fontFamilyOptions[0],
+    options: fontFamilyOptions,
+    label: 'Global Font Family',
+  },
 });
 
 // --- Helper functions from WeddingJourney (for focused image) ---
@@ -187,6 +194,11 @@ const ElementWrapper = ({
     opacity: { value: 1, min: 0, max: 1, step: 0.01 },
   };
 
+  // Retrieve global font family for default in text elements
+  const store = useLevaStore.getState();
+  const overallControlsGuestState = store.controlValues['Overall Controls (Guest)'];
+  const globalFontFamilyFromStore = overallControlsGuestState?.overallFontFamily || fontFamilyOptions[0];
+
   if (element.type === 'text') {
     controlsSchema = {
       ...controlsSchema,
@@ -194,6 +206,7 @@ const ElementWrapper = ({
       fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       textColor: { value: '#333333', label: 'Text Color' },
+      fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily for text
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -207,6 +220,7 @@ const ElementWrapper = ({
       fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+      fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily from controls
     };
   } else if (element.type === 'component' && element.name === 'RSVP Form') {
     // RSVP Form specific controls can be added here if needed, or managed within RSVPForm itself.
@@ -231,7 +245,8 @@ const ElementWrapper = ({
     fadeOutEndYPosition = 1,
     fadeOutAnimationCurve = 'disabled',
     lockToViewportEdge = 'disabled',
-    textColor = '#333333'
+    textColor = '#333333',
+    fontFamily = globalFontFamilyFromStore // ADDED fontFamily from controls
   } = controls.values;
 
   useEffect(() => {
@@ -314,7 +329,7 @@ const ElementWrapper = ({
      const newProps = { ref: currentChildRef };
      if (element.type === 'text') {
        // @ts-ignore
-       newProps.style = { ...children.props.style, color: textColor };
+       newProps.style = { ...children.props.style, color: textColor, fontFamily: fontFamily }; // APPLY FONT FAMILY TO TEXT
      }
      childToRender = React.cloneElement(children, newProps);
   } else if (element.type === 'component' && element.name === 'RSVP Form' && React.isValidElement(children)) {
@@ -411,7 +426,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const {
     showHUD: showGlobalHUDEnabledGuest = overallControlsSchemaGuest.showHUD.value,
     springPreset: selectedSpringPresetKeyGuest = overallControlsSchemaGuest.springPreset.value,
-    colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name // ADDED selectedColorSchemeName
+    colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name, // ADDED selectedColorSchemeName
+    overallFontFamily = fontFamilyOptions[0] // ADDED overallFontFamily
   } = overallControlsGuestValues;
 
   const activeSpringConfigGuest = springConfigPresets[selectedSpringPresetKeyGuest] || springConfigPresets.default;
@@ -701,6 +717,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // --- ADDED: useEffect to update text colors when color scheme changes ---
   const levaSetters = useLevaStore(state => state.levaSetters);
   const schemas = useLevaStore(state => state.schemas);
+  const store = useLevaStore.getState(); // Make store accessible for the effects below
 
   useEffect(() => {
     if (!selectedColorScheme || !elementsFromProps || elementsFromProps.length === 0 || !levaSetters || !schemas || Object.keys(levaSetters).length === 0 || Object.keys(schemas).length === 0) {
@@ -729,6 +746,36 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       }
     });
   }, [selectedColorScheme, elementsFromProps, levaSetters, schemas]);
+  // --- END ADDED ---
+
+  // --- ADDED: useEffect to update text element font controls when global font family changes ---
+  useEffect(() => {
+    if (!overallFontFamily || !elementsFromProps || elementsFromProps.length === 0 || !levaSetters || !schemas || Object.keys(levaSetters).length === 0 || Object.keys(schemas).length === 0) {
+      return;
+    }
+    // Ensure store is available and has controlValues
+    if (!store || !store.controlValues) {
+      return;
+    }
+
+    console.log(`[GuestExperience] Global font family changed to '${overallFontFamily}'. Updating text element font controls.`);
+
+    elementsFromProps.forEach(element => {
+      if (element.type === 'text') {
+        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const setter = levaSetters[folderName];
+        const elementSchema = schemas[folderName];
+        const currentElementControls = store.controlValues[folderName];
+
+        if (setter && elementSchema && elementSchema.fontFamily) {
+          if (currentElementControls?.fontFamily !== overallFontFamily) {
+            console.log(`[GuestExperience]   Updating ${folderName} fontFamily to ${overallFontFamily}`);
+            setter({ fontFamily: overallFontFamily });
+          }
+        }
+      }
+    });
+  }, [overallFontFamily, elementsFromProps, levaSetters, schemas, store]);
   // --- END ADDED ---
 
   // --- Event Handlers (Resize, Scroll) ---
@@ -932,9 +979,43 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   ]);
   // --- End Focused Image Event Handlers ---
 
+  // --- ADDED: FontGrabber Integration ---
+  const googleFontsToLoad = useMemo(() => {
+    const fonts = new Set();
+    // Ensure store and controlValues are available
+    if (!store || !store.controlValues) {
+      // If overallFontFamily is a Google font and no store yet, at least add that.
+      if (overallFontFamily && isGoogleFont(overallFontFamily)) {
+        fonts.add(overallFontFamily.split(',')[0].trim());
+      }
+      return Array.from(fonts).map(name => ({ name }));
+    }
+
+    // Add global font if it's a Google Font
+    if (overallFontFamily && isGoogleFont(overallFontFamily)) {
+      fonts.add(overallFontFamily.split(',')[0].trim());
+    }
+
+    // Add fonts from individual text elements
+    elementsFromProps.forEach(element => {
+      if (element.type === 'text') {
+        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const elementControls = store.controlValues[folderName];
+        const textFont = elementControls?.fontFamily;
+        if (textFont && isGoogleFont(textFont)) {
+          fonts.add(textFont.split(',')[0].trim());
+        }
+      }
+    });
+
+    return Array.from(fonts).map(name => ({ name }));
+  }, [overallFontFamily, elementsFromProps, store]);
+  // --- END ADDED ---
+
   return (
     <>
       <Leva hidden={!isSetupMode} />
+      <FontGrabber fonts={googleFontsToLoad} /> {/* ADDED FontGrabber INSTANCE */}
 
       {/* --- ADDED: Save Button --- */}
       {isSetupMode && (

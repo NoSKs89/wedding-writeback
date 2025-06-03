@@ -4,6 +4,7 @@ import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useT
 import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
 import { useSetupMode } from '../contexts/SetupModeContext'; // ADDED
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes'; // ADDED
+import { googleFontNames, systemFontStack, fontFamilyOptions } from '../config/fontConfig'; // ADDED
 
 // Helper function to convert hex to rgba
 const hexToRgba = (hex: string, opacity: number): string => {
@@ -21,37 +22,6 @@ const hexToRgba = (hex: string, opacity: number): string => {
   }
   return `rgba(${+r},${+g},${+b},${opacity})`;
 };
-
-const systemFontStack = [
-  'Arial, Helvetica, sans-serif',
-  'Georgia, serif',
-  'Times New Roman, Times, serif',
-  'Verdana, Geneva, sans-serif',
-  'Courier New, Courier, monospace',
-  'Tahoma, Geneva, sans-serif',
-  'Palatino Linotype, Book Antiqua, Palatino, serif',
-  'Lucida Console, Monaco, monospace'
-];
-
-const googleFontNames = [
-  'Roboto', // When using in CSS, ensure these are quoted if they contain spaces and use the exact name Google Fonts uses
-  'Open Sans',
-  'Lato',
-  'Montserrat',
-  'Poppins',
-  'Inter',
-  'Source Sans 3',
-  'Oswald',
-  'Raleway',
-  'Merriweather'
-];
-
-// For the CSS font-family property, we might want to add fallbacks, 
-// but for the picker, just the name is fine. Ensure the FontGrabber loads them correctly.
-const fontFamilyOptions = [
-  ...googleFontNames, 
-  ...systemFontStack
-];
 
 // Interface for individual meal options
 interface MealOption {
