@@ -207,6 +207,9 @@ const ElementWrapper = ({
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       textColor: { value: '#333333', label: 'Text Color' },
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily for text
+      fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize
+      letterSpacing: { value: 0, min: -5, max: 20, step: 0.1, label: 'Letter Spacing (px)' }, // ADDED letterSpacing
+      lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -221,6 +224,9 @@ const ElementWrapper = ({
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily from controls
+      fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize from controls
+      letterSpacing: { value: 0, min: -5, max: 20, step: 0.1, label: 'Letter Spacing (px)' }, // ADDED letterSpacing from controls
+      lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight from controls
     };
   } else if (element.type === 'component' && element.name === 'RSVP Form') {
     // RSVP Form specific controls can be added here if needed, or managed within RSVPForm itself.
@@ -246,7 +252,10 @@ const ElementWrapper = ({
     fadeOutAnimationCurve = 'disabled',
     lockToViewportEdge = 'disabled',
     textColor = '#333333',
-    fontFamily = globalFontFamilyFromStore // ADDED fontFamily from controls
+    fontFamily = globalFontFamilyFromStore, // ADDED fontFamily from controls
+    fontSize = 16, // ADDED fontSize from controls
+    letterSpacing = 0, // ADDED letterSpacing from controls
+    lineHeight = 1.5 // ADDED lineHeight from controls
   } = controls.values;
 
   useEffect(() => {
@@ -329,7 +338,14 @@ const ElementWrapper = ({
      const newProps = { ref: currentChildRef };
      if (element.type === 'text') {
        // @ts-ignore
-       newProps.style = { ...children.props.style, color: textColor, fontFamily: fontFamily }; // APPLY FONT FAMILY TO TEXT
+       newProps.style = { 
+        ...children.props.style, 
+        color: textColor, 
+        fontFamily: fontFamily,
+        fontSize: `${fontSize}px`, // APPLY FONT SIZE
+        letterSpacing: `${letterSpacing}px`, // APPLY LETTER SPACING
+        lineHeight: lineHeight // APPLY LINE HEIGHT
+      };
      }
      childToRender = React.cloneElement(children, newProps);
   } else if (element.type === 'component' && element.name === 'RSVP Form' && React.isValidElement(children)) {
