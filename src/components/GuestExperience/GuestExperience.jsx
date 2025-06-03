@@ -698,6 +698,39 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollY, activeSpringConfigGuest, calculateFocusTargetDimensions, getCenteredPosition]); // Added currentScrollY and activeSpringConfigGuest
 
 
+  // --- ADDED: useEffect to update text colors when color scheme changes ---
+  const levaSetters = useLevaStore(state => state.levaSetters);
+  const schemas = useLevaStore(state => state.schemas);
+
+  useEffect(() => {
+    if (!selectedColorScheme || !elementsFromProps || elementsFromProps.length === 0 || !levaSetters || !schemas || Object.keys(levaSetters).length === 0 || Object.keys(schemas).length === 0) {
+      return;
+    }
+
+    const availableColors = [selectedColorScheme.primary, selectedColorScheme.secondary, selectedColorScheme.accent].filter(Boolean);
+
+    if (availableColors.length === 0) {
+      return;
+    }
+
+    console.log(`[GuestExperience] Color scheme changed to '${selectedColorScheme.name}'. Updating text element colors.`);
+
+    elementsFromProps.forEach(element => {
+      if (element.type === 'text') {
+        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const setter = levaSetters[folderName];
+        const elementSchema = schemas[folderName];
+
+        if (setter && elementSchema && elementSchema.textColor) {
+          const randomColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+          console.log(`[GuestExperience]   Updating ${folderName} textColor to ${randomColor}`);
+          setter({ textColor: randomColor });
+        }
+      }
+    });
+  }, [selectedColorScheme, elementsFromProps, levaSetters, schemas]);
+  // --- END ADDED ---
+
   // --- Event Handlers (Resize, Scroll) ---
   useEffect(() => {
     const handleResize = () => {
