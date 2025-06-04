@@ -813,12 +813,25 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
         const currentRect = targetScrapbookElement.getBoundingClientRect();
         const scrapbookLayoutInfoForReturn = currentItemDataForReturn.initialStyle;
         const baseRotationPutDown = parseRotationFromStyle(scrapbookLayoutInfoForReturn.transform);
-        const itemScrollSensitivityPutDown = currentItemDataForReturn.scrollSensitivity;
-        const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * 45;
+        
+        // Use stored sensitivity and range from the imageReturningToScrapbook object
+        const itemScrollSensitivityPutDown = imageReturningToScrapbook.itemScrollSensitivity || 0;
+        const itemDynamicRotationRangePutDown = imageReturningToScrapbook.itemDynamicRotationRange || 0;
+
+        const currentDynamicAngleForPutDown = Math.sin(scrollY * itemScrollSensitivityPutDown + returningDisplayIndex * 0.5) * itemDynamicRotationRangePutDown;
         const totalCurrentRotationForPutDown = baseRotationPutDown + currentDynamicAngleForPutDown;
+        
+        // User's current code for the 'to' state dimensions:
+        const { initialWidthPx, initialHeightPx } = imageReturningToScrapbook; 
+
         focusedImageApi.start({ 
-          to: { top: `${currentRect.top}px`, left: `${currentRect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`}, 
-          config: activeSpringConfigGuest
+           to: { 
+             top: `${currentRect.top}px`, 
+             left: `${currentRect.left}px`, 
+             width: `${initialWidthPx}px`, 
+             height: `${initialHeightPx}px`, 
+             transform: `translate(0px, 0px) rotate(${totalCurrentRotationForPutDown}deg) scale(1)`
+           }, 
         });
         // Opacity fade out for returning image can use a different, perhaps faster config
         focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 }}); // This specific one can be different if needed
@@ -993,8 +1006,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   
     const rect = targetImageElement.getBoundingClientRect();
     const baseRotateNav = parseRotationFromStyle(targetImageData.initialStyle.transform);
-    const itemScrollSensitivityNav = targetImageData.scrollSensitivity || 0;
-    const itemDynamicRotationRangeNav = targetImageData.dynamicRotationRange || 0;
+    const itemScrollSensitivityNav = targetImageData.itemScrollSensitivity || 0;
+    const itemDynamicRotationRangeNav = targetImageData.itemDynamicRotationRange || 0;
     const currentDynamicAngleForNavPickUp = Math.sin(scrollY * itemScrollSensitivityNav + newDisplayIndex * 0.5) * itemDynamicRotationRangeNav;
     const fullInitialRotateNav = baseRotateNav + currentDynamicAngleForNavPickUp;
   
@@ -1010,7 +1023,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       naturalHeight: naturalDims.height,
       currentIndex: newDisplayIndex,
       description: `Image ${newDisplayIndex + 1} description.`, 
-      photographer: `Photographer ${newDisplayIndex + 1}.`
+      photographer: `Photographer ${newDisplayIndex + 1}.`,
+      itemScrollSensitivity: itemScrollSensitivityNav, // ADDED: Store for later use
+      itemDynamicRotationRange: itemDynamicRotationRangeNav // ADDED: Store for later use
     };
   }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollY, scrapbookImageRefs]);
 
@@ -1067,10 +1082,11 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       return;
     }
 
+    // Ensure these are declared only once and use the correct source
+    const itemScrollSensitivityOnClick = clickedItemData.itemScrollSensitivity || 0;
+    const itemDynamicRotationRangeOnClick = clickedItemData.itemDynamicRotationRange || 0;
     const baseRotateOnClick = parseRotationFromStyle(clickedInitialStyle.transform);
-    const itemScrollSensitivityOnClick = clickedItemData.scrollSensitivity || 0;
-    const itemDynamicRotationRange = clickedItemData.dynamicRotationRange || 0;
-    const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedDisplayIndex * 0.5) * itemDynamicRotationRange;
+    const currentDynamicAngleForPickUp = Math.sin(scrollY * itemScrollSensitivityOnClick + clickedDisplayIndex * 0.5) * itemDynamicRotationRangeOnClick;
     const fullInitialRotateOnClick = baseRotateOnClick + currentDynamicAngleForPickUp;
 
     const clickedImageDetails = {
@@ -1085,7 +1101,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       naturalHeight: naturalDims.height,
       currentIndex: clickedDisplayIndex,
       description: `Image ${clickedDisplayIndex + 1} from the collection.`,
-      photographer: `Photographer details if available.`
+      photographer: `Photographer details if available.`,
+      itemScrollSensitivity: itemScrollSensitivityOnClick, 
+      itemDynamicRotationRange: itemDynamicRotationRangeOnClick 
     };
 
     if (focusedImage) {

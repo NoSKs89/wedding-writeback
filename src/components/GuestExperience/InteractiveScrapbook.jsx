@@ -7,7 +7,7 @@ import { useTrackedControls } from '../../hooks/useTrackedControls';
 const scrapbookLayoutControlsSchema = {
   centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
   centerYOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center Y Offset (%)' },
-  spreadRadiusFactor: { value: 0.35, min: 0.1, max: 0.7, step: 0.01, label: 'Spread Radius Factor' },
+  spreadRadiusFactor: { value: 0.35, min: 0.1, max: 5, step: 0.01, label: 'Spread Radius Factor' },
   maxImages: { value: 15, min: 1, max: 50, step: 1, label: 'Max Images Displayed' },
   baseRotationRange: { value: 15, min: 0, max: 90, step: 1, label: 'Base Rotation Range (±deg)'},
   baseSizeMin: { value: 100, min: 50, max: 300, step: 1, label: 'Base Size Min (px)' },
@@ -95,8 +95,8 @@ const calculateScrollDependentValues = (displayIndex, scrollY, layoutValues, ite
   const indexFactor = Math.sin(displayIndex * 0.5); // Varies between -1 and 1
 
   const dynamicAngleOffsetDeg = Math.sin(cappedScrollYForMovement * currentScrollSensitivity + displayIndex * 0.5) * currentDynamicRotationRange;
-  const parallaxTranslateX = cappedScrollYForMovement * currentParallaxDepthFactor * (1 + indexFactor * 0.2); 
-  const parallaxTranslateY = cappedScrollYForMovement * currentParallaxDepthFactor * (1 - indexFactor * 0.3); 
+  const parallaxTranslateX = cappedScrollYForMovement * currentParallaxDepthFactor * (1 + indexFactor * 0.2) * (itemData.parallaxXDirection || 1); 
+  const parallaxTranslateY = cappedScrollYForMovement * currentParallaxDepthFactor * (1 - indexFactor * 0.3) * (itemData.parallaxYDirection || 1); 
   let parallaxScale = currentItemBaseScale + (cappedScrollYForMovement * (currentParallaxDepthFactor * 0.05)); // Example: make scale change less drastic
   parallaxScale = Math.max(0.5, Math.min(parallaxScale, currentItemBaseScale * 1.5)); // Clamp scale relative to base
 
@@ -177,6 +177,9 @@ const InteractiveScrapbook = ({
       const { src, originalIndex, alt, id } = imageInfo;
       const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, windowDims, layoutControls.values);
       
+      const parallaxXDirection = Math.random() < 0.5 ? -1 : 1;
+      const parallaxYDirection = Math.random() < 0.5 ? -1 : 1;
+
       return {
         src,
         originalIndex, 
@@ -184,12 +187,10 @@ const InteractiveScrapbook = ({
         altText: alt || `Scrapbook item ${displayIndex + 1}`,
         id: id || src, 
         initialStyle: style,
-        // Per-item parameters for scroll-dependent calculations can be stored here if they vary
-        // For now, we assume calculateScrollDependentValues will use global layoutControls.values for these.
-        // Example: 
-        // itemScrollSensitivityFactor: layoutControls.values.scrollSensitivityFactor, 
-        // itemDynamicRotationRange: layoutControls.values.dynamicRotationRange, 
-        // etc.
+        parallaxXDirection, 
+        parallaxYDirection,
+        itemScrollSensitivity: layoutControls.values.scrollSensitivityFactor,
+        itemDynamicRotationRange: layoutControls.values.dynamicRotationRange,
       };
     });
   }, [
