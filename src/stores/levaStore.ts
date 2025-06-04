@@ -521,7 +521,7 @@ export const useLevaStore = create<LevaStoreState>()(
     saveSettingsToServer: async (weddingId: string, viewType: 'desktop' | 'mobile') => {
       const settings = get().getSettingsForSave(); 
       const apiBase = getApiBaseUrl();
-      const endpoint = `${apiBase}/weddings/${weddingId}/experience-settings/${viewType}`;
+      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`;
       try {
         console.log(`[LevaStore saveSettingsToServer] Saving to ${endpoint}:`, settings);
         await axios.post(endpoint, { settings }); 
@@ -543,7 +543,7 @@ export const useLevaStore = create<LevaStoreState>()(
 
     loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile') => {
       const apiBase = getApiBaseUrl();
-      const endpoint = `${apiBase}/weddings/${weddingId}/experience-settings/${viewType}`;
+      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`;
       try {
         console.log(`[LevaStore loadSettingsFromServer] Loading from ${endpoint}`);
         const response = await axios.get(endpoint);

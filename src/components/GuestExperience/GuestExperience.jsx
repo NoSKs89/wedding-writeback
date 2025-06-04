@@ -209,17 +209,15 @@ const ElementWrapper = ({
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily for text
       fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight
-      fadeInAnimationConfig: (() => {
-        const folderSchema = folder({
-          fadeInCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Curve' },
-          fadeInYStartOffset: { value: 20, step: 1, label: 'Y Start Offset (px)' },
-          fadeInYEndOffset: { value: 0, step: 1, label: 'Y End Offset (px)' },
-          fadeInLetterSpacingStart: { value: 5, min: -10, max: 50, step: 0.1, label: 'Letter Spacing Start (px)' },
-          fadeInLetterSpacingEnd: { value: 0, min: -10, max: 50, step: 0.1, label: 'Letter Spacing End (px)' }
-        }, { collapsed: true });
-        // console.log('[GuestExperience] Leva Folder Schema for Spacing Animation:', JSON.stringify(folderSchema, null, 2)); // IIFE log
-        return folderSchema;
-      })(),
+      textSpreadConfig: folder({
+        spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
+        animationStartScrollPct: { value: 0.0, min: 0, max: 1, step: 0.01, label: 'Anim Start Scroll %' },
+        animationEndScrollPct: { value: 1.0, min: 0, max: 1, step: 0.01, label: 'Anim End Scroll %' },
+        yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
+        yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
+        letterSpacingAtAnimStart: { value: 5, min: -10, max: 50, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
+        letterSpacingAtAnimEnd: { value: 0, min: -10, max: 50, step: 0.1, label: 'L-Spacing @ Anim End (px)' }
+      }, { collapsed: true }),
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -270,18 +268,20 @@ const ElementWrapper = ({
   } = controls.values;
 
   // Destructure fade-in animation controls specifically for text elements
-  let fadeInControls = {};
-  if (element.type === 'text' && controls.values.fadeInAnimationConfig) {
-    fadeInControls = controls.values.fadeInAnimationConfig;
-    // console.log(`[ElementWrapper LS Debug - ${element.name}] Raw fadeInControls:`, JSON.parse(JSON.stringify(fadeInControls))); // Raw controls log
+  let textSpreadControls = {};
+  if (element.type === 'text' && controls.values.textSpreadConfig) {
+    textSpreadControls = controls.values.textSpreadConfig;
+    // console.log(`[ElementWrapper LS Debug - ${element.name}] Raw textSpreadControls:`, JSON.parse(JSON.stringify(textSpreadControls)));
   }
   const {
-    fadeInCurve = 'linear',
-    fadeInYStartOffset = 0,
-    fadeInYEndOffset = 0,
-    fadeInLetterSpacingStart = 0,
-    fadeInLetterSpacingEnd = 0
-  } = fadeInControls;
+    spreadAnimationCurve = 'linear',
+    animationStartScrollPct = 0.0,
+    animationEndScrollPct = 1.0,
+    yOffsetAtAnimStart = 20, // Defaulting to schema's value
+    yOffsetAtAnimEnd = 0,    // Defaulting to schema's value
+    letterSpacingAtAnimStart = 5, // Defaulting to schema's value
+    letterSpacingAtAnimEnd = 0   // Defaulting to schema's value
+  } = textSpreadControls;
 
   useEffect(() => {
     if (currentChildRef.current) {
@@ -298,29 +298,44 @@ const ElementWrapper = ({
   const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
 
   let currentAnimatedYOffset = 0;
-  // Initialize letterSpacingToApply based on fadeInAnimationConfig, as parent control is removed.
-  let letterSpacingToApply = fadeInLetterSpacingEnd; // Default to the end value of the animation
+  // Initialize letterSpacingToApply based on textSpreadConfig
+  let letterSpacingToApply = letterSpacingAtAnimEnd; // Default to the end value
 
   if (element.type === 'text') {
-    // console.log(`[ElementWrapper LS Debug - ${element.name}] Controls:`, { // Controls log block
-    //   fadeInCurve: fadeInCurve,
-    //   fadeInLetterSpacingStart: fadeInLetterSpacingStart,
-    //   fadeInLetterSpacingEnd: fadeInLetterSpacingEnd,
+    // console.log(`[ElementWrapper LS Debug - ${element.name}] Controls:`, {
+    //   spreadAnimationCurve: spreadAnimationCurve,
+    //   letterSpacingAtAnimStart: letterSpacingAtAnimStart,
+    //   letterSpacingAtAnimEnd: letterSpacingAtAnimEnd,
     // });
   }
 
   if (element.type === 'text') { // Check element type first
-    if (fadeInCurve !== 'disabled') {
-      // Animation now spans the entire element duration (elementStartScroll to elementEndScroll)
-      const animationProgress = elementScrollDuration > 0 ? Math.min(1, Math.max(0, (scrollY - elementStartScroll) / elementScrollDuration)) : 1;
-      const selectedFadeInCurve = animationCurves[fadeInCurve] || linear;
-      const easedAnimationProgress = selectedFadeInCurve(animationProgress);
+    if (spreadAnimationCurve !== 'disabled') {
+      const totalScrollableHeight = Math.max(1, (TOTAL_PAGES - 1) * windowHeight);
+      const animationStartScrollTime = animationStartScrollPct * totalScrollableHeight;
+      const animationEndScrollTime = animationEndScrollPct * totalScrollableHeight;
+      const currentAnimationDuration = Math.max(1, animationEndScrollTime - animationStartScrollTime);
 
-      currentAnimatedYOffset = fadeInYStartOffset + (fadeInYEndOffset - fadeInYStartOffset) * easedAnimationProgress;
-      letterSpacingToApply = fadeInLetterSpacingStart + (fadeInLetterSpacingEnd - fadeInLetterSpacingStart) * easedAnimationProgress;
+      let animationProgress = 0;
+      if (scrollY < animationStartScrollTime) {
+        animationProgress = 0;
+      } else if (scrollY > animationEndScrollTime) {
+        animationProgress = 1;
+      } else if (currentAnimationDuration > 0) { // Avoid division by zero if start and end are same
+        animationProgress = (scrollY - animationStartScrollTime) / currentAnimationDuration;
+      } else { // If duration is 0 (start === end), progress depends on whether we are at that point
+        animationProgress = scrollY >= animationStartScrollTime ? 1 : 0;
+      }
+      animationProgress = Math.min(1, Math.max(0, animationProgress)); // Clamp progress
+
+      const selectedSpreadCurve = animationCurves[spreadAnimationCurve] || linear;
+      const easedAnimationProgress = selectedSpreadCurve(animationProgress);
+
+      currentAnimatedYOffset = yOffsetAtAnimStart + (yOffsetAtAnimEnd - yOffsetAtAnimStart) * easedAnimationProgress;
+      letterSpacingToApply = letterSpacingAtAnimStart + (letterSpacingAtAnimEnd - letterSpacingAtAnimStart) * easedAnimationProgress;
     } else {
-      currentAnimatedYOffset = fadeInYEndOffset;
-      letterSpacingToApply = fadeInLetterSpacingEnd; // If animation is disabled, use the end value.
+      currentAnimatedYOffset = yOffsetAtAnimEnd; // Use end Y value if animation disabled
+      letterSpacingToApply = letterSpacingAtAnimEnd; // If animation is disabled, use the end letter spacing value.
     }
     // console.log(`[ElementWrapper LS Debug - ${element.name}] Final letterSpacingToApply:`, letterSpacingToApply); // Final apply log
   }

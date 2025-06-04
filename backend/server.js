@@ -222,18 +222,40 @@ exports.handler = async (event, context) => {
           return createResponse(200, wedding[fieldToSelect] || {}, requestOrigin);
       }
 
-      // POST /api/weddings/:customId/layout-settings
-      const postLayoutSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layout-settings$/);
-      if (httpMethod === "POST" && postLayoutSettingsMatch) {
-          const customId = postLayoutSettingsMatch[1];
-          const newLayoutSettings = body;
-          const view = event.queryStringParameters?.view || 'desktop'; // Default to 'desktop'
-          const fieldToUpdate = view === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+      // GET /api/weddings/:customId/layoutSettings/:viewType
+      const getLayoutSettingsWithViewMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layoutSettings\/(desktop|mobile)$/);
+      if (httpMethod === "GET" && getLayoutSettingsWithViewMatch) {
+          const customId = getLayoutSettingsWithViewMatch[1];
+          const viewType = getLayoutSettingsWithViewMatch[2]; // 'desktop' or 'mobile'
+          const fieldToSelect = viewType === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+          
+          console.log(`[GET /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, selecting: ${fieldToSelect}`);
 
-          console.log(`[POST /layout-settings] customId: ${customId}, view: ${view}, updating: ${fieldToUpdate}`);
+          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding data not found for layout settings.' }, requestOrigin);
+          }
+          
+          const settingsData = wedding[fieldToSelect] || {}; // Get the settings, default to empty object if not found
+          // levaStore expects the response to have a 'settings' key containing the actual layout object
+          return createResponse(200, { settings: settingsData }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/layout-settings/:viewType
+      const postLayoutSettingsWithViewMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layoutSettings\/(desktop|mobile)$/);
+      if (httpMethod === "POST" && postLayoutSettingsWithViewMatch) {
+          const customId = postLayoutSettingsWithViewMatch[1];
+          const viewType = postLayoutSettingsWithViewMatch[2]; // 'desktop' or 'mobile'
+          const newLayoutSettingsContainer = body; // The body is expected to be { settings: { ... } }
+          const newLayoutSettings = newLayoutSettingsContainer.settings; // Extract the actual settings object
+
+          // const view = event.queryStringParameters?.view || 'desktop'; // No longer needed from query string
+          const fieldToUpdate = viewType === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+
+          console.log(`[POST /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, updating: ${fieldToUpdate} with settings:`, newLayoutSettings);
 
           if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
-              return createResponse(400, { message: 'Invalid layout settings. Expected an object.' }, requestOrigin);
+              return createResponse(400, { message: 'Invalid layout settings. Expected an object under a top-level \'settings\' key.' }, requestOrigin);
           }
           
           const updateQuery = { $set: { [fieldToUpdate]: newLayoutSettings } };
@@ -244,7 +266,7 @@ exports.handler = async (event, context) => {
           );
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' }, requestOrigin);
           
-          return createResponse(200, { message: `Layout settings for ${view} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
+          return createResponse(200, { message: `Layout settings for ${viewType} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
       
       // GET /api/weddings/:customId/experience-settings
