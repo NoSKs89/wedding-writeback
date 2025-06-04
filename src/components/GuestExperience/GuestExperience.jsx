@@ -27,6 +27,30 @@ const linear = t => t;
 const easeInCubic = t => t * t * t;
 const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
 const easeInQuint = t => t * t * t * t * t;
+const easeInQuart = t => t * t * t * t;
+const easeOutQuad = t => 1 - Math.pow(1 - t, 2);
+const easeInSextic = t => t * t * t * t * t * t;
+
+// ADDED: New custom curve function
+const quickInSlowOut = t => {
+  const midPointRawProgress = 0.15; // Target raw progress to reach middle eased progress
+
+  if (t <= midPointRawProgress) {
+    // Fast to middle: Use easeInSextic for the first segment (0 to midPointRawProgress of raw progress)
+    // Normalize t to 0-1 for the easing function: t / midPointRawProgress
+    // Scale the 0-1 output of easeInSextic to be 0-0.5 for the eased progress output
+    if (midPointRawProgress === 0) return 0; // Avoid division by zero, effectively jump to 0.5 if midPoint is 0
+    return easeInSextic(t / midPointRawProgress) * 0.5;
+  } else {
+    // Slow to end: Use easeOutQuad for the second segment (midPointRawProgress to 1.0 of raw progress)
+    // Normalize t to 0-1 for the easing function: (t - midPointRawProgress) / (1.0 - midPointRawProgress)
+    // Scale the 0-1 output of easeOutQuad to be 0-0.5, then add the 0.5 offset for the eased progress output
+    const remainingRawProgressDuration = 1.0 - midPointRawProgress;
+    if (remainingRawProgressDuration === 0) return 0.5; // Avoid division by zero, effectively stay at 0.5 if no duration left
+    return 0.5 + easeOutQuad((t - midPointRawProgress) / remainingRawProgressDuration) * 0.5;
+  }
+};
+
 // Add more easing functions as needed: easeInQuad, easeOutQuad, easeInCubic, etc.
 
 const animationCurves = {
@@ -35,8 +59,7 @@ const animationCurves = {
   easeInCubic: easeInCubic,
   easeOutCubic: easeOutCubic,
   easeInQuint: easeInQuint,
-  // Add other curves here
-  strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
+  quickInSlowOut: quickInSlowOut,
 };
 
 // Default spring configuration (can be adjusted)
@@ -191,7 +214,10 @@ const ElementWrapper = ({
   const currentChildRef = useRef(null);
 
   let controlsSchema = {
-    opacity: { value: 1, min: 0, max: 1, step: 0.01 },
+    opacityAtStart: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Start' },
+    opacityAtMiddle: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Middle' },
+    opacityAtEnd: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ End' },
+    opacityAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Opacity Curve' },
   };
 
   // Retrieve global font family for default in text elements
@@ -203,12 +229,11 @@ const ElementWrapper = ({
     controlsSchema = {
       ...controlsSchema,
       landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
-      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       textColor: { value: '#333333', label: 'Text Color' },
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
       fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
       fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
+      fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
       spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
       yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
@@ -225,8 +250,6 @@ const ElementWrapper = ({
       endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
       scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
       scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
-      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
       fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
@@ -248,21 +271,23 @@ const ElementWrapper = ({
   );
 
   const { 
-    opacity = 1, 
+    opacityAtStart = 1,
+    opacityAtMiddle = 1,
+    opacityAtEnd = 1,
+    opacityAnimationCurve = 'linear',
     landingXPosition = 0,
     landingYPosition = 0,
     startingScale = 1, 
     endingScale = 1, 
     scaleEndYPosition = 0.5, 
     scaleAnimationCurve = 'linear',
-    fadeOutEndYPosition = 1,
-    fadeOutAnimationCurve = 'disabled',
     lockToViewportEdge = 'disabled',
     textColor = '#333333',
     fontFamily = globalFontFamilyFromStore,
     fontSize = 16,
     fontSizeAtStart = 16,
     fontSizeAtEnd = 16,
+    fontSizeAnimationCurve = 'linear',
     lineHeight = 1.5,
     spreadAnimationCurve = 'linear',
     yOffsetAtAnimStart,
@@ -293,38 +318,59 @@ const ElementWrapper = ({
   
   const elementStartScroll = startMarker ? startMarker.position * pageMultiplier * windowHeight : 0;
   const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
-  const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
+  const elementScrollDuration = Math.max(endMarker ? endMarker.position * pageMultiplier * windowHeight - elementStartScroll : windowHeight * TOTAL_PAGES - elementStartScroll, 1);
 
   let currentAnimatedYOffset = 0;
   let letterSpacingToApply = letterSpacingAtAnimEnd;
   let currentFontSize = element.type === 'text' ? fontSizeAtEnd : fontSize;
 
   if (element.type === 'text') {
-    if (spreadAnimationCurve !== 'disabled') {
-      let animationProgress = 0;
-      if (elementScrollDuration > 0) {
-        if (scrollY < elementStartScroll) {
-          animationProgress = 0;
-        } else if (scrollY > elementEndScroll) {
-          animationProgress = 1;
-        } else {
-          animationProgress = (scrollY - elementStartScroll) / elementScrollDuration;
-        }
+    // Calculate eased progress for spread and font size potentially differently
+    let spreadEasedProgress = 0;
+    let fontSizeEasedProgress = 0;
+    let rawAnimationProgress = 0;
+
+    if (elementScrollDuration > 0) {
+      if (scrollY < elementStartScroll) {
+        rawAnimationProgress = 0;
+      } else if (scrollY > elementEndScroll) {
+        rawAnimationProgress = 1;
       } else {
-        animationProgress = scrollY >= elementStartScroll ? 1 : 0;
+        rawAnimationProgress = (scrollY - elementStartScroll) / elementScrollDuration;
       }
-      animationProgress = Math.min(1, Math.max(0, animationProgress));
+    } else { 
+      rawAnimationProgress = scrollY >= elementStartScroll ? 1 : 0;
+    }
+    rawAnimationProgress = Math.min(1, Math.max(0, rawAnimationProgress));
 
+    if (spreadAnimationCurve !== 'disabled') {
       const selectedSpreadCurve = animationCurves[spreadAnimationCurve] || linear;
-      const easedAnimationProgress = selectedSpreadCurve(animationProgress);
-
-      currentAnimatedYOffset = yOffsetAtAnimStart + (yOffsetAtAnimEnd - yOffsetAtAnimStart) * easedAnimationProgress;
-      letterSpacingToApply = letterSpacingAtAnimStart + (letterSpacingAtAnimEnd - letterSpacingAtAnimStart) * easedAnimationProgress;
-      currentFontSize = fontSizeAtStart + (fontSizeAtEnd - fontSizeAtStart) * easedAnimationProgress;
+      spreadEasedProgress = selectedSpreadCurve(rawAnimationProgress);
     } else {
-      currentAnimatedYOffset = yOffsetAtAnimEnd;
+      spreadEasedProgress = rawAnimationProgress; // Or 1 if disabled means end state, 0 if start state
+    }
+
+    if (fontSizeAnimationCurve !== 'disabled') {
+      const selectedFontSizeCurve = animationCurves[fontSizeAnimationCurve] || linear;
+      fontSizeEasedProgress = selectedFontSizeCurve(rawAnimationProgress);
+    } else {
+      fontSizeEasedProgress = rawAnimationProgress; // Or 1 if disabled means end state, 0 if start state
+    }
+
+    // Apply spread animations
+    if (spreadAnimationCurve !== 'disabled') {
+      currentAnimatedYOffset = yOffsetAtAnimStart + (yOffsetAtAnimEnd - yOffsetAtAnimStart) * spreadEasedProgress;
+      letterSpacingToApply = letterSpacingAtAnimStart + (letterSpacingAtAnimEnd - letterSpacingAtAnimStart) * spreadEasedProgress;
+    } else {
+      currentAnimatedYOffset = yOffsetAtAnimEnd; 
       letterSpacingToApply = letterSpacingAtAnimEnd;
-      currentFontSize = fontSizeAtEnd;
+    }
+
+    // Apply font size animation
+    if (fontSizeAnimationCurve !== 'disabled') {
+      currentFontSize = fontSizeAtStart + (fontSizeAtEnd - fontSizeAtStart) * fontSizeEasedProgress;
+    } else {
+      currentFontSize = fontSizeAtEnd; // Static font size if animation disabled
     }
   }
 
@@ -336,15 +382,43 @@ const ElementWrapper = ({
     currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
   }
 
-  let finalOpacity = opacity;
-  if (fadeOutAnimationCurve !== 'disabled') {
-    const fadeOutStartScrollPoint = elementStartScroll;
-    const fadeOutDurationScroll = elementScrollDuration * fadeOutEndYPosition;
-    const safeFadeOutDurationScroll = fadeOutDurationScroll <= 0 ? 1 : fadeOutDurationScroll;
-    const fadeOutProgress = Math.min(1, Math.max(0, (scrollY - fadeOutStartScrollPoint) / safeFadeOutDurationScroll));
-    const selectedFadeOutCurve = animationCurves[fadeOutAnimationCurve] || linear;
-    finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
+  // New Opacity Logic
+  let finalOpacity = opacityAtEnd; // Default to end state if animation is disabled
+  let rawOpacityProgress = 0;
+  if (elementScrollDuration > 0) {
+    if (scrollY < elementStartScroll) {
+      rawOpacityProgress = 0;
+    } else if (scrollY > elementEndScroll) {
+      rawOpacityProgress = 1;
+    } else {
+      rawOpacityProgress = (scrollY - elementStartScroll) / elementScrollDuration;
+    }
+  } else {
+    rawOpacityProgress = scrollY >= elementStartScroll ? 1 : 0;
   }
+  rawOpacityProgress = Math.min(1, Math.max(0, rawOpacityProgress));
+
+  if (opacityAnimationCurve !== 'disabled') {
+    const selectedOpacityCurve = animationCurves[opacityAnimationCurve] || linear;
+    const easedOpacityProgress = selectedOpacityCurve(rawOpacityProgress);
+
+    if (easedOpacityProgress <= 0.5) {
+      // Animate from start to middle
+      const progressFirstHalf = easedOpacityProgress * 2;
+      finalOpacity = opacityAtStart + (opacityAtMiddle - opacityAtStart) * progressFirstHalf;
+    } else {
+      // Animate from middle to end
+      const progressSecondHalf = (easedOpacityProgress - 0.5) * 2;
+      finalOpacity = opacityAtMiddle + (opacityAtEnd - opacityAtMiddle) * progressSecondHalf;
+    }
+  } else {
+    // If animation is disabled, determine opacity based on scroll position relative to element duration
+    // This provides a static opacity based on whether the element is before, within, or after its defined scroll area
+    // For a truly static opacity regardless of scroll, one might just pick opacityAtStart or opacityAtEnd.
+    // Let's refine this: if disabled, it should probably be a fixed value. Let's use opacityAtEnd as the default static value.
+    finalOpacity = opacityAtEnd; 
+  }
+  // END New Opacity Logic
 
   const isCentered = true; 
   const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
