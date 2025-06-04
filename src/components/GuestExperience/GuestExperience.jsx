@@ -255,6 +255,16 @@ const ElementWrapper = ({
       fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
     };
+  } else if (element.type === 'background-image') {
+    controlsSchema = {
+      ...controlsSchema, // Keep base opacity controls
+      cropToCircleEffect: { value: false, label: 'Enable Circle Crop & Shrink' },
+      circleEffectCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Circle Effect Curve' },
+      circleInitialRadius: { value: 150, min: 50, max: 200, step: 1, label: 'Circle Initial Radius (%)' },
+      circleFinalRadius: { value: 0, min: 0, max: 100, step: 1, label: 'Circle Final Radius (%)' },
+      bgImageInitialScale: { value: 1, min: 0.1, max: 3, step: 0.01, label: 'BG Initial Scale' },
+      bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
+    };
   } else if (element.type === 'component' && element.name === 'RSVP Form') {
     // RSVP Form specific controls can be added here if needed, or managed within RSVPForm itself.
     // For now, ElementWrapper only handles opacity for RSVP Form.
@@ -293,7 +303,14 @@ const ElementWrapper = ({
     yOffsetAtAnimStart,
     yOffsetAtAnimEnd,
     letterSpacingAtAnimStart,
-    letterSpacingAtAnimEnd
+    letterSpacingAtAnimEnd,
+    // New controls for background-image circle effect
+    cropToCircleEffect = false,
+    circleEffectCurve = 'linear',
+    circleInitialRadius = 150,
+    circleFinalRadius = 0,
+    bgImageInitialScale = 1,
+    bgImageFinalScale = 0.1
   } = controls.values;
 
   if (element.type === 'text') {
@@ -420,6 +437,31 @@ const ElementWrapper = ({
   }
   // END New Opacity Logic
 
+  // --- Circle Crop & Shrink Logic for background-image ---
+  let clipPathToApply = 'none';
+  let scaleForBgImage = bgImageInitialScale; // Default to initial scale
+
+  if (element.type === 'background-image') {
+    if (cropToCircleEffect && circleEffectCurve !== 'disabled') {
+      const selectedCircleCurve = animationCurves[circleEffectCurve] || linear;
+      const easedCircleEffectProgress = selectedCircleCurve(rawOpacityProgress); // Reuse rawOpacityProgress
+
+      const currentClipRadius = circleInitialRadius + (circleFinalRadius - circleInitialRadius) * easedCircleEffectProgress;
+      clipPathToApply = `circle(${currentClipRadius}% at 50% 50%)`;
+
+      scaleForBgImage = bgImageInitialScale + (bgImageFinalScale - bgImageInitialScale) * easedCircleEffectProgress;
+    } else if (cropToCircleEffect && circleEffectCurve === 'disabled') {
+      // Effect enabled, but curve is disabled: apply initial state of effect
+      clipPathToApply = `circle(${circleInitialRadius}% at 50% 50%)`;
+      scaleForBgImage = bgImageInitialScale;
+    } else {
+      // Effect is disabled: no clip, default scale (which is bgImageInitialScale)
+      clipPathToApply = 'none';
+      scaleForBgImage = bgImageInitialScale; 
+    }
+  }
+  // --- END Circle Crop & Shrink Logic ---
+
   const isCentered = true; 
   const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
   let initialYFromLanding = landingYPosition; 
@@ -440,9 +482,10 @@ const ElementWrapper = ({
   
   let elementOuterStyle = {
     opacity: finalOpacity,
-    transform: `translateX(${xTransform}px) translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
+    transform: `translateX(${xTransform}px) translateY(${finalCalculatedYTransform}px) scale(${element.type === 'background-image' ? scaleForBgImage : currentScale})`,
     width: element.type === 'background-image' ? '100%' : 'auto',
     height: element.type === 'background-image' ? '100%' : 'auto',
+    clipPath: clipPathToApply, // Added clip-path style
     // Default pointer-events, can be overridden for RSVP form
   };
 
