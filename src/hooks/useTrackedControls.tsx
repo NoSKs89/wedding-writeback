@@ -110,8 +110,55 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
 
   const storeFolderChangedKeys = useLevaStore(state => state.changedKeys[folderName]);
 
+  // Construct the final values, ensuring nested objects like textSpreadConfig are correctly sourced
+  let finalValuesToReturn = storeFolderValues || initialSchemaValuesRef.current || {};
+
+  if (folderName.startsWith("element_") && levaValues && schema) {
+    // If it's an element control, Leva might be providing flat updates for nested structures.
+    // We need to ensure the structure expected by ElementWrapper (e.g., with a textSpreadConfig object)
+    // is correctly assembled from the latest Leva values or merged with store values.
+
+    const reconstructedValues: Record<string, any> = {};
+    for (const key in schema) {
+      const schemaEntry = schema[key];
+      if (typeof schemaEntry === 'object' && (schemaEntry as any).type === 'FOLDER' && (schemaEntry as any).schema) {
+        // It's a folder like textSpreadConfig
+        reconstructedValues[key] = {};
+        const subSchema = (schemaEntry as any).schema;
+        for (const subKey in subSchema) {
+          // Try to get value from Leva's flat path first, e.g., levaValues["textSpreadConfig.letterSpacingAtAnimStart"]
+          // Leva's actual keys might be just "letterSpacingAtAnimStart" if the folder is top-level in its own useControls call
+          // OR it might be prefixed if the folder is part of a larger schema passed to a single useControls.
+          // For useTrackedControls, levaValues are the direct output for THAT folderName.
+          // So, if folderName is "element_1_Bride_Name", and schema has "textSpreadConfig" (folder),
+          // levaValues *should* have a "textSpreadConfig" object if Leva is handling it as a nested structure.
+          // If Leva flattens it in its output (e.g. levaValues["textSpreadConfig.someValue"]), that's an issue.
+          
+          // Let's assume levaValues for a folder *contains* the folder object if schema indicates a folder
+          if (levaValues[key] && typeof levaValues[key] === 'object' && levaValues[key].hasOwnProperty(subKey)) {
+            reconstructedValues[key][subKey] = levaValues[key][subKey];
+          } else if (storeFolderValues && storeFolderValues[key] && typeof storeFolderValues[key] === 'object' && storeFolderValues[key].hasOwnProperty(subKey)) {
+            reconstructedValues[key][subKey] = storeFolderValues[key][subKey];
+          } else {
+            reconstructedValues[key][subKey] = (subSchema[subKey] as any)?.value; // Default from schema
+          }
+        }
+      } else {
+        // It's a top-level control in this folder's schema
+        if (levaValues.hasOwnProperty(key)) {
+          reconstructedValues[key] = levaValues[key];
+        } else if (storeFolderValues && storeFolderValues.hasOwnProperty(key)) {
+          reconstructedValues[key] = storeFolderValues[key];
+        } else {
+          reconstructedValues[key] = (schemaEntry as any)?.value; // Default from schema
+        }
+      }
+    }
+    finalValuesToReturn = reconstructedValues;
+  }
+
   return {
-    values: storeFolderValues || initialSchemaValuesRef.current || {},
+    values: finalValuesToReturn,
     store: levaStoreRef,
     schema,
     folderName,

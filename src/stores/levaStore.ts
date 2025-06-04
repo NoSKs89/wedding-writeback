@@ -123,8 +123,9 @@ function transformFlatToNested(
     if (
       !(
         schemaEntry &&
-        typeof schemaEntry === 'object' &&
-        (schemaEntry as LevaSchemaFolder).type === 'FOLDER'
+        typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
+        schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
+        typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
       ) && 
       flatDataCopy.hasOwnProperty(schemaKey)
     ) {
@@ -133,8 +134,9 @@ function transformFlatToNested(
     } else if (
         !(
         schemaEntry &&
-        typeof schemaEntry === 'object' &&
-        (schemaEntry as LevaSchemaFolder).type === 'FOLDER'
+        typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
+        schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
+        typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
       )
     ) {
          if (schemaEntry && typeof schemaEntry === 'object' && !('type' in schemaEntry && schemaEntry.type === 'FOLDER') && 'value' in schemaEntry) {
@@ -149,11 +151,11 @@ function transformFlatToNested(
 
     if (
       schemaEntry &&
-      typeof schemaEntry === 'object' &&
-      (schemaEntry as LevaSchemaFolder).type === 'FOLDER' && 
-      (schemaEntry as LevaSchemaFolder).schema 
+      typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
+      schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
+      typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
     ) {
-      const subSchema = (schemaEntry as LevaSchemaFolder).schema;
+      const subSchema = (schemaEntry as any).schema;
       const subFolderData = transformFlatToNested(flatDataCopy, subSchema);
       nestedResult[schemaKey] = subFolderData;
 
@@ -182,17 +184,17 @@ function flattenDataForLevaSetter(
 
     if (
       schemaEntry &&
-      typeof schemaEntry === 'object' &&
-      (schemaEntry as LevaSchemaFolder).type === 'FOLDER' &&
-      (schemaEntry as LevaSchemaFolder).schema &&
+      typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
+      schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
+      typeof (schemaEntry as any).schema === 'object' && // Ensure the sub-schema is an object
       isObject(value) // Ensure the data for the folder is an object
     ) {
       // It's a folder. Recursively flatten its contents.
-      // The new prefix for items inside this folder will be the current prefix + this folder's key + '.'
+      const subSchema = (schemaEntry as any).schema; // Get the sub-schema
       const newPrefixForSubItems = keyPrefix ? `${keyPrefix}${key}.` : `${key}.`;
       Object.assign(
         flattened,
-        flattenDataForLevaSetter(value, (schemaEntry as LevaSchemaFolder).schema, newPrefixForSubItems)
+        flattenDataForLevaSetter(value, subSchema, newPrefixForSubItems)
       );
     } else {
       // It's a simple control (not a folder).
@@ -294,43 +296,15 @@ export const useLevaStore = create<LevaStoreState>()(
         state.changedKeys[folderName] = new Set<string>(); 
 
         if (setter) {
-          if (folderName.startsWith("element_")) {
-            // For element-specific controls, only set top-level properties to Leva's UI initially.
-            // The nested folder data is in our store and used by the app.
-            const topLevelDataForLeva: Record<string, any> = {};
-            for (const key in finalValuesForStore) {
-              if (finalValuesForStore.hasOwnProperty(key) && typeof finalValuesForStore[key] !== 'object') {
-                topLevelDataForLeva[key] = finalValuesForStore[key];
-              }
-            }
-            // Also explicitly add the folder key itself, but with its original (potentially schema default) nested structure if Leva needs the key present.
-            // Or, if Leva creates the folder UI from schema, we only need to set top-level flat values it can handle.
-            // Let's try setting only recognized top-level flat values.
-            // We will NOT include the 'fadeInAnimationConfig' key or its flattened children here for the setter.
-            
-            // Create a truly flat object for Leva's setter, containing only non-object properties from finalValuesForStore
-            const minimalFlatDataForLeva: Record<string, any> = {};
-            Object.keys(finalValuesForStore).forEach(key => {
-              if (typeof finalValuesForStore[key] !== 'object' || finalValuesForStore[key] === null) {
-                minimalFlatDataForLeva[key] = finalValuesForStore[key];
-              }
-            });
-
-            console.log(`[LevaStore registerControls - "${folderName}"] Syncing ONLY TOP-LEVEL store values to Leva panel:`, JSON.parse(JSON.stringify(minimalFlatDataForLeva)));
-            if (Object.keys(minimalFlatDataForLeva).length > 0) {
-                setTimeout(() => { 
-                  setter(minimalFlatDataForLeva);
-                }, 0);
-            } else {
-                console.log(`[LevaStore registerControls - "${folderName}"] No top-level values to set for element control, or finalValuesForStore was empty.`);
-            }
-          } else {
-            // For non-element folders, proceed with setting Leva's UI using flattened data.
-            const dataForLeva = flattenDataForLevaSetter(finalValuesForStore, schema);
-            console.log(`[LevaStore registerControls - "${folderName}"] Syncing store to Leva panel. Flattened data for Leva:`, JSON.parse(JSON.stringify(dataForLeva)));
-            setTimeout(() => { 
+          // ALWAYS use flattenDataForLevaSetter for all folder types
+          const dataForLeva = flattenDataForLevaSetter(finalValuesForStore, schema);
+          console.log(`[LevaStore registerControls - "${folderName}"] Syncing ALL store values (flattened for Leva) to Leva panel. Data:`, JSON.parse(JSON.stringify(dataForLeva)));
+          if (Object.keys(dataForLeva).length > 0) {
+            setTimeout(() => {
               setter(dataForLeva);
             }, 0);
+          } else {
+            console.log(`[LevaStore registerControls - "${folderName}"] No data to set to Leva panel, or finalValuesForStore was effectively empty after flattening.`);
           }
         } else {
             console.warn(`[LevaStore registerControls - "${folderName}"] Leva setter not provided during registration.`);
@@ -460,16 +434,15 @@ export const useLevaStore = create<LevaStoreState>()(
             state.initialControlValues[folderName] = { ...finalValuesForStore };
             state.changedKeys[folderName] = new Set<string>();
             
-            if (folderName.startsWith("element_")) {
-              console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] Skipping Leva setter call for element-specific control as app uses store values directly.`);
-              // No setter call for element_ folders in post-processing either for consistency
+            // ALWAYS call the setter with flattened data for all folder types during post-processing.
+            const dataForLevaPostProcessing = flattenDataForLevaSetter(finalValuesForStore, schema);
+            console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] Calling Leva setter with re-processed DB values (flattened). Data:`, JSON.parse(JSON.stringify(dataForLevaPostProcessing)));
+            if (Object.keys(dataForLevaPostProcessing).length > 0) {
+                setTimeout(() => {
+                    setter(dataForLevaPostProcessing);
+                }, 0);
             } else {
-              // For non-element folders, proceed with setting Leva's UI.
-              const dataForLevaPostProcessing = flattenDataForLevaSetter(finalValuesForStore, schema);
-              console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] Calling Leva setter with re-processed DB values (flattened):`, JSON.parse(JSON.stringify(dataForLevaPostProcessing)));
-              setTimeout(() => { 
-                setter(dataForLevaPostProcessing);
-              }, 0);
+                console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] No data to set to Leva panel after post-processing and flattening.`);
             }
           } else {
              if (!rawFolderSettingsFromDB) {
