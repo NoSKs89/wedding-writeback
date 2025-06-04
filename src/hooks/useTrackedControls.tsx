@@ -27,7 +27,7 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
   
   const [levaValues, levaSet]: [Record<string, any>, (settings: Record<string, any>) => void, any?] = useLevaControls(
     folderName, 
-    memoizedSchemaFn, 
+    memoizedSchemaFn as () => any,
     options
   );
 
@@ -88,20 +88,25 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
     };
   }, [levaValues, storeFolderValues, folderName, updateControlValuesInStore]);
 
-  useEffect(() => {
-    if (!isRegisteredRef.current || !initialSchemaValuesRef.current) {
-      return;
-    }
-    if (storeFolderValues && Object.keys(storeFolderValues).length > 0 && !shallowCompare(storeFolderValues, levaValues)) {
-      // console.log(`[useTrackedControls "${folderName}"] Store->Leva: Store values differ from Leva. Updating Leva panel.`, 
-      //   { 
-      //     storeValues: JSON.stringify(storeFolderValues), 
-      //     levaCurrentValues: JSON.stringify(levaValues) 
-      //   }
-      // );
-      levaSetRef.current(storeFolderValues);
-    }
-  }, [storeFolderValues, folderName, initialSchemaValuesRef.current]);
+  // useEffect(() => {
+  //   if (!isRegisteredRef.current || !initialSchemaValuesRef.current) {
+  //     return;
+  //   }
+  //   // Only attempt to sync store to Leva if the folderName does NOT start with "element_"
+  //   // This is a workaround for the persistent "path" error with dynamically generated nested schemas.
+  //   // Temporarily commenting out this entire effect to see if it resolves all path errors.
+  //   // if (!folderName.startsWith("element_")) { 
+  //   //   if (storeFolderValues && Object.keys(storeFolderValues).length > 0 && !shallowCompare(storeFolderValues, levaValues)) {
+  //   //     console.log(`[useTrackedControls "${folderName}"] Store->Leva: Store values differ from Leva. Updating Leva panel.`, 
+  //   //       { 
+  //   //         storeValues: JSON.stringify(storeFolderValues), 
+  //   //         levaCurrentValues: JSON.stringify(levaValues) 
+  //   //       }
+  //   //     );
+  //   //     levaSetRef.current(storeFolderValues);
+  //   //   }
+  //   // }
+  // }, [storeFolderValues, levaValues, folderName, initialSchemaValuesRef.current]); 
 
   const storeFolderChangedKeys = useLevaStore(state => state.changedKeys[folderName]);
 

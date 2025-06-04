@@ -10,7 +10,7 @@ import '../App.css';
 import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
 import ParallaxBackgroundImage from './ParallaxBackgroundImage';
 import { useTrackedControls } from '../hooks/useTrackedControls';
-import { useLevaStore, LevaFolderSchema } from '../stores/levaStore';
+import { useLevaStore, LevaFolderSchema, LevaControlSchemaItem } from '../stores/levaStore';
 import { useSetupMode } from '../contexts/SetupModeContext';
 
 // Type Definitions
@@ -405,9 +405,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   // overallControls?.values needs to be defined before this block
   const overallControlsValues = overallControls?.values || {};
   const { 
-    showHUD: showGlobalHUDEnabled = overallControlsSchemaDefinition(isSetupMode).showHUD.value, 
-    toggleGuideLines: guideLinesEnabled = overallControlsSchemaDefinition(isSetupMode).toggleGuideLines.value,
-    springPreset: selectedSpringPresetKey = overallControlsSchemaDefinition(isSetupMode).springPreset.value
+    showHUD: showGlobalHUDEnabled = (overallControlsSchemaDefinition(isSetupMode).showHUD as LevaControlSchemaItem).value, 
+    toggleGuideLines: guideLinesEnabled = (overallControlsSchemaDefinition(isSetupMode).toggleGuideLines as LevaControlSchemaItem).value,
+    springPreset: selectedSpringPresetKey = (overallControlsSchemaDefinition(isSetupMode).springPreset as LevaControlSchemaItem).value
   } = overallControlsValues;
 
   // Derive the active spring configuration object (MOVED EARLIER)
@@ -1164,45 +1164,45 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
   // Background Animation Controls Values
   const backgroundAnimValues = backgroundAnimControls?.values || {};
   const {
-    opacityGentleEnd = backgroundAnimationSchema.opacityGentleEnd.value,
-    opacityTargetAtGentleEnd = backgroundAnimationSchema.opacityTargetAtGentleEnd.value,
-    opacityDrasticStartPixels = backgroundAnimationSchema.opacityDrasticStartPixels.value,
-    opacityTargetAtDrasticStart = backgroundAnimationSchema.opacityTargetAtDrasticStart.value,
-    opacityFullTransparent = backgroundAnimationSchema.opacityFullTransparent.value,
-    translateYThreshold = backgroundAnimationSchema.translateYThreshold.value,
-    translateYMultiplier = backgroundAnimationSchema.translateYMultiplier.value,
-    scaleInitialRate = backgroundAnimationSchema.scaleInitialRate.value,
-    scaleDrasticStartPx = backgroundAnimationSchema.scaleDrasticStartPx.value,
-    scaleDrasticRate = backgroundAnimationSchema.scaleDrasticRate.value,
-    borderRadiusStartScrollY = backgroundAnimationSchema.borderRadiusStartScrollY.value,
-    clipPathVanishScrollY = backgroundAnimationSchema.clipPathVanishScrollY.value
+    opacityGentleEnd = (backgroundAnimationSchema.opacityGentleEnd as LevaControlSchemaItem).value,
+    opacityTargetAtGentleEnd = (backgroundAnimationSchema.opacityTargetAtGentleEnd as LevaControlSchemaItem).value,
+    opacityDrasticStartPixels = (backgroundAnimationSchema.opacityDrasticStartPixels as LevaControlSchemaItem).value,
+    opacityTargetAtDrasticStart = (backgroundAnimationSchema.opacityTargetAtDrasticStart as LevaControlSchemaItem).value,
+    opacityFullTransparent = (backgroundAnimationSchema.opacityFullTransparent as LevaControlSchemaItem).value,
+    translateYThreshold = (backgroundAnimationSchema.translateYThreshold as LevaControlSchemaItem).value,
+    translateYMultiplier = (backgroundAnimationSchema.translateYMultiplier as LevaControlSchemaItem).value,
+    scaleInitialRate = (backgroundAnimationSchema.scaleInitialRate as LevaControlSchemaItem).value,
+    scaleDrasticStartPx = (backgroundAnimationSchema.scaleDrasticStartPx as LevaControlSchemaItem).value,
+    scaleDrasticRate = (backgroundAnimationSchema.scaleDrasticRate as LevaControlSchemaItem).value,
+    borderRadiusStartScrollY = (backgroundAnimationSchema.borderRadiusStartScrollY as LevaControlSchemaItem).value,
+    clipPathVanishScrollY = (backgroundAnimationSchema.clipPathVanishScrollY as LevaControlSchemaItem).value
   } = backgroundAnimValues;
 
   // Background Color Controls Values
   const backgroundColorValues = backgroundColorControls?.values || {};
   const {
-    colorStop1_Bottom = backgroundColorControlsSchema.colorStop1_Bottom.value,
-    colorStop1_Top = backgroundColorControlsSchema.colorStop1_Top.value,
-    colorStop2_Bottom = backgroundColorControlsSchema.colorStop2_Bottom.value,
-    colorStop2_Top = backgroundColorControlsSchema.colorStop2_Top.value,
-    colorStop3_Bottom = backgroundColorControlsSchema.colorStop3_Bottom.value,
-    colorStop3_Top = backgroundColorControlsSchema.colorStop3_Top.value,
-    colorStop4_Bottom = backgroundColorControlsSchema.colorStop4_Bottom.value,
-    colorStop4_Top = backgroundColorControlsSchema.colorStop4_Top.value,
-    colorStop5_Bottom = backgroundColorControlsSchema.colorStop5_Bottom.value,
-    colorStop5_Top = backgroundColorControlsSchema.colorStop5_Top.value
+    colorStop1_Bottom = (backgroundColorControlsSchema.colorStop1_Bottom as LevaControlSchemaItem).value,
+    colorStop1_Top = (backgroundColorControlsSchema.colorStop1_Top as LevaControlSchemaItem).value,
+    colorStop2_Bottom = (backgroundColorControlsSchema.colorStop2_Bottom as LevaControlSchemaItem).value,
+    colorStop2_Top = (backgroundColorControlsSchema.colorStop2_Top as LevaControlSchemaItem).value,
+    colorStop3_Bottom = (backgroundColorControlsSchema.colorStop3_Bottom as LevaControlSchemaItem).value,
+    colorStop3_Top = (backgroundColorControlsSchema.colorStop3_Top as LevaControlSchemaItem).value,
+    colorStop4_Bottom = (backgroundColorControlsSchema.colorStop4_Bottom as LevaControlSchemaItem).value,
+    colorStop4_Top = (backgroundColorControlsSchema.colorStop4_Top as LevaControlSchemaItem).value,
+    colorStop5_Bottom = (backgroundColorControlsSchema.colorStop5_Bottom as LevaControlSchemaItem).value,
+    colorStop5_Top = (backgroundColorControlsSchema.colorStop5_Top as LevaControlSchemaItem).value
   } = backgroundColorValues;
 
   // Intro Image Controls Values (Moved and corrected)
   const introImageCtrlValues = introImageControls?.values || {};
   const {
-    introImageScaleStart = introImageControlsSchema.introImageScaleStart.value,
-    introImageScaleEnd = introImageControlsSchema.introImageScaleEnd.value,
-    introImageYOffsetStartPx = introImageControlsSchema.introImageYOffsetStartPx.value,
-    introImageYOffsetEndPx = introImageControlsSchema.introImageYOffsetEndPx.value,
-    introImageOpacityStartScroll = introImageControlsSchema.introImageOpacityStartScroll.value,
-    introImageOpacityEndScroll = introImageControlsSchema.introImageOpacityEndScroll.value,
-    introImageEffectEndScroll = introImageControlsSchema.introImageEffectEndScroll.value,
+    introImageScaleStart = (introImageControlsSchema.introImageScaleStart as LevaControlSchemaItem).value,
+    introImageScaleEnd = (introImageControlsSchema.introImageScaleEnd as LevaControlSchemaItem).value,
+    introImageYOffsetStartPx = (introImageControlsSchema.introImageYOffsetStartPx as LevaControlSchemaItem).value,
+    introImageYOffsetEndPx = (introImageControlsSchema.introImageYOffsetEndPx as LevaControlSchemaItem).value,
+    introImageOpacityStartScroll = (introImageControlsSchema.introImageOpacityStartScroll as LevaControlSchemaItem).value,
+    introImageOpacityEndScroll = (introImageControlsSchema.introImageOpacityEndScroll as LevaControlSchemaItem).value,
+    introImageEffectEndScroll = (introImageControlsSchema.introImageEffectEndScroll as LevaControlSchemaItem).value,
   } = introImageCtrlValues;
 
   // Calculations for Intro Image based on scrollY and Leva controls (using destructured values)

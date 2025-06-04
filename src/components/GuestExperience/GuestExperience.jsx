@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 // import { useParams } from 'react-router-dom'; // No longer needed if weddingId comes via props
 // import axios from 'axios'; // No longer needed
 import { Parallax, ParallaxLayer } from '@react-spring/parallax';
-import { Leva } from 'leva';
+import { Leva, folder } from 'leva';
 import { useSpring, animated } from 'react-spring'; // ADDED for focused image
 import { useDrag } from '@use-gesture/react'; // ADDED for focused image drag
 // import { getApiBaseUrl } from '../../config/apiConfig'; // No longer needed
@@ -208,8 +208,18 @@ const ElementWrapper = ({
       textColor: { value: '#333333', label: 'Text Color' },
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily for text
       fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize
-      letterSpacing: { value: 0, min: -5, max: 20, step: 0.1, label: 'Letter Spacing (px)' }, // ADDED letterSpacing
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight
+      fadeInAnimationConfig: (() => {
+        const folderSchema = folder({
+          fadeInCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Curve' },
+          fadeInYStartOffset: { value: 20, step: 1, label: 'Y Start Offset (px)' },
+          fadeInYEndOffset: { value: 0, step: 1, label: 'Y End Offset (px)' },
+          fadeInLetterSpacingStart: { value: 5, min: -10, max: 50, step: 0.1, label: 'Letter Spacing Start (px)' },
+          fadeInLetterSpacingEnd: { value: 0, min: -10, max: 50, step: 0.1, label: 'Letter Spacing End (px)' }
+        }, { collapsed: true });
+        // console.log('[GuestExperience] Leva Folder Schema for Spacing Animation:', JSON.stringify(folderSchema, null, 2)); // IIFE log
+        return folderSchema;
+      })(),
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -225,7 +235,6 @@ const ElementWrapper = ({
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily from controls
       fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize from controls
-      letterSpacing: { value: 0, min: -5, max: 20, step: 0.1, label: 'Letter Spacing (px)' }, // ADDED letterSpacing from controls
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight from controls
     };
   } else if (element.type === 'component' && element.name === 'RSVP Form') {
@@ -233,7 +242,10 @@ const ElementWrapper = ({
     // For now, ElementWrapper only handles opacity for RSVP Form.
   }
   
-  const folderName = `Element ${element.id} (${element.name || element.type})`;
+  // Simplify folderName to avoid issues with special characters in Leva paths
+  const simplifiedType = element.type.replace(/\s+/g, '_'); // e.g., background_image
+  const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : simplifiedType}`;
+
   const controls = useTrackedControls(
     folderName, 
     controlsSchema, 
@@ -253,10 +265,23 @@ const ElementWrapper = ({
     lockToViewportEdge = 'disabled',
     textColor = '#333333',
     fontFamily = globalFontFamilyFromStore, // ADDED fontFamily from controls
-    fontSize = 16, // ADDED fontSize from controls
-    letterSpacing = 0, // ADDED letterSpacing from controls
+    fontSize = 16, // ADDED fontSize
     lineHeight = 1.5 // ADDED lineHeight from controls
   } = controls.values;
+
+  // Destructure fade-in animation controls specifically for text elements
+  let fadeInControls = {};
+  if (element.type === 'text' && controls.values.fadeInAnimationConfig) {
+    fadeInControls = controls.values.fadeInAnimationConfig;
+    // console.log(`[ElementWrapper LS Debug - ${element.name}] Raw fadeInControls:`, JSON.parse(JSON.stringify(fadeInControls))); // Raw controls log
+  }
+  const {
+    fadeInCurve = 'linear',
+    fadeInYStartOffset = 0,
+    fadeInYEndOffset = 0,
+    fadeInLetterSpacingStart = 0,
+    fadeInLetterSpacingEnd = 0
+  } = fadeInControls;
 
   useEffect(() => {
     if (currentChildRef.current) {
@@ -271,6 +296,34 @@ const ElementWrapper = ({
   const elementStartScroll = startMarker ? startMarker.position * pageMultiplier * windowHeight : 0;
   const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
   const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
+
+  let currentAnimatedYOffset = 0;
+  // Initialize letterSpacingToApply based on fadeInAnimationConfig, as parent control is removed.
+  let letterSpacingToApply = fadeInLetterSpacingEnd; // Default to the end value of the animation
+
+  if (element.type === 'text') {
+    // console.log(`[ElementWrapper LS Debug - ${element.name}] Controls:`, { // Controls log block
+    //   fadeInCurve: fadeInCurve,
+    //   fadeInLetterSpacingStart: fadeInLetterSpacingStart,
+    //   fadeInLetterSpacingEnd: fadeInLetterSpacingEnd,
+    // });
+  }
+
+  if (element.type === 'text') { // Check element type first
+    if (fadeInCurve !== 'disabled') {
+      // Animation now spans the entire element duration (elementStartScroll to elementEndScroll)
+      const animationProgress = elementScrollDuration > 0 ? Math.min(1, Math.max(0, (scrollY - elementStartScroll) / elementScrollDuration)) : 1;
+      const selectedFadeInCurve = animationCurves[fadeInCurve] || linear;
+      const easedAnimationProgress = selectedFadeInCurve(animationProgress);
+
+      currentAnimatedYOffset = fadeInYStartOffset + (fadeInYEndOffset - fadeInYStartOffset) * easedAnimationProgress;
+      letterSpacingToApply = fadeInLetterSpacingStart + (fadeInLetterSpacingEnd - fadeInLetterSpacingStart) * easedAnimationProgress;
+    } else {
+      currentAnimatedYOffset = fadeInYEndOffset;
+      letterSpacingToApply = fadeInLetterSpacingEnd; // If animation is disabled, use the end value.
+    }
+    // console.log(`[ElementWrapper LS Debug - ${element.name}] Final letterSpacingToApply:`, letterSpacingToApply); // Final apply log
+  }
 
   let currentScale = 1;
   if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
@@ -294,7 +347,7 @@ const ElementWrapper = ({
   const yOffsetToCenter = isCentered && measuredHeight > 0 ? (windowHeight / 2) - (measuredHeight / 2) : 0;
   let initialYFromLanding = landingYPosition; 
   let xTransform = landingXPosition;
-  let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0);
+  let yTransform = initialYFromLanding + (isCentered ? yOffsetToCenter : 0) + currentAnimatedYOffset;
 
   const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY < elementEndScroll;
   const actualDisplayedHeight = measuredHeight * currentScale;
@@ -308,22 +361,22 @@ const ElementWrapper = ({
   }
   const finalCalculatedYTransform = yTransform;
   
-  if (element.id === 4 && console.log) {
-    console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
-      scrollY: scrollY,
-      landingXPosition: landingXPosition,
-      landingYPosition: landingYPosition,
-      lockToViewportEdge: lockToViewportEdge,
-      lockIsActive: lockIsActive,
-      measuredHeight: measuredHeight,
-      currentScale: currentScale,
-      actualDisplayedHeight: actualDisplayedHeight,
-      elementStartScroll,
-      elementEndScroll,
-      windowHeight,
-      finalCalculatedYTransform: finalCalculatedYTransform
-    });
-  }
+  // if (element.id === 4 && console.log) { // Element ID 4 debug log
+  //   console.log(`[ElementWrapper Debug - ID: ${element.id} (${element.name})]`, {
+  //     scrollY: scrollY,
+  //     landingXPosition: landingXPosition,
+  //     landingYPosition: landingYPosition,
+  //     lockToViewportEdge: lockToViewportEdge,
+  //     lockIsActive: lockIsActive,
+  //     measuredHeight: measuredHeight,
+  //     currentScale: currentScale,
+  //     actualDisplayedHeight: actualDisplayedHeight,
+  //     elementStartScroll,
+  //     elementEndScroll,
+  //     windowHeight,
+  //     finalCalculatedYTransform: finalCalculatedYTransform
+  //   });
+  // }
 
   let elementOuterStyle = {
     opacity: finalOpacity,
@@ -342,9 +395,9 @@ const ElementWrapper = ({
         ...children.props.style, 
         color: textColor, 
         fontFamily: fontFamily,
-        fontSize: `${fontSize}px`, // APPLY FONT SIZE
-        letterSpacing: `${letterSpacing}px`, // APPLY LETTER SPACING
-        lineHeight: lineHeight // APPLY LINE HEIGHT
+        fontSize: `${fontSize}px`,
+        letterSpacing: `${letterSpacingToApply}px`, // Will use main letterSpacing value
+        lineHeight: lineHeight
       };
      }
      childToRender = React.cloneElement(children, newProps);
@@ -380,10 +433,10 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // --- ADDED: useEffect to load initial Leva settings from weddingDataFromApp ---
   useEffect(() => {
     if (weddingDataFromApp && weddingDataFromApp.initialElementLayouts) {
-      console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts found, calling loadSettingsFromDB.', weddingDataFromApp.initialElementLayouts);
+      // console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts found, calling loadSettingsFromDB.', weddingDataFromApp.initialElementLayouts);
       useLevaStore.getState().loadSettingsFromDB(weddingDataFromApp.initialElementLayouts);
     } else {
-      console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts NOT found. Leva will use defaults.');
+      // console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts NOT found. Leva will use defaults.');
     }
   }, [weddingDataFromApp]); // Dependency on weddingDataFromApp
   // --- END ADDED ---
@@ -393,7 +446,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     const calculated = (experienceSettings?.timelineLength > 0 && windowHeight > 0 
       ? Math.max(1.1, experienceSettings.timelineLength / windowHeight) 
       : 3);
-    console.log(`[GuestExperience] Calculated TOTAL_PAGES: ${calculated} (timelineLength: ${experienceSettings?.timelineLength}, windowHeight: ${windowHeight})`);
+    // console.log(`[GuestExperience] Calculated TOTAL_PAGES: ${calculated} (timelineLength: ${experienceSettings?.timelineLength}, windowHeight: ${windowHeight})`);
     return calculated;
   }, [experienceSettings?.timelineLength, windowHeight]);
   // console.log(`[GuestExperience] DEBUG: TOTAL_PAGES is hardcoded to: ${TOTAL_PAGES}`); // Remove hardcoded log
@@ -401,7 +454,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // useEffect to specifically log parallaxRef.current.space changes
   useEffect(() => {
     const currentTimelineLength = experienceSettings?.timelineLength;
-    console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}. TOTAL_PAGES: ${TOTAL_PAGES}, timelineLength: ${currentTimelineLength}`);
+    // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}. TOTAL_PAGES: ${TOTAL_PAGES}, timelineLength: ${currentTimelineLength}`);
     if (parallaxRef.current?.space) {
       // This log is now part of the one above
       // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space updated to: ${parallaxRef.current.space}`);
@@ -428,7 +481,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     }
     // console.log(`[GuestExperience] DEBUG scrollPercentage: Conditions not met, returning 0. TOTAL_PAGES: ${TOTAL_PAGES}, windowHeight: ${windowHeight}`);
     return 0;
-  }, [scrollY, windowHeight, TOTAL_PAGES]); // Dependencies are scrollY, windowHeight, and TOTAL_PAGES
+  }, [scrollY, windowHeight, TOTAL_PAGES]);
 
   // --- Leva Controls & HUD ---
   // Overall controls for HUD visibility
@@ -601,12 +654,12 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     setSaveErrorMessage(null);
     try {
       const viewType = isMobile ? 'mobile' : 'desktop';
-      console.log(`[GuestExperience] Attempting to save ${viewType} layout settings for ${currentWeddingId}`);
+      // console.log(`[GuestExperience] Attempting to save ${viewType} layout settings for ${currentWeddingId}`);
       await useLevaStore.getState().saveSettingsToServer(currentWeddingId, viewType);
       setSaveSuccessMessage(`Layout for ${viewType} view saved successfully!`);
       setTimeout(() => setSaveSuccessMessage(null), 3000);
     } catch (error) {
-      console.error(`[GuestExperience] Error saving ${isMobile ? 'mobile' : 'desktop'} layout settings:`, error);
+      // console.error(`[GuestExperience] Error saving ${isMobile ? 'mobile' : 'desktop'} layout settings:`, error);
       const errorMsg = error.message || (error.response?.data?.message) || 'Unknown error';
       setSaveErrorMessage(`Failed to save layout. Error: ${errorMsg}`);
       setTimeout(() => setSaveErrorMessage(null), 7000);
@@ -653,7 +706,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
         const img = new Image();
         img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src });
         img.onerror = () => {
-          console.error('Failed to load image for dimensions: ' + src);
+          // console.error('Failed to load image for dimensions: ' + src);
           resolve({ width: 0, height: 0, src });
         };
         img.src = src;
@@ -663,7 +716,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       if (isMounted) setImageNaturalDimensions(dims);
     }).catch(error => {
       if (isMounted) {
-        console.error("Error loading image dimensions:", error);
+        // console.error("Error loading image dimensions:", error);
         setImageNaturalDimensions(imagePaths.map(s => ({ width: 0, height: 0, src: s || '' })));
       }
     });
@@ -746,17 +799,18 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       return;
     }
 
-    console.log(`[GuestExperience] Color scheme changed to '${selectedColorScheme.name}'. Updating text element colors.`);
+    // console.log(`[GuestExperience] Color scheme changed to '${selectedColorScheme.name}'. Updating text element colors.`);
 
     elementsFromProps.forEach(element => {
       if (element.type === 'text') {
-        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const simplifiedType = element.type.replace(/\s+/g, '_');
+        const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : simplifiedType}`;
         const setter = levaSetters[folderName];
         const elementSchema = schemas[folderName];
 
         if (setter && elementSchema && elementSchema.textColor) {
           const randomColor = availableColors[Math.floor(Math.random() * availableColors.length)];
-          console.log(`[GuestExperience]   Updating ${folderName} textColor to ${randomColor}`);
+          // console.log(`[GuestExperience]   Updating ${folderName} textColor to ${randomColor}`);
           setter({ textColor: randomColor });
         }
       }
@@ -774,18 +828,19 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       return;
     }
 
-    console.log(`[GuestExperience] Global font family changed to '${overallFontFamily}'. Updating text element font controls.`);
+    // console.log(`[GuestExperience] Global font family changed to '${overallFontFamily}'. Updating text element font controls.`);
 
     elementsFromProps.forEach(element => {
       if (element.type === 'text') {
-        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const simplifiedType = element.type.replace(/\s+/g, '_');
+        const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : simplifiedType}`;
         const setter = levaSetters[folderName];
         const elementSchema = schemas[folderName];
         const currentElementControls = store.controlValues[folderName];
 
         if (setter && elementSchema && elementSchema.fontFamily) {
           if (currentElementControls?.fontFamily !== overallFontFamily) {
-            console.log(`[GuestExperience]   Updating ${folderName} fontFamily to ${overallFontFamily}`);
+            // console.log(`[GuestExperience]   Updating ${folderName} fontFamily to ${overallFontFamily}`);
             setter({ fontFamily: overallFontFamily });
           }
         }
@@ -813,7 +868,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
 
     const handleScroll = () => {
       const currentScrollY = parallaxContainer.scrollTop;
-      console.log('[GuestExperience] handleScroll - scrollY:', currentScrollY);
+      // console.log('[GuestExperience] handleScroll - scrollY:', currentScrollY);
       setScrollY(currentScrollY);
     };
 
@@ -824,9 +879,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // useEffect to specifically log parallaxRef.current.space changes
   useEffect(() => {
     if (parallaxRef.current?.space) {
-      console.log(`[GuestExperience] DEBUG: parallaxRef.current.space updated to: ${parallaxRef.current.space}`);
+      // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space updated to: ${parallaxRef.current.space}`);
     } else {
-      console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}`);
+      // console.log(`[GuestExperience] DEBUG: parallaxRef.current.space is currently: ${parallaxRef.current?.space}`);
     }
   }, [parallaxRef.current?.space]);
 
@@ -860,7 +915,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     const targetImageElement = scrapbookImageRefs.current[newDisplayIndex];
   
     if (!targetImageData || !targetImageElement) {
-      console.warn("updateAndFocusNewImage: Target image data or element not found for index", newDisplayIndex);
+      // console.warn("updateAndFocusNewImage: Target image data or element not found for index", newDisplayIndex);
       return null;
     }
     
@@ -871,7 +926,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       if (targetImageElement.naturalWidth > 0 && targetImageElement.naturalHeight > 0) {
         naturalDims = { width: targetImageElement.naturalWidth, height: targetImageElement.naturalHeight, src: newImageSrc };
       } else {
-        console.error("CANNOT NAVIGATE TO IMAGE: Natural dimensions are zero or unavailable for", newImageSrc);
+        // console.error("CANNOT NAVIGATE TO IMAGE: Natural dimensions are zero or unavailable for", newImageSrc);
         return null;
       }
     }
@@ -941,14 +996,14 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       if (imageElement && imageElement.naturalWidth > 0 && imageElement.naturalHeight > 0) {
         naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: clickedSrc };
       } else {
-        console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero or unavailable for", clickedSrc);
+        // console.error("CANNOT SET FOCUSED IMAGE: Natural dimensions are zero or unavailable for", clickedSrc);
         return;
       }
     }
     
     const clickedItemData = displayedImagesAndTheirData.find(d => d.displayIndex === clickedDisplayIndex);
     if (!clickedItemData) {
-      console.error("Could not find item data for clicked image index:", clickedDisplayIndex);
+      // console.error("Could not find item data for clicked image index:", clickedDisplayIndex);
       return;
     }
 
@@ -1015,7 +1070,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     // Add fonts from individual text elements
     elementsFromProps.forEach(element => {
       if (element.type === 'text') {
-        const folderName = `Element ${element.id} (${element.name || element.type})`;
+        const simplifiedType = element.type.replace(/\s+/g, '_');
+        const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : simplifiedType}`;
         const elementControls = store.controlValues[folderName];
         const textFont = elementControls?.fontFamily;
         if (textFont && isGoogleFont(textFont)) {

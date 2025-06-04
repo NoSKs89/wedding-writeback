@@ -1,7 +1,7 @@
 import React, { useState, useEffect, FormEvent, ChangeEvent, forwardRef, useImperativeHandle, useRef } from 'react';
 import axios from 'axios'; // Make sure to install axios: npm install axios or yarn add axios
 import { useTrackedControls } from '../hooks/useTrackedControls'; // Import useTrackedControls
-import { LevaFolderSchema } from '../stores/levaStore'; // Import LevaFolderSchema for typing
+import { LevaFolderSchema, LevaControlSchemaItem } from '../stores/levaStore'; // Import LevaFolderSchema for typing
 import { useSetupMode } from '../contexts/SetupModeContext'; // ADDED
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes'; // ADDED
 import { googleFontNames, systemFontStack, fontFamilyOptions } from '../config/fontConfig'; // ADDED
@@ -103,17 +103,17 @@ const RSVPForm: React.FC<RSVPFormProps> = forwardRef<HTMLDivElement, RSVPFormPro
   // Destructure with fallbacks, considering rsvpStyleControlsHook might be undefined initially
   const {
     formThemeName = defaultThemeName,
-    formTextFontFamily = rsvpFormControlsSchema.formTextFontFamily.value,
-    buttonTextFontFamily = rsvpFormControlsSchema.buttonTextFontFamily.value,
-    formBackgroundOpacity = rsvpFormControlsSchema.formBackgroundOpacity.value,
-    formBorderColor = rsvpFormControlsSchema.formBorderColor.value,
-    formBorderWidth = rsvpFormControlsSchema.formBorderWidth.value,
-    cantMakeItButtonEmoji = rsvpFormControlsSchema.cantMakeItButtonEmoji.value,
-    canMakeItButtonEmoji = rsvpFormControlsSchema.canMakeItButtonEmoji.value,
-    formWidth = rsvpFormControlsSchema.formWidth.value,
-    formHeight = rsvpFormControlsSchema.formHeight.value,
-    formPadding = rsvpFormControlsSchema.formPadding.value,
-    stackThreshold = rsvpFormControlsSchema.stackThreshold.value
+    formTextFontFamily = (rsvpFormControlsSchema.formTextFontFamily as LevaControlSchemaItem).value,
+    buttonTextFontFamily = (rsvpFormControlsSchema.buttonTextFontFamily as LevaControlSchemaItem).value,
+    formBackgroundOpacity = (rsvpFormControlsSchema.formBackgroundOpacity as LevaControlSchemaItem).value,
+    formBorderColor = (rsvpFormControlsSchema.formBorderColor as LevaControlSchemaItem).value,
+    formBorderWidth = (rsvpFormControlsSchema.formBorderWidth as LevaControlSchemaItem).value,
+    cantMakeItButtonEmoji = (rsvpFormControlsSchema.cantMakeItButtonEmoji as LevaControlSchemaItem).value,
+    canMakeItButtonEmoji = (rsvpFormControlsSchema.canMakeItButtonEmoji as LevaControlSchemaItem).value,
+    formWidth = (rsvpFormControlsSchema.formWidth as LevaControlSchemaItem).value,
+    formHeight = (rsvpFormControlsSchema.formHeight as LevaControlSchemaItem).value,
+    formPadding = (rsvpFormControlsSchema.formPadding as LevaControlSchemaItem).value,
+    stackThreshold = (rsvpFormControlsSchema.stackThreshold as LevaControlSchemaItem).value
   } = rsvpStyleControlsHook?.values || {}; // Use schema defaults if rsvpStyleControlsHook.values is null/undefined
 
   // MODIFIED: Robust theme selection without non-null assertion

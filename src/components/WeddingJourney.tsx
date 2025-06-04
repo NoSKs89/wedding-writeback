@@ -10,7 +10,7 @@ import '../App.css';
 import ScrapbookImageItem, { ScrapbookClickDetails } from './ScrapbookImageItem';
 // import ParallaxBackgroundImage from './ParallaxBackgroundImage'; // Comment out for now
 import { useTrackedControls } from '../hooks/useTrackedControls';
-import { useLevaStore, LevaFolderSchema } from '../stores/levaStore';
+import { useLevaStore, LevaFolderSchema, LevaControlSchemaItem } from '../stores/levaStore';
 import { useSetupMode } from '../contexts/SetupModeContext';
 import { ElementConfig, TimelineMarker } from './ExperienceSetupPage/ExperienceSetupPage'; // Import new types
 
@@ -207,9 +207,9 @@ const WeddingJourney: React.FC<WeddingJourneyProps> = ({ weddingData, resolvedSc
 
   const overallControlsValues = overallControls?.values || {};
   const {
-    showHUD: showGlobalHUDEnabled = overallControlsSchemaDefinition(isSetupMode).showHUD.value,
-    toggleGuideLines: guideLinesEnabled = overallControlsSchemaDefinition(isSetupMode).toggleGuideLines.value,
-    springPreset: selectedSpringPresetKey = overallControlsSchemaDefinition(isSetupMode).springPreset.value
+    showHUD: showGlobalHUDEnabled = (overallControlsSchemaDefinition(isSetupMode).showHUD as LevaControlSchemaItem).value,
+    toggleGuideLines: guideLinesEnabled = (overallControlsSchemaDefinition(isSetupMode).toggleGuideLines as LevaControlSchemaItem).value,
+    springPreset: selectedSpringPresetKey = (overallControlsSchemaDefinition(isSetupMode).springPreset as LevaControlSchemaItem).value
   } = overallControlsValues;
 
   const activeSpringConfig = springConfigPresets[selectedSpringPresetKey as keyof typeof springConfigPresets] || springConfigPresets.default;
