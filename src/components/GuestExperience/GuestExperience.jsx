@@ -207,7 +207,8 @@ const ElementWrapper = ({
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       textColor: { value: '#333333', label: 'Text Color' },
       fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
-      fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
+      fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
+      fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
       lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
       spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
       yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
@@ -227,9 +228,9 @@ const ElementWrapper = ({
       fadeOutEndYPosition: { value: 1, min: 0, max: 2, step: 0.01, label: 'Fade Out End Y (% duration)' },
       fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
       lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
-      fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' }, // ADDED fontFamily from controls
-      fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' }, // ADDED fontSize from controls
-      lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' }, // ADDED lineHeight from controls
+      fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+      fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
+      lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
     };
   } else if (element.type === 'component' && element.name === 'RSVP Form') {
     // RSVP Form specific controls can be added here if needed, or managed within RSVPForm itself.
@@ -258,10 +259,12 @@ const ElementWrapper = ({
     fadeOutAnimationCurve = 'disabled',
     lockToViewportEdge = 'disabled',
     textColor = '#333333',
-    fontFamily = globalFontFamilyFromStore, // ADDED fontFamily from controls
-    fontSize = 16, // ADDED fontSize
-    lineHeight = 1.5, // ADDED lineHeight from controls
-    spreadAnimationCurve: textSpreadCurve,
+    fontFamily = globalFontFamilyFromStore,
+    fontSize = 16,
+    fontSizeAtStart = 16,
+    fontSizeAtEnd = 16,
+    lineHeight = 1.5,
+    spreadAnimationCurve = 'linear',
     yOffsetAtAnimStart,
     yOffsetAtAnimEnd,
     letterSpacingAtAnimStart,
@@ -270,7 +273,7 @@ const ElementWrapper = ({
 
   if (element.type === 'text') {
     console.log(`[ElementWrapper DEBUG - ${element.name || `ID ${element.id}`}] Spread values:`, {
-      textSpreadCurve,
+      spreadAnimationCurve,
       yOffsetAtAnimStart,
       yOffsetAtAnimEnd,
       letterSpacingAtAnimStart,
@@ -293,14 +296,13 @@ const ElementWrapper = ({
   const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
 
   let currentAnimatedYOffset = 0;
-  // Initialize letterSpacingToApply based on textSpreadConfig
-  let letterSpacingToApply = letterSpacingAtAnimEnd; // Default to the end value
+  let letterSpacingToApply = letterSpacingAtAnimEnd;
+  let currentFontSize = element.type === 'text' ? fontSizeAtEnd : fontSize;
 
-  if (element.type === 'text') { // Check element type first
-    if (textSpreadCurve !== 'disabled') {
-      // Animation progress based on element's own scroll duration
+  if (element.type === 'text') {
+    if (spreadAnimationCurve !== 'disabled') {
       let animationProgress = 0;
-      if (elementScrollDuration > 0) { // Ensure duration is positive
+      if (elementScrollDuration > 0) {
         if (scrollY < elementStartScroll) {
           animationProgress = 0;
         } else if (scrollY > elementEndScroll) {
@@ -308,19 +310,21 @@ const ElementWrapper = ({
         } else {
           animationProgress = (scrollY - elementStartScroll) / elementScrollDuration;
         }
-      } else { // If duration is 0 (e.g. start and end markers are at the same scroll point)
+      } else {
         animationProgress = scrollY >= elementStartScroll ? 1 : 0;
       }
-      animationProgress = Math.min(1, Math.max(0, animationProgress)); // Clamp progress
+      animationProgress = Math.min(1, Math.max(0, animationProgress));
 
-      const selectedSpreadCurve = animationCurves[textSpreadCurve] || linear;
+      const selectedSpreadCurve = animationCurves[spreadAnimationCurve] || linear;
       const easedAnimationProgress = selectedSpreadCurve(animationProgress);
 
       currentAnimatedYOffset = yOffsetAtAnimStart + (yOffsetAtAnimEnd - yOffsetAtAnimStart) * easedAnimationProgress;
       letterSpacingToApply = letterSpacingAtAnimStart + (letterSpacingAtAnimEnd - letterSpacingAtAnimStart) * easedAnimationProgress;
+      currentFontSize = fontSizeAtStart + (fontSizeAtEnd - fontSizeAtStart) * easedAnimationProgress;
     } else {
-      currentAnimatedYOffset = yOffsetAtAnimEnd; // Use end Y value if animation disabled
-      letterSpacingToApply = letterSpacingAtAnimEnd; // If animation is disabled, use the end letter spacing value.
+      currentAnimatedYOffset = yOffsetAtAnimEnd;
+      letterSpacingToApply = letterSpacingAtAnimEnd;
+      currentFontSize = fontSizeAtEnd;
     }
   }
 
@@ -377,8 +381,8 @@ const ElementWrapper = ({
         ...children.props.style, 
         color: textColor, 
         fontFamily: fontFamily,
-        fontSize: `${fontSize}px`,
-        letterSpacing: `${letterSpacingToApply}px`, // Uses value from textSpreadConfig
+        fontSize: `${currentFontSize}px`,
+        letterSpacing: `${letterSpacingToApply}px`,
         lineHeight: lineHeight
       };
      }
