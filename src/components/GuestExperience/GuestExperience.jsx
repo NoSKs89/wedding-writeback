@@ -1275,7 +1275,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
             onClick={handleSaveConfiguration} 
             disabled={isSaving}
             style={{
-              padding: '10px 20px',
+              padding: '10px 15px', // Slightly reduced padding for a smaller button
               fontSize: '0.9rem',
               color: 'white',
               backgroundColor: isSaving ? '#cf5200' : '#007bff',
@@ -1286,7 +1286,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
               boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
             }}
           >
-            {isSaving ? 'Saving Layout...' : 'Save Layout Configuration'}
+            {isSaving ? 'Saving...' : 'Save Layout'} {/* Changed text here */}
           </button>
           {saveSuccessMessage && <div style={{color: 'lime', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveSuccessMessage}</div>}
           {saveErrorMessage && <div style={{color: 'red', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveErrorMessage}</div>}
@@ -1307,16 +1307,16 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
           borderRadius: '0 0 5px 5px',
           fontSize: '13px',
           fontFamily: 'monospace',
-          minWidth: '200px',
+          width: 'auto', // Changed from minWidth to auto
           boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
         }}>
           <div>ScrollY: {scrollY.toFixed(0)}</div>
           <div>Scroll %: {(scrollPercentage * 100).toFixed(1)}%</div>
-          <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div>
-          <div>Renderable Elements: {renderableElements.length}</div>
-          <div>Spring Preset: {activeSpringConfigGuest.name}</div>
-          {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>}
-          {imageReturningToScrapbook && <div>Returning Img: {imageReturningToScrapbook.currentIndex}</div>}
+          {/* <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div> */}
+          {/* <div>Renderable Elements: {renderableElements.length}</div> */}
+          {/* <div>Spring Preset: {activeSpringConfigGuest.name}</div> */}
+          {/* {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>} */}
+          {/* {imageReturningToScrapbook && <div>Returning Img: {imageReturningToScrapbook.currentIndex}</div>} */}
           {/* Add more debug info as needed */}
         </div>
       )}
@@ -1352,7 +1352,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                   <img 
                     src={element.content} 
                     alt={element.name || 'Wedding photo'} 
-                    style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px', border: `3px solid ${element.timelineColor}` }} 
+                    style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }} 
                   />
                 );
                 break;
