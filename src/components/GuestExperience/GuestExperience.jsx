@@ -238,8 +238,18 @@ const ElementWrapper = ({
       spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
       yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
       yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
-      letterSpacingAtAnimStart: { value: -50, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
-      letterSpacingAtAnimEnd: { value: 50, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim End (px)' }
+      letterSpacingAtAnimStart: { value: -5, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
+      letterSpacingAtAnimEnd: { value: 0, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim End (px)' },
+      // Text Shadow Controls
+      textShadowEffect: { value: false, label: 'Enable Text Shadow' },
+      textShadowCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Text Shadow Curve' },
+      textShadowXStart: { value: 0, step: 1, label: 'Shadow X Start (px)' },
+      textShadowYStart: { value: 0, step: 1, label: 'Shadow Y Start (px)' },
+      textShadowBlurStart: { value: 0, min:0, step: 1, label: 'Shadow Blur Start (px)' },
+      textShadowXEnd: { value: 2, step: 1, label: 'Shadow X End (px)' },
+      textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
+      textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
+      textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
     };
   } else if (element.type === 'photo' && element.name !== 'background-image') {
     controlsSchema = {
@@ -310,7 +320,17 @@ const ElementWrapper = ({
     circleInitialRadius = 150,
     circleFinalRadius = 0,
     bgImageInitialScale = 1,
-    bgImageFinalScale = 0.1
+    bgImageFinalScale = 0.1,
+    // Destructure text shadow controls
+    textShadowEffect = false,
+    textShadowCurve = 'linear',
+    textShadowXStart = 0,
+    textShadowYStart = 0,
+    textShadowBlurStart = 0,
+    textShadowXEnd = 2,
+    textShadowYEnd = 2,
+    textShadowBlurEnd = 3,
+    textShadowColor = 'rgba(0,0,0,0.5)'
   } = controls.values;
 
   if (element.type === 'text') {
@@ -337,9 +357,26 @@ const ElementWrapper = ({
   const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
   const elementScrollDuration = Math.max(endMarker ? endMarker.position * pageMultiplier * windowHeight - elementStartScroll : windowHeight * TOTAL_PAGES - elementStartScroll, 1);
 
+  // MOVED UP: Calculate rawOpacityProgress (renamed to rawElementScrollProgress for clarity) here
+  let rawElementScrollProgress = 0;
+  if (elementScrollDuration > 0) {
+    if (scrollY < elementStartScroll) {
+      rawElementScrollProgress = 0;
+    } else if (scrollY > elementEndScroll) {
+      rawElementScrollProgress = 1;
+    } else {
+      rawElementScrollProgress = (scrollY - elementStartScroll) / elementScrollDuration;
+    }
+  } else {
+    rawElementScrollProgress = scrollY >= elementStartScroll ? 1 : 0;
+  }
+  rawElementScrollProgress = Math.min(1, Math.max(0, rawElementScrollProgress));
+  // END MOVED UP
+
   let currentAnimatedYOffset = 0;
   let letterSpacingToApply = letterSpacingAtAnimEnd;
   let currentFontSize = element.type === 'text' ? fontSizeAtEnd : fontSize;
+  let textShadowToApply = 'none'; // For text shadow
 
   if (element.type === 'text') {
     // Calculate eased progress for spread and font size potentially differently
@@ -389,6 +426,24 @@ const ElementWrapper = ({
     } else {
       currentFontSize = fontSizeAtEnd; // Static font size if animation disabled
     }
+
+    // Apply text shadow animation
+    if (textShadowEffect) {
+      if (textShadowCurve !== 'disabled') {
+        const selectedTextShadowCurve = animationCurves[textShadowCurve] || linear;
+        const easedTextShadowProgress = selectedTextShadowCurve(rawElementScrollProgress); // Use renamed rawElementScrollProgress
+
+        const currentTextShadowX = textShadowXStart + (textShadowXEnd - textShadowXStart) * easedTextShadowProgress;
+        const currentTextShadowY = textShadowYStart + (textShadowYEnd - textShadowYStart) * easedTextShadowProgress;
+        const currentTextShadowBlur = textShadowBlurStart + (textShadowBlurEnd - textShadowBlurStart) * easedTextShadowProgress;
+        textShadowToApply = `${currentTextShadowX}px ${currentTextShadowY}px ${currentTextShadowBlur}px ${textShadowColor}`;
+      } else {
+        // Effect enabled, curve disabled: apply end state
+        textShadowToApply = `${textShadowXEnd}px ${textShadowYEnd}px ${textShadowBlurEnd}px ${textShadowColor}`;
+      }
+    } else {
+      textShadowToApply = 'none';
+    }
   }
 
   let currentScale = 1;
@@ -401,23 +456,23 @@ const ElementWrapper = ({
 
   // New Opacity Logic
   let finalOpacity = opacityAtEnd; // Default to end state if animation is disabled
-  let rawOpacityProgress = 0;
-  if (elementScrollDuration > 0) {
-    if (scrollY < elementStartScroll) {
-      rawOpacityProgress = 0;
-    } else if (scrollY > elementEndScroll) {
-      rawOpacityProgress = 1;
-    } else {
-      rawOpacityProgress = (scrollY - elementStartScroll) / elementScrollDuration;
-    }
-  } else {
-    rawOpacityProgress = scrollY >= elementStartScroll ? 1 : 0;
-  }
-  rawOpacityProgress = Math.min(1, Math.max(0, rawOpacityProgress));
+  // let rawOpacityProgress = 0; // REMOVED: Now rawElementScrollProgress, calculated earlier
+  // if (elementScrollDuration > 0) { // REMOVED
+  //   if (scrollY < elementStartScroll) { // REMOVED
+  //     rawOpacityProgress = 0; // REMOVED
+  //   } else if (scrollY > elementEndScroll) { // REMOVED
+  //     rawOpacityProgress = 1; // REMOVED
+  //   } else { // REMOVED
+  //     rawOpacityProgress = (scrollY - elementStartScroll) / elementScrollDuration; // REMOVED
+  //   } // REMOVED
+  // } else { // REMOVED
+  //   rawOpacityProgress = scrollY >= elementStartScroll ? 1 : 0; // REMOVED
+  // } // REMOVED
+  // rawOpacityProgress = Math.min(1, Math.max(0, rawOpacityProgress)); // REMOVED
 
   if (opacityAnimationCurve !== 'disabled') {
     const selectedOpacityCurve = animationCurves[opacityAnimationCurve] || linear;
-    const easedOpacityProgress = selectedOpacityCurve(rawOpacityProgress);
+    const easedOpacityProgress = selectedOpacityCurve(rawElementScrollProgress); // Use renamed rawElementScrollProgress
 
     if (easedOpacityProgress <= 0.5) {
       // Animate from start to middle
@@ -444,7 +499,7 @@ const ElementWrapper = ({
   if (element.type === 'background-image') {
     if (cropToCircleEffect && circleEffectCurve !== 'disabled') {
       const selectedCircleCurve = animationCurves[circleEffectCurve] || linear;
-      const easedCircleEffectProgress = selectedCircleCurve(rawOpacityProgress); // Reuse rawOpacityProgress
+      const easedCircleEffectProgress = selectedCircleCurve(rawElementScrollProgress); // Use renamed rawElementScrollProgress
 
       const currentClipRadius = circleInitialRadius + (circleFinalRadius - circleInitialRadius) * easedCircleEffectProgress;
       clipPathToApply = `circle(${currentClipRadius}% at 50% 50%)`;
@@ -500,7 +555,8 @@ const ElementWrapper = ({
         fontFamily: fontFamily,
         fontSize: `${currentFontSize}px`,
         letterSpacing: `${letterSpacingToApply}px`,
-        lineHeight: lineHeight
+        lineHeight: lineHeight,
+        textShadow: textShadowToApply, // Apply text shadow
       };
      }
      childToRender = React.cloneElement(children, newProps);
@@ -522,6 +578,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   // const { isSetupMode } = useSetupMode(); // From context - TEMPORARILY OVERRIDDEN
   const isSetupMode = true; // TEMPORARILY HARDCODED FOR DEBUGGING
   const isMobile = useIsMobile(); // Custom hook for mobile detection
+  console.log(`[GuestExperience] Initial render detected view: ${isMobile ? 'mobile' : 'desktop'}`);
 
   // --- Core State ---
   const [weddingData, setWeddingData] = useState(weddingDataFromApp);

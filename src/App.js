@@ -87,7 +87,7 @@ const transformWeddingData = (sourceData) => {
     experienceSettings: sourceData.experienceSettings || { elements: [], markers: [], timelineLength: 1000 }, // Include experienceSettings
     // IMPORTANT: Add initialElementLayouts here. It will be populated later based on fetched data.
     // For the main WeddingPageController, this might remain undefined or empty if layout-settings aren't directly used for rendering there.
-    initialElementLayouts: sourceData.layoutSettings || sourceData.layoutSettingsMobile || {}, // Or handle more specifically if needed
+    initialElementLayouts: {}, // Will be correctly populated by the caller (WeddingPageController)
   };
 };
 
@@ -115,6 +115,18 @@ const WeddingPageController = () => {
         if (sourceData && sourceData.customId) {
           const transformedData = transformWeddingData(sourceData);
           // console.log('[App.js] Transformed data for GuestExperience:', transformedData);
+          
+          // Explicitly set initialElementLayouts based on view type AFTER base transformation
+          if (transformedData) {
+            if (isMobile) {
+              transformedData.initialElementLayouts = sourceData.layoutSettingsMobile || {};
+              console.log('[App.js] WeddingPageController: Populating initialElementLayouts with MOBILE settings:', transformedData.initialElementLayouts);
+            } else {
+              transformedData.initialElementLayouts = sourceData.layoutSettings || {};
+              console.log('[App.js] WeddingPageController: Populating initialElementLayouts with DESKTOP settings:', transformedData.initialElementLayouts);
+            }
+          }
+
           setCurrentWeddingData(transformedData);
           setError(null); // Clear any previous errors
 
