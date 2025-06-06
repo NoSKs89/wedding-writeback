@@ -831,10 +831,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       setTimeout(() => setSaveErrorMessage(null), 5000);
       return;
     }
-    // Use the value from the "Save to Layout Slot" Leva control
-    const targetSlotForSave = overallControlsGuestValues.saveToLayoutSlot || currentSavingToSlot || 1;
-    setCurrentSavingToSlot(targetSlotForSave); // Update state just in case
-    setShowSaveConfirm(true); // Show confirmation dialog
+    // The currentSavingToSlot state is now the source of truth, updated by useEffects.
+    // We just need to show the confirmation modal.
+    setShowSaveConfirm(true);
   };
 
   const confirmSave = async () => {
@@ -1308,20 +1307,22 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     }
   }, [previewingLayoutSlot, currentWeddingId, isMobile, switchPreviewingSlotInStore]);
 
-  // --- ADDED: useEffect to sync "Save to Layout Slot" Leva control with previewing slot, but allow independent changes --- 
-  // This ensures the save target defaults to the preview target, but can be overridden by user.
+  // --- REVISED: useEffects to sync "Save to Layout Slot" with previewing slot and local state ---
+  // Effect 1: When previewing slot changes, update the "Save to" Leva control to match it.
   useEffect(() => {
-    // When previewingLayoutSlot changes, update the currentSavingToSlot state
-    // which is used by the handleSaveConfiguration and the Leva control for "Save to Layout Slot"
-    setCurrentSavingToSlot(previewingLayoutSlot);
-    // Also, directly update the Leva control for "Save to Layout Slot" IF the overallControlsGuest.set is available
     if (overallControlsGuest && typeof overallControlsGuest.set === 'function') {
-      // This ensures the Leva UI for "Save to Layout Slot" reflects the change from "Previewing Layout Slot"
-      // User can then change "Save to Layout Slot" independently if they wish.
       overallControlsGuest.set({ saveToLayoutSlot: previewingLayoutSlot });
     }
   }, [previewingLayoutSlot, overallControlsGuest]);
-  // --- END ADDED ---
+
+  // Effect 2: When the "Save to" Leva control changes (from user or Effect 1), update local state.
+  // This local state becomes the single source of truth for the save action.
+  useEffect(() => {
+    if (typeof saveToLayoutSlot === 'number') {
+      setCurrentSavingToSlot(saveToLayoutSlot);
+    }
+  }, [saveToLayoutSlot]);
+  // --- END REVISED ---
 
   return (
     <>
@@ -1393,7 +1394,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
           <div>Scroll %: {(scrollPercentage * 100).toFixed(1)}%</div>
           {/* <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div> */}
           <div>Previewing Slot: {previewingLayoutSlot}</div>
-          <div>Saving to Slot: {overallControlsGuestValues.saveToLayoutSlot || currentSavingToSlot}</div>
+          <div>Saving to Slot: {currentSavingToSlot}</div>
           {/* <div>Renderable Elements: {renderableElements.length}</div> */}
           {/* <div>Spring Preset: {activeSpringConfigGuest.name}</div> */}
           {/* {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>} */}

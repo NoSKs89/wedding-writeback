@@ -370,7 +370,7 @@ export const useLevaStore = create<LevaStoreState>()(
     loadSettingsFromDB: (settings, slotNumber) => { // MODIFIED: Accept slotNumber
       console.log(`[LevaStore] loadSettingsFromDB CALLED for slot ${slotNumber !== undefined ? slotNumber : '(not specified, initial prop load)'} with:`, settings);
       set((state) => {
-        if (slotNumber !== undefined) {
+        if (typeof slotNumber === 'number') {
           state.currentPreviewingSlot = slotNumber;
         }
         const newRawDbSettings: { [folderName: string]: Record<string, any> } = {};
@@ -465,6 +465,8 @@ export const useLevaStore = create<LevaStoreState>()(
           }
         });
       });
+
+      console.log('[LevaStore] Finished loading settings into store.');
     },
 
     getDisplayDataForHUD: () => {
@@ -532,16 +534,19 @@ export const useLevaStore = create<LevaStoreState>()(
       }
     },
 
-    loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // MODIFIED: Added slotNumber
+    loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // ADDED slotNumber
       const apiBase = getApiBaseUrl();
-      // Backend endpoint will need to handle slotNumber, e.g., in query param
-      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}?slot=${slotNumber}`;
       try {
-        console.log(`[LevaStore loadSettingsFromServer] Loading from ${endpoint} for slot ${slotNumber}`);
-        const response = await axios.get(endpoint);
-        if (response.data && response.data.settings) {
-          console.log(`[LevaStore loadSettingsFromServer] Settings for slot ${slotNumber} loaded:`, response.data.settings);
-          get().loadSettingsFromDB(response.data.settings, slotNumber); // Pass slotNumber here
+        console.log(`[LevaStore] Loading settings for slot ${slotNumber} from server...`);
+        // Pass slotNumber as a query parameter
+        const response = await axios.get(`${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`, {
+          params: { slotNumber: slotNumber }
+        });
+
+        const { settings } = response.data;
+        if (settings && typeof settings === 'object' && Object.keys(settings).length > 0) {
+          // Use the existing loadSettingsFromDB action to populate the store
+          useLevaStore.getState().loadSettingsFromDB(settings, slotNumber);
         } else {
           console.log(`[LevaStore loadSettingsFromServer] No settings found on server for slot ${slotNumber} or unexpected format.`);
            // If a slot is not found, we should clear the settings or load defaults.
