@@ -219,6 +219,7 @@ const ElementWrapper = ({
   scrollY, 
   windowHeight, 
   TOTAL_PAGES,
+  isSetupMode
   // animationCurves, // Already defined in this scope, no need to pass if ElementWrapper is in the same file
   // centerStyle // Not directly used by ElementWrapper's logic, but by ParallaxLayer
 }) => {
@@ -299,7 +300,7 @@ const ElementWrapper = ({
   const controls = useTrackedControls(
     folderName, 
     controlsSchema, 
-    { collapsed: true }
+    { collapsed: true, hidden: !isSetupMode }
   );
 
   const { 
@@ -586,9 +587,9 @@ const ElementWrapper = ({
 
 
 // const GuestExperience = () => { // Old signature
-const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp, defaultLayoutSlotToLoad }) => {
+const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp, defaultLayoutSlotToLoad, isSetupMode = false }) => {
   // const { isSetupMode } = useSetupMode(); // From context - TEMPORARILY OVERRIDDEN
-  const isSetupMode = true; // TEMPORARILY HARDCODED FOR DEBUGGING
+  // const isSetupMode = true; // TEMPORARILY HARDCODED FOR DEBUGGING
   const isMobile = useIsMobile(); // Custom hook for mobile detection
   console.log(`[GuestExperience] Initial render detected view: ${isMobile ? 'mobile' : 'desktop'}`);
 
@@ -1472,6 +1473,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                   scrollY={scrollY}
                   windowHeight={windowHeight}
                   TOTAL_PAGES={TOTAL_PAGES}
+                  isSetupMode={isSetupMode}
                 >
                   {contentToRender}
                 </ElementWrapper>
@@ -1493,6 +1495,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
                 scrollY={scrollY} 
                 windowHeight={windowHeight} 
                 TOTAL_PAGES={TOTAL_PAGES}
+                isSetupMode={isSetupMode}
               >
                 <RSVPForm 
                   ref={rsvpFormRef}

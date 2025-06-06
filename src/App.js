@@ -108,7 +108,7 @@ const transformWeddingData = (sourceData) => {
 };
 
 // This component will decide whether to show Intro or Main content for a wedding
-const WeddingPageController = () => {
+const WeddingPageController = ({ isSetupMode = false }) => {
   const { weddingId } = useParams();
   const [currentWeddingData, setCurrentWeddingData] = useState(null);
   const [error, setError] = useState(null); // State for API errors
@@ -229,7 +229,7 @@ const WeddingPageController = () => {
     experienceSettingsFromApp={currentWeddingData.experienceSettings} 
     weddingIdFromApp={weddingId} // Pass weddingId for any internal use if needed
     defaultLayoutSlotToLoad={currentWeddingData.defaultLayoutSlotToLoad} // ADDED: Pass the determined default slot
-    // isMobileView={isMobile} // Pass if GuestExperience needs it directly
+    isSetupMode={isSetupMode} // Pass down the setup mode flag
   />;
 };
 
@@ -276,7 +276,7 @@ const MainAppContent = () => {
         </>
       )}
       <Routes>
-        <Route path="/:weddingId" element={<WeddingPageController />} />
+        <Route path="/:weddingId" element={<WeddingPageController isSetupMode={false} />} />
         {defaultWeddingIdToUse && (
           <Route path="/" element={<Navigate to={`/${defaultWeddingIdToUse}`} replace />} />
         )}
@@ -286,7 +286,7 @@ const MainAppContent = () => {
         <Route path="/:weddingId/setup" element={<SetupLayout />}>
           <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
-          <Route path="layout" element={<WeddingJourneyWrapperForSetup />} />
+          <Route path="layout" element={<WeddingPageController isSetupMode={true} />} />
           <Route path="account" element={<AccountSetupPage />} />
           <Route path="experience" element={<ExperienceSetupPage />} />
           <Route path="how-to" element={<HowToPage />} />
