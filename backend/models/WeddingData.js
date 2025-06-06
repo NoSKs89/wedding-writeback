@@ -44,8 +44,18 @@ const WeddingDataSchema = new mongoose.Schema({
   // For deeply nested or highly variable structures, Mixed can be used.
   // Consider defining full schemas for these if their structure is stable and needs validation.
   settings: mongoose.Schema.Types.Mixed,
-  layoutSettings: mongoose.Schema.Types.Mixed,
-  layoutSettingsMobile: mongoose.Schema.Types.Mixed,
+  layoutSettings: mongoose.Schema.Types.Mixed, // Legacy, for migration
+  layoutSettingsMobile: mongoose.Schema.Types.Mixed, // Legacy, for migration
+  layoutSettingsSlot1: mongoose.Schema.Types.Mixed,
+  layoutSettingsSlot2: mongoose.Schema.Types.Mixed,
+  layoutSettingsSlot3: mongoose.Schema.Types.Mixed,
+  layoutSettingsSlot4: mongoose.Schema.Types.Mixed,
+  layoutSettingsSlot5: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobileSlot1: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobileSlot2: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobileSlot3: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobileSlot4: mongoose.Schema.Types.Mixed,
+  layoutSettingsMobileSlot5: mongoose.Schema.Types.Mixed,
   experienceSettings: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId

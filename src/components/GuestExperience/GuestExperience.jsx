@@ -166,6 +166,18 @@ const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => ({
     options: fontFamilyOptions,
     label: 'Global Font Family',
   },
+  previewingLayoutSlot: { // ADDED for layout slots
+    value: 1,
+    options: [1, 2, 3, 4, 5],
+    label: 'Previewing Layout Slot',
+    // render: (get) => isSetupModeFromContext, // Only show in setup mode
+  },
+  saveToLayoutSlot: { // ADDED for layout slots
+    value: 1,
+    options: [1, 2, 3, 4, 5],
+    label: 'Save to Layout Slot',
+    // render: (get) => isSetupModeFromContext, // Only show in setup mode
+  },
 });
 
 // --- Helper functions from WeddingJourney (for focused image) ---
@@ -574,7 +586,7 @@ const ElementWrapper = ({
 
 
 // const GuestExperience = () => { // Old signature
-const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp }) => {
+const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddingIdFromApp, defaultLayoutSlotToLoad }) => {
   // const { isSetupMode } = useSetupMode(); // From context - TEMPORARILY OVERRIDDEN
   const isSetupMode = true; // TEMPORARILY HARDCODED FOR DEBUGGING
   const isMobile = useIsMobile(); // Custom hook for mobile detection
@@ -589,16 +601,23 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   const parallaxRef = useRef(null);
   const rsvpFormRef = useRef(null);
+  const [currentSavingToSlot, setCurrentSavingToSlot] = useState(defaultLayoutSlotToLoad || 1); // ADDED: State to track save target
 
-  // --- ADDED: useEffect to load initial Leva settings from weddingDataFromApp ---
+  // --- ADDED: useEffect to load initial Leva settings from weddingDataFromApp ---  
+  // AND initialize currentPreviewingSlot in LevaStore
   useEffect(() => {
     if (weddingDataFromApp && weddingDataFromApp.initialElementLayouts) {
-      // console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts found, calling loadSettingsFromDB.', weddingDataFromApp.initialElementLayouts);
-      useLevaStore.getState().loadSettingsFromDB(weddingDataFromApp.initialElementLayouts);
+      console.log(`[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts found for slot ${defaultLayoutSlotToLoad}. Calling loadSettingsFromDB.`);
+      useLevaStore.getState().loadSettingsFromDB(weddingDataFromApp.initialElementLayouts, defaultLayoutSlotToLoad);
     } else {
-      // console.log('[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts NOT found. Leva will use defaults.');
+      console.log(`[GuestExperience] useEffect: weddingDataFromApp.initialElementLayouts NOT found for slot ${defaultLayoutSlotToLoad}. Leva will use defaults.`);
+      // Still set the previewing slot even if no specific layout for it exists yet
+      useLevaStore.getState().switchPreviewingSlot(currentWeddingId, isMobile ? 'mobile' : 'desktop', defaultLayoutSlotToLoad || 1);
     }
-  }, [weddingDataFromApp]); // Dependency on weddingDataFromApp
+    // Initialize the saveToLayoutSlot to match the default loaded slot
+    setCurrentSavingToSlot(defaultLayoutSlotToLoad || 1);
+
+  }, [weddingDataFromApp, defaultLayoutSlotToLoad, currentWeddingId, isMobile]); // Dependency on weddingDataFromApp, defaultLayoutSlotToLoad
   // --- END ADDED ---
 
   // --- Calculate TOTAL_PAGES for Parallax ---
@@ -656,7 +675,9 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
     showHUD: showGlobalHUDEnabledGuest = overallControlsSchemaGuest.showHUD.value,
     springPreset: selectedSpringPresetKeyGuest = overallControlsSchemaGuest.springPreset.value,
     colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name, // ADDED selectedColorSchemeName
-    overallFontFamily = fontFamilyOptions[0] // ADDED overallFontFamily
+    overallFontFamily = fontFamilyOptions[0], // ADDED overallFontFamily
+    previewingLayoutSlot = defaultLayoutSlotToLoad || 1, // ADDED for layout slots
+    saveToLayoutSlot = defaultLayoutSlotToLoad || 1 // ADDED for layout slots
   } = overallControlsGuestValues;
 
   const activeSpringConfigGuest = springConfigPresets[selectedSpringPresetKeyGuest] || springConfigPresets.default;
@@ -669,6 +690,7 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState(null);
   const [saveErrorMessage, setSaveErrorMessage] = useState(null);
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false); // ADDED for confirmation
   // --- End State for Save/Load Status Messages
 
   // --- Ref for Save Button Height (if HUD positioning depends on it) ---
@@ -809,24 +831,39 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
       setTimeout(() => setSaveErrorMessage(null), 5000);
       return;
     }
+    // Use the value from the "Save to Layout Slot" Leva control
+    const targetSlotForSave = overallControlsGuestValues.saveToLayoutSlot || currentSavingToSlot || 1;
+    setCurrentSavingToSlot(targetSlotForSave); // Update state just in case
+    setShowSaveConfirm(true); // Show confirmation dialog
+  };
+
+  const confirmSave = async () => {
+    setShowSaveConfirm(false);
     setIsSaving(true);
     setSaveSuccessMessage(null);
     setSaveErrorMessage(null);
+
+    const targetSlotForSave = currentSavingToSlot; // Use state value set before confirmation
+
     try {
       const viewType = isMobile ? 'mobile' : 'desktop';
-      // console.log(`[GuestExperience] Attempting to save ${viewType} layout settings for ${currentWeddingId}`);
-      await useLevaStore.getState().saveSettingsToServer(currentWeddingId, viewType);
-      setSaveSuccessMessage(`Layout for ${viewType} view saved successfully!`);
+      console.log(`[GuestExperience] Attempting to save ${viewType} layout settings to SLOT ${targetSlotForSave} for ${currentWeddingId}`);
+      await useLevaStore.getState().saveSettingsToServer(currentWeddingId, viewType, targetSlotForSave);
+      setSaveSuccessMessage(`Layout for ${viewType} view (Slot ${targetSlotForSave}) saved successfully!`);
       setTimeout(() => setSaveSuccessMessage(null), 3000);
     } catch (error) {
-      // console.error(`[GuestExperience] Error saving ${isMobile ? 'mobile' : 'desktop'} layout settings:`, error);
+      console.error(`[GuestExperience] Error saving ${isMobile ? 'mobile' : 'desktop' } layout settings to SLOT ${targetSlotForSave}:`, error);
       const errorMsg = error.message || (error.response?.data?.message) || 'Unknown error';
-      setSaveErrorMessage(`Failed to save layout. Error: ${errorMsg}`);
+      setSaveErrorMessage(`Failed to save layout to Slot ${targetSlotForSave}. Error: ${errorMsg}`);
       setTimeout(() => setSaveErrorMessage(null), 7000);
     }
     setIsSaving(false);
   };
-  // --- END ADDED ---
+
+  const cancelSave = () => {
+    setShowSaveConfirm(false);
+  };
+  // --- END MODIFIED ---
 
   // --- Callback for InteractiveScrapbook to update GuestExperience ---
   const handleDisplayedImagesUpdate = useCallback((newImageData) => {
@@ -1262,34 +1299,76 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
   }, [overallFontFamily, elementsFromProps, store]);
   // --- END ADDED ---
 
+  // --- ADDED: useEffect to handle changes in "Previewing Layout Slot" from Leva --- 
+  const switchPreviewingSlotInStore = useLevaStore(state => state.switchPreviewingSlot);
+  useEffect(() => {
+    if (previewingLayoutSlot !== useLevaStore.getState().currentPreviewingSlot) {
+      console.log(`[GuestExperience] "Previewing Layout Slot" Leva control changed to: ${previewingLayoutSlot}. Switching store.`);
+      switchPreviewingSlotInStore(currentWeddingId, isMobile ? 'mobile' : 'desktop', previewingLayoutSlot);
+    }
+  }, [previewingLayoutSlot, currentWeddingId, isMobile, switchPreviewingSlotInStore]);
+
+  // --- ADDED: useEffect to sync "Save to Layout Slot" Leva control with previewing slot, but allow independent changes --- 
+  // This ensures the save target defaults to the preview target, but can be overridden by user.
+  useEffect(() => {
+    // When previewingLayoutSlot changes, update the currentSavingToSlot state
+    // which is used by the handleSaveConfiguration and the Leva control for "Save to Layout Slot"
+    setCurrentSavingToSlot(previewingLayoutSlot);
+    // Also, directly update the Leva control for "Save to Layout Slot" IF the overallControlsGuest.set is available
+    if (overallControlsGuest && typeof overallControlsGuest.set === 'function') {
+      // This ensures the Leva UI for "Save to Layout Slot" reflects the change from "Previewing Layout Slot"
+      // User can then change "Save to Layout Slot" independently if they wish.
+      overallControlsGuest.set({ saveToLayoutSlot: previewingLayoutSlot });
+    }
+  }, [previewingLayoutSlot, overallControlsGuest]);
+  // --- END ADDED ---
+
   return (
     <>
       <Leva hidden={!isSetupMode} />
       <FontGrabber fonts={googleFontsToLoad} /> {/* ADDED FontGrabber INSTANCE */}
 
-      {/* --- ADDED: Save Button --- */}
+      {/* --- ADDED: Save Button & Confirmation Dialog --- */}
       {isSetupMode && (
         <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10001 }}>
           <button 
             ref={saveLayoutButtonRef}
             onClick={handleSaveConfiguration} 
-            disabled={isSaving}
+            disabled={isSaving || showSaveConfirm}
             style={{
-              padding: '10px 15px', // Slightly reduced padding for a smaller button
+              padding: '10px 15px',
               fontSize: '0.9rem',
               color: 'white',
-              backgroundColor: isSaving ? '#cf5200' : '#007bff',
+              backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'),
               border: 'none',
               borderRadius: '5px',
-              cursor: isSaving ? 'not-allowed' : 'pointer',
+              cursor: (isSaving || showSaveConfirm) ? 'not-allowed' : 'pointer',
               opacity: isSaving ? 0.7 : 1,
               boxShadow: '0 2px 5px rgba(0,0,0,0.2)'
             }}
           >
-            {isSaving ? 'Saving...' : 'Save Layout'} {/* Changed text here */}
+            {isSaving ? 'Saving...' : 'Save Layout'}
           </button>
           {saveSuccessMessage && <div style={{color: 'lime', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveSuccessMessage}</div>}
           {saveErrorMessage && <div style={{color: 'red', background: 'rgba(0,0,0,0.7)', padding: '5px', marginTop: '5px', borderRadius: '3px', fontSize: '0.8em'}}>{saveErrorMessage}</div>}
+        </div>
+      )}
+      {showSaveConfirm && (
+        <div style={{
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          background: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          boxShadow: '0 5px 15px rgba(0,0,0,0.3)',
+          zIndex: 10002,
+          textAlign: 'center'
+        }}>
+          <p>Are you sure you want to overwrite Layout Slot {currentSavingToSlot}?</p>
+          <button onClick={confirmSave} style={{ padding: '8px 15px', margin: '0 10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px' }}>Yes, Save</button>
+          <button onClick={cancelSave} style={{ padding: '8px 15px', margin: '0 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px' }}>Cancel</button>
         </div>
       )}
       {/* --- END ADDED --- */}
@@ -1313,6 +1392,8 @@ const GuestExperience = ({ weddingDataFromApp, experienceSettingsFromApp, weddin
           <div>ScrollY: {scrollY.toFixed(0)}</div>
           <div>Scroll %: {(scrollPercentage * 100).toFixed(1)}%</div>
           {/* <div>Total Pages: {TOTAL_PAGES.toFixed(1)}</div> */}
+          <div>Previewing Slot: {previewingLayoutSlot}</div>
+          <div>Saving to Slot: {overallControlsGuestValues.saveToLayoutSlot || currentSavingToSlot}</div>
           {/* <div>Renderable Elements: {renderableElements.length}</div> */}
           {/* <div>Spring Preset: {activeSpringConfigGuest.name}</div> */}
           {/* {focusedImage && <div>Focused Img: {focusedImage.currentIndex}</div>} */}

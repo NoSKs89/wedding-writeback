@@ -38,6 +38,8 @@ export interface ExperienceSettings {
   elements: ElementConfig[];
   markers: TimelineMarker[];
   timelineLength: number;
+  defaultLayoutSlotDesktop: number;
+  defaultLayoutSlotMobile: number;
 }
 
 // Define an interface for the wedding data based on the provided structure
@@ -187,6 +189,8 @@ const ExperienceSetupPage: React.FC = () => {
   const [elements, setElements] = useState<ElementConfig[]>([]);
   const [markers, setMarkers] = useState<TimelineMarker[]>([]);
   const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
+  const [defaultLayoutSlotDesktop, setDefaultLayoutSlotDesktop] = useState<number>(1); // CHANGED
+  const [defaultLayoutSlotMobile, setDefaultLayoutSlotMobile] = useState<number>(1); // ADDED
 
   // State for mobile and landscape detection
   const [isMobile, setIsMobile] = useState(false);
@@ -199,6 +203,8 @@ const ExperienceSetupPage: React.FC = () => {
 
   // Centralized modal state
   const [activeModal, setActiveModal] = useState<string | null>(null);
+
+  const [pageTitle, setPageTitle] = useState<string>('Experience Setup');
 
   useEffect(() => {
     const checkDeviceOrientation = () => {
@@ -241,29 +247,31 @@ const ExperienceSetupPage: React.FC = () => {
             const apiBase = getApiBaseUrl();
             const settingsResponse = await axios.get<{ data: ExperienceSettings }>(`${apiBase}/weddings/${weddingId}/experience-settings`);
             if (settingsResponse.data && settingsResponse.data.data) {
-              const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength } = settingsResponse.data.data;
+              const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength, defaultLayoutSlotDesktop: savedDefaultLayoutSlotDesktop, defaultLayoutSlotMobile: savedDefaultLayoutSlotMobile } = settingsResponse.data.data;
               setElements(savedElements);
               setMarkers(savedMarkers);
               setTimelineLength(savedTimelineLength);
+              setDefaultLayoutSlotDesktop(savedDefaultLayoutSlotDesktop || 1);
+              setDefaultLayoutSlotMobile(savedDefaultLayoutSlotMobile || 1);
               console.log('Successfully loaded experience settings from server.');
             } else {
-              // No settings found on server, generate defaults
-              console.log('No experience settings found on server, generating defaults.');
+              // No saved settings, generate initial ones
               const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(fetchedWeddingData);
               setElements(initialElements);
               setMarkers(initialMarkers);
-              // Keep INITIAL_TIMELINE_LENGTH or allow generateInitialElementsAndMarkers to suggest one if needed
+              setTimelineLength(INITIAL_TIMELINE_LENGTH);
+              setDefaultLayoutSlotDesktop(1);
+              setDefaultLayoutSlotMobile(1);
             }
-          } catch (error: any) {
-            if (error.response && error.response.status === 404) {
-              console.log('No experience settings found (404), generating defaults.');
-            } else {
-              console.error('Error fetching experience settings:', error);
-            }
-            // In case of any error fetching settings, generate defaults
+          } catch (error) {
+            console.warn('No experience settings found on server, generating defaults.', error);
+            // If fetching settings fails (e.g., 404), generate defaults
             const { initialElements, initialMarkers } = generateInitialElementsAndMarkers(fetchedWeddingData);
             setElements(initialElements);
             setMarkers(initialMarkers);
+            setTimelineLength(INITIAL_TIMELINE_LENGTH);
+            setDefaultLayoutSlotDesktop(1);
+            setDefaultLayoutSlotMobile(1);
           }
         }
         setIsLoadingExperienceSettings(false);
@@ -581,6 +589,8 @@ const ExperienceSetupPage: React.FC = () => {
         setMarkers(initialMarkers);
         setTimelineLength(INITIAL_TIMELINE_LENGTH); // Set timeline length to new default
         setFocusedElementId(null);
+        setDefaultLayoutSlotDesktop(1); // Reset to 1 on defaults restoration
+        setDefaultLayoutSlotMobile(1); // Reset to 1 on defaults restoration
       } else {
         // Handle case where currentWeddingData might be null (e.g., if called before data load)
         console.warn('Cannot restore defaults: Wedding data not loaded yet.');
@@ -601,6 +611,8 @@ const ExperienceSetupPage: React.FC = () => {
       elements,
       markers,
       timelineLength,
+      defaultLayoutSlotDesktop,
+      defaultLayoutSlotMobile,
     };
 
     try {
@@ -667,16 +679,46 @@ const ExperienceSetupPage: React.FC = () => {
             </button>
         </div>
 
-        <div className="timeline-length-controls" style={{ alignItems: 'center' }}>
-          <label htmlFor="timelineLength" className="timeline-length-label">Overall Timeline Length:</label>
-          <input
-            type="number"
-            id="timelineLength"
-            value={timelineLength}
-            onChange={(e) => handleTimelineLengthChange(parseInt(e.target.value, 10) || 0)}
-            className="timeline-length-input"
-          />
-          <span className="timeline-length-units">units</span>
+        <div className="timeline-length-controls" style={{ alignItems: 'center', marginBottom: '10px' }}>
+          <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+            <label htmlFor="timelineLength" style={{ marginRight: '10px' }}>Overall Timeline Length (px):</label>
+            <input
+              type="number"
+              id="timelineLength"
+              value={timelineLength}
+              onChange={(e) => handleTimelineLengthChange(parseInt(e.target.value, 10) || 0)}
+              className="timeline-length-input"
+              style={{ padding: '5px', width: '80px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: '20px', alignItems: 'center', marginBottom: '1rem' }}>
+              <div>
+                  <label htmlFor="defaultLayoutSlotDesktop">Default Desktop Slot:</label>
+                  <select
+                  id="defaultLayoutSlotDesktop"
+                  value={defaultLayoutSlotDesktop}
+                  onChange={(e) => setDefaultLayoutSlotDesktop(Number(e.target.value))}
+                  style={{ marginLeft: '10px' }}
+                  >
+                  {[1, 2, 3, 4, 5].map(slot => (
+                      <option key={slot} value={slot}>Slot {slot}</option>
+                  ))}
+                  </select>
+              </div>
+              <div>
+                  <label htmlFor="defaultLayoutSlotMobile">Default Mobile Slot:</label>
+                  <select
+                  id="defaultLayoutSlotMobile"
+                  value={defaultLayoutSlotMobile}
+                  onChange={(e) => setDefaultLayoutSlotMobile(Number(e.target.value))}
+                  style={{ marginLeft: '10px' }}
+                  >
+                  {[1, 2, 3, 4, 5].map(slot => (
+                      <option key={slot} value={slot}>Slot {slot}</option>
+                  ))}
+                  </select>
+              </div>
+          </div>
         </div>
 
         {/* Main content area for Timeline and Element Slots */}

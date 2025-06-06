@@ -227,16 +227,37 @@ exports.handler = async (event, context) => {
       if (httpMethod === "GET" && getLayoutSettingsWithViewMatch) {
           const customId = getLayoutSettingsWithViewMatch[1];
           const viewType = getLayoutSettingsWithViewMatch[2]; // 'desktop' or 'mobile'
-          const fieldToSelect = viewType === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
           
-          console.log(`[GET /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, selecting: ${fieldToSelect}`);
+          // Get slotNumber from query parameters
+          const slotNumberParam = event.queryStringParameters?.slotNumber;
+          const slotNumber = slotNumberParam ? parseInt(slotNumberParam, 10) : null;
 
-          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
+          console.log(`[GET /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, slotNumber: ${slotNumber}`);
+
+          if (!slotNumber || ![1, 2, 3, 4, 5].includes(slotNumber)) {
+              return createResponse(400, { message: 'A valid slotNumber (1-5) is required as a query parameter.' }, requestOrigin);
+          }
+          
+          const fieldPrefix = viewType === 'mobile' ? 'layoutSettingsMobileSlot' : 'layoutSettingsSlot';
+          const fieldToSelect = `${fieldPrefix}${slotNumber}`;
+          const legacyField = viewType === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
+          
+          console.log(`[GET /layoutSettings/:viewType] Selecting field: ${fieldToSelect}, with fallback to ${legacyField}`);
+
+          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} ${legacyField} customId`);
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found for layout settings.' }, requestOrigin);
           }
           
-          const settingsData = wedding[fieldToSelect] || {}; // Get the settings, default to empty object if not found
+          let settingsData = wedding[fieldToSelect];
+          // If the slot data is empty/null/undefined, and we are looking at slot 1, consider falling back to the legacy field for migration.
+          if (!settingsData && slotNumber === 1 && wedding[legacyField]) {
+            console.log(`[GET /layoutSettings/:viewType] Slot 1 is empty, falling back to legacy field ${legacyField}.`);
+            settingsData = wedding[legacyField];
+          } else if (!settingsData) {
+            settingsData = {};
+          }
+          
           // levaStore expects the response to have a 'settings' key containing the actual layout object
           return createResponse(200, { settings: settingsData }, requestOrigin);
       }
@@ -246,17 +267,21 @@ exports.handler = async (event, context) => {
       if (httpMethod === "POST" && postLayoutSettingsWithViewMatch) {
           const customId = postLayoutSettingsWithViewMatch[1];
           const viewType = postLayoutSettingsWithViewMatch[2]; // 'desktop' or 'mobile'
-          const newLayoutSettingsContainer = body; // The body is expected to be { settings: { ... } }
-          const newLayoutSettings = newLayoutSettingsContainer.settings; // Extract the actual settings object
-
-          // const view = event.queryStringParameters?.view || 'desktop'; // No longer needed from query string
-          const fieldToUpdate = viewType === 'mobile' ? 'layoutSettingsMobile' : 'layoutSettings';
-
-          console.log(`[POST /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, updating: ${fieldToUpdate} with settings:`, newLayoutSettings);
+          
+          // The body is expected to be { settings: { ... }, slotNumber: X }
+          const { settings: newLayoutSettings, slotNumber } = body; 
 
           if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
               return createResponse(400, { message: 'Invalid layout settings. Expected an object under a top-level \'settings\' key.' }, requestOrigin);
           }
+          if (!slotNumber || ![1, 2, 3, 4, 5].includes(slotNumber)) {
+              return createResponse(400, { message: 'Invalid or missing slotNumber. Expected a number from 1 to 5.' }, requestOrigin);
+          }
+
+          const fieldPrefix = viewType === 'mobile' ? 'layoutSettingsMobileSlot' : 'layoutSettingsSlot';
+          const fieldToUpdate = `${fieldPrefix}${slotNumber}`;
+
+          console.log(`[POST /layoutSettings/:viewType] customId: ${customId}, view: ${viewType}, SLOT: ${slotNumber}, updating field: ${fieldToUpdate}`);
           
           const updateQuery = { $set: { [fieldToUpdate]: newLayoutSettings } };
           const wedding = await WeddingData.findOneAndUpdate(
@@ -266,7 +291,7 @@ exports.handler = async (event, context) => {
           );
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' }, requestOrigin);
           
-          return createResponse(200, { message: `Layout settings for ${viewType} view saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
+          return createResponse(200, { message: `Layout settings for ${viewType} view (Slot ${slotNumber}) saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
       
       // GET /api/weddings/:customId/experience-settings

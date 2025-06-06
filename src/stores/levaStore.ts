@@ -216,16 +216,18 @@ export interface LevaStoreState {
   changedKeys: { [folderName: string]: Set<string> };
   schemas: { [folderName: string]: LevaFolderSchema }; // Uses new LevaFolderSchema
   levaSetters: { [folderName: string]: (values: Record<string, any>) => void }; 
+  currentPreviewingSlot: number; // ADDED: To track the currently loaded/previewed slot
 
   // Actions
   registerControls: (folderName: string, schema: LevaFolderSchema, initialValuesFromLevaSchema: Record<string, any>, setter: (values: Record<string, any>) => void) => void;
   updateControlValues: (folderName: string, newValues: Record<string, any>) => void;
   getSettingsForSave: () => { [folderName: string]: Record<string, any> };
-  loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }) => void;
+  loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }, slotNumber?: number) => void; // MODIFIED: slotNumber is optional for initial load via prop
   getDisplayDataForHUD: () => Array<{ folderName: string; key: string; label: string; value: any; isChanged: boolean }>;
   
-  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile') => Promise<void>; 
-  loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile') => Promise<void>;
+  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>; // MODIFIED: Added slotNumber
+  loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>; // MODIFIED: Added slotNumber
+  switchPreviewingSlot: (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => Promise<void>; // ADDED: Action to switch slots
 }
 
 // Explicitly define the type for the store hook if direct create is problematic
@@ -269,6 +271,7 @@ export const useLevaStore = create<LevaStoreState>()(
     changedKeys: {},
     schemas: {},
     levaSetters: {},
+    currentPreviewingSlot: 1, // ADDED: Default to slot 1
 
     registerControls: (folderName, schema, initialValuesFromLevaSchema, setter) => {
       console.log(`[LevaStore] registerControls CALLED for folder: "${folderName}"`);
@@ -364,9 +367,12 @@ export const useLevaStore = create<LevaStoreState>()(
       return settingsToSave;
     },
 
-    loadSettingsFromDB: (settings) => {
-      console.log('[LevaStore] loadSettingsFromDB CALLED with:', settings);
+    loadSettingsFromDB: (settings, slotNumber) => { // MODIFIED: Accept slotNumber
+      console.log(`[LevaStore] loadSettingsFromDB CALLED for slot ${slotNumber !== undefined ? slotNumber : '(not specified, initial prop load)'} with:`, settings);
       set((state) => {
+        if (slotNumber !== undefined) {
+          state.currentPreviewingSlot = slotNumber;
+        }
         const newRawDbSettings: { [folderName: string]: Record<string, any> } = {};
         for (const oldFolderName in settings) {
           // Attempt to parse old folder name to generate new simplified name
@@ -397,8 +403,15 @@ export const useLevaStore = create<LevaStoreState>()(
           }
           newRawDbSettings[newFolderName] = settings[oldFolderName];
         }
-        state.rawDbSettings = newRawDbSettings;
-        console.log('[LevaStore loadSettingsFromDB] Raw DB settings stored (with potentially transformed keys):', JSON.parse(JSON.stringify(state.rawDbSettings)));
+        // state.rawDbSettings = newRawDbSettings; // This was for multiple folders from a single DB load.
+        // Now, 'settings' IS the data for the current slot's folders.
+        // So, rawDbSettings should be cleared and repopulated for the specific folders in 'settings'.
+        
+        // Clear previous rawDbSettings for all folders before loading new slot data.
+        // Or, more precisely, 'settings' itself represents the collection of folder data for the slot.
+        state.rawDbSettings = { ...settings }; // Assuming 'settings' is { folderName1: data, folderName2: data } for the slot.
+
+        console.log(`[LevaStore loadSettingsFromDB] Raw DB settings for slot ${state.currentPreviewingSlot} stored:`, JSON.parse(JSON.stringify(state.rawDbSettings)));
 
         Object.keys(state.schemas).forEach(folderName => {
           const schema = state.schemas[folderName];
@@ -491,14 +504,19 @@ export const useLevaStore = create<LevaStoreState>()(
       return displayData;
     },
 
-    saveSettingsToServer: async (weddingId: string, viewType: 'desktop' | 'mobile') => {
+    saveSettingsToServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // MODIFIED: Added slotNumber
       const settings = get().getSettingsForSave(); 
       const apiBase = getApiBaseUrl();
-      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`;
+      // Backend endpoint will need to handle slotNumber, e.g., in query param or body
+      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`; 
       try {
-        console.log(`[LevaStore saveSettingsToServer] Saving to ${endpoint}:`, settings);
-        await axios.post(endpoint, { settings }); 
-        console.log('[LevaStore saveSettingsToServer] Settings saved successfully.');
+        console.log(`[LevaStore saveSettingsToServer] Saving to ${endpoint} for slot ${slotNumber}:`, settings);
+        // The backend will need to know which slot to save to.
+        // This could be a query parameter: `${endpoint}?slot=${slotNumber}`
+        // Or part of the POST body: { settings, slotNumber }
+        // For this example, let's assume it's part of the body.
+        await axios.post(endpoint, { settings, slotNumber }); 
+        console.log(`[LevaStore saveSettingsToServer] Settings for slot ${slotNumber} saved successfully.`);
         set(state => {
           Object.keys(state.changedKeys).forEach(folderName => {
             state.changedKeys[folderName] = new Set<string>();
@@ -514,29 +532,45 @@ export const useLevaStore = create<LevaStoreState>()(
       }
     },
 
-    loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile') => {
+    loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // MODIFIED: Added slotNumber
       const apiBase = getApiBaseUrl();
-      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`;
+      // Backend endpoint will need to handle slotNumber, e.g., in query param
+      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}?slot=${slotNumber}`;
       try {
-        console.log(`[LevaStore loadSettingsFromServer] Loading from ${endpoint}`);
+        console.log(`[LevaStore loadSettingsFromServer] Loading from ${endpoint} for slot ${slotNumber}`);
         const response = await axios.get(endpoint);
         if (response.data && response.data.settings) {
-          console.log('[LevaStore loadSettingsFromServer] Settings loaded:', response.data.settings);
-          get().loadSettingsFromDB(response.data.settings);
+          console.log(`[LevaStore loadSettingsFromServer] Settings for slot ${slotNumber} loaded:`, response.data.settings);
+          get().loadSettingsFromDB(response.data.settings, slotNumber); // Pass slotNumber here
         } else {
-          console.log('[LevaStore loadSettingsFromServer] No settings found on server or unexpected format.');
-           set(state => { state.rawDbSettings = {}; });
+          console.log(`[LevaStore loadSettingsFromServer] No settings found on server for slot ${slotNumber} or unexpected format.`);
+           // If a slot is not found, we should clear the settings or load defaults.
+           // For now, let's load empty settings, which should reset Leva to schema defaults.
+          get().loadSettingsFromDB({}, slotNumber);
         }
       } catch (error) {
         // @ts-ignore
         if (error.response && error.response.status === 404) {
-          console.log('[LevaStore loadSettingsFromServer] No settings found on server (404). Clearing raw DB settings.');
-           set(state => { state.rawDbSettings = {}; }); 
+          console.log(`[LevaStore loadSettingsFromServer] No settings found on server for slot ${slotNumber} (404). Loading empty/default settings.`);
+           get().loadSettingsFromDB({}, slotNumber); // Load empty settings to reset to defaults
         } else {
-          console.error('[LevaStore loadSettingsFromServer] Error loading settings:', error);
+          console.error(`[LevaStore loadSettingsFromServer] Error loading settings for slot ${slotNumber}:`, error);
           throw error; 
         }
       }
     },
+
+    // ADDED: Action to switch previewing slot
+    switchPreviewingSlot: async (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => {
+      console.log(`[LevaStore] switchPreviewingSlot CALLED for slot: ${newSlotNumber}`);
+      // Optional: Could add logic here to check for unsaved changes in the current slot
+      // and prompt the user before switching. For now, direct switch.
+      set(state => {
+        state.currentPreviewingSlot = newSlotNumber;
+      });
+      // Load settings for the new slot
+      await get().loadSettingsFromServer(weddingId, viewType, newSlotNumber);
+      console.log(`[LevaStore] switchPreviewingSlot: Settings for slot ${newSlotNumber} loaded and Leva panels should be updated.`);
+    }
   }))
 ); 

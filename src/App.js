@@ -84,10 +84,26 @@ const transformWeddingData = (sourceData) => {
     eventAddress: sourceData.eventAddress,
     // Pass through the raw scrapbookImages array as well, as WeddingJourneyWrapperForSetup uses it for resolvedScrapbookImages
     scrapbookImages: sourceData.scrapbookImages || [], 
-    experienceSettings: sourceData.experienceSettings || { elements: [], markers: [], timelineLength: 1000 }, // Include experienceSettings
-    // IMPORTANT: Add initialElementLayouts here. It will be populated later based on fetched data.
-    // For the main WeddingPageController, this might remain undefined or empty if layout-settings aren't directly used for rendering there.
-    initialElementLayouts: {}, // Will be correctly populated by the caller (WeddingPageController)
+    experienceSettings: sourceData.experienceSettings || { elements: [], markers: [], timelineLength: 1000, defaultLayoutSlotDesktop: 1, defaultLayoutSlotMobile: 1 }, // Include experienceSettings and defaultLayoutSlot
+    // IMPORTANT: initialElementLayouts will be populated by the caller (WeddingPageController) based on the default slot
+    initialElementLayouts: {}, 
+    // Store all layout slots from sourceData directly for WeddingPageController to pick from
+    allLayoutSlots: {
+      desktop: {
+        1: sourceData.layoutSettingsSlot1 || {},
+        2: sourceData.layoutSettingsSlot2 || {},
+        3: sourceData.layoutSettingsSlot3 || {},
+        4: sourceData.layoutSettingsSlot4 || {},
+        5: sourceData.layoutSettingsSlot5 || {},
+      },
+      mobile: {
+        1: sourceData.layoutSettingsMobileSlot1 || {},
+        2: sourceData.layoutSettingsMobileSlot2 || {},
+        3: sourceData.layoutSettingsMobileSlot3 || {},
+        4: sourceData.layoutSettingsMobileSlot4 || {},
+        5: sourceData.layoutSettingsMobileSlot5 || {},
+      }
+    }
   };
 };
 
@@ -116,15 +132,29 @@ const WeddingPageController = () => {
           const transformedData = transformWeddingData(sourceData);
           // console.log('[App.js] Transformed data for GuestExperience:', transformedData);
           
-          // Explicitly set initialElementLayouts based on view type AFTER base transformation
-          if (transformedData) {
+          // Explicitly set initialElementLayouts based on view type AND default slot AFTER base transformation
+          if (transformedData && transformedData.experienceSettings && transformedData.allLayoutSlots) {
+            const defaultSlot = isMobile 
+              ? (transformedData.experienceSettings.defaultLayoutSlotMobile || 1)
+              : (transformedData.experienceSettings.defaultLayoutSlotDesktop || 1);
+              
+            let layoutDataForDefaultSlot = {};
+
             if (isMobile) {
-              transformedData.initialElementLayouts = sourceData.layoutSettingsMobile || {};
-              console.log('[App.js] WeddingPageController: Populating initialElementLayouts with MOBILE settings:', transformedData.initialElementLayouts);
+              layoutDataForDefaultSlot = transformedData.allLayoutSlots.mobile[defaultSlot] || {};
+              console.log(`[App.js] WeddingPageController: Populating initialElementLayouts with MOBILE settings for SLOT ${defaultSlot}:`, layoutDataForDefaultSlot);
             } else {
-              transformedData.initialElementLayouts = sourceData.layoutSettings || {};
-              console.log('[App.js] WeddingPageController: Populating initialElementLayouts with DESKTOP settings:', transformedData.initialElementLayouts);
+              layoutDataForDefaultSlot = transformedData.allLayoutSlots.desktop[defaultSlot] || {};
+              console.log(`[App.js] WeddingPageController: Populating initialElementLayouts with DESKTOP settings for SLOT ${defaultSlot}:`, layoutDataForDefaultSlot);
             }
+            transformedData.initialElementLayouts = layoutDataForDefaultSlot;
+            // Pass the default slot to GuestExperience so it can initialize its controls
+            transformedData.defaultLayoutSlotToLoad = defaultSlot; 
+
+          } else {
+            console.warn('[App.js] WeddingPageController: Missing experienceSettings or allLayoutSlots in transformedData. Cannot set initial layouts.');
+            transformedData.initialElementLayouts = {};
+            transformedData.defaultLayoutSlotToLoad = 1;
           }
 
           setCurrentWeddingData(transformedData);
@@ -198,6 +228,7 @@ const WeddingPageController = () => {
     weddingDataFromApp={currentWeddingData} 
     experienceSettingsFromApp={currentWeddingData.experienceSettings} 
     weddingIdFromApp={weddingId} // Pass weddingId for any internal use if needed
+    defaultLayoutSlotToLoad={currentWeddingData.defaultLayoutSlotToLoad} // ADDED: Pass the determined default slot
     // isMobileView={isMobile} // Pass if GuestExperience needs it directly
   />;
 };
@@ -350,7 +381,14 @@ const WeddingJourneyWrapperForSetup = () => {
   
   const finalWeddingData = {
     ...weddingDataForLeva,
-    initialElementLayouts: elementLayoutsForLeva,
+    // initialElementLayouts: elementLayoutsForLeva, // This was for the old WeddingJourney setup
+    // For WeddingJourney in setup mode, we might need to decide if it also uses slots
+    // or if it continues to use a single layout (elementLayoutsForLeva).
+    // For now, to keep WeddingJourneyWrapperForSetup simple and focused on its original purpose (editing WeddingJourney controls)
+    // let's assume it loads the primary/default layout for editing, or we adapt it fully to slots later if needed.
+    // If WeddingJourney also needs slot support, its Leva integration would need significant changes similar to GuestExperience.
+    // Let's assume for now it loads the settings for slot 1 (or the default slot) for the setup page view.
+    initialElementLayouts: elementLayoutsForLeva, // Keeping this for now, implies WeddingJourney edits a single general layout
   };
 
   // This setup route STILL uses WeddingJourney to allow editing of its specific Leva controls.
