@@ -52,7 +52,10 @@ export function useTrackedControls(folderName: string, schema: LevaFolderSchema,
       levaSetRef.current(storeFolderValues);
     }
     // Dependency array is now stable and only depends on the data.
-  }, [storeFolderValues, levaValues]);
+    // By removing `levaValues` from the dependency array, we prevent an
+    // immediate snap-back when the user changes a control.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeFolderValues]);
 
   useEffect(() => {
     // Sync from Leva UI -> Store (debounced)
