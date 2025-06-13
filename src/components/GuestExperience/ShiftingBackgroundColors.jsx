@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { animated } from '@react-spring/web'; // Removed useSpring as it's not directly used for this simpler version
 import { useTrackedControls } from '../../hooks/useTrackedControls';
 import { useSetupMode } from '../../contexts/SetupModeContext';
@@ -118,6 +118,12 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
   }
   currentOpacity = Math.max(0, Math.min(1, currentOpacity));
   console.log('[ShiftingBackgroundColors] Final Calculated Opacity:', currentOpacity);
+
+  const scrollPercentage = useMemo(() => {
+    if (TOTAL_PAGES <= 1 || windowHeight <= 0) return 0;
+    const totalScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+    return Math.min(1, Math.max(0, scrollY / totalScrollableHeight));
+  }, [scrollY, TOTAL_PAGES, windowHeight]);
 
   return (
     <animated.div // Can be a simple div if no other animations are directly on it

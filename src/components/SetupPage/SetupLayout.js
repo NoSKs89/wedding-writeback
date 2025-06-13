@@ -76,7 +76,8 @@ const SetupLayout = () => {
   const { weddingId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isLayoutPage = location.pathname.includes('/setup/layout');
+  const isDesktopLayoutPage = location.pathname.endsWith('/setup/layout');
+  const isMobileLayoutPage = location.pathname.endsWith('/setup/layoutmobile');
   const isExperienceSetupPage = location.pathname.includes('/setup/experience') || location.pathname.includes('/setup/how-to'); // Include how-to page for full width background
   const isMobile = useIsMobile(); // ADDED
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false); // State for mobile nav modal
@@ -118,7 +119,7 @@ const SetupLayout = () => {
   return (
     <SetupAuthContext.Provider value={authContextValue}>
       <div className="setup-page-layout" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {!isLayoutPage && (
+        {!isDesktopLayoutPage && !isMobileLayoutPage && (
           <header className={styles.header}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <h2 style={{ paddingLeft: '10px' }}>Setup: {weddingId}</h2>
@@ -142,6 +143,7 @@ const SetupLayout = () => {
                   <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/images`)} className={styles.navButton}>Image Management</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
                   <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                 </>
@@ -150,7 +152,7 @@ const SetupLayout = () => {
             </nav>
           </header>
         )}
-        {isLayoutPage && (
+        {(isDesktopLayoutPage || isMobileLayoutPage) && (
           <div style={{ 
             position: 'fixed', 
             top: '10px', 
@@ -163,7 +165,7 @@ const SetupLayout = () => {
             borderRadius: '4px',
             fontSize: '0.9em'
           }}>
-            Editing: {isMobile ? 'Mobile View' : 'Desktop View'}
+            Editing: {isMobileLayoutPage ? 'Mobile View' : 'Desktop View'}
           </div>
         )}
         <main 

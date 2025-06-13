@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useTrackedControls } from '../hooks/useTrackedControls';
-import { ElementConfig, TimelineMarker, ExperienceSettings } from './ExperienceSetupPage/ExperienceSetupPage';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useTrackedControls } from '../hooks/useTrackedControls.tsx';
+import { ElementConfig, ExperienceSettings, TimelineMarker } from '../types';
+import { useSetupMode } from '../contexts/SetupModeContext';
 
 // Easing functions (can be moved to a utils file)
 const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -19,14 +20,27 @@ const animationCurves: { [key: string]: (t: number) => number } = {
 
 export type LockToViewportEdgeType = 'disabled' | 'imageBottom-viewportBottom' | 'imageTop-viewportTop';
 
-interface ElementWrapperProps {
+interface ControlValues {
+  opacity: number;
+  landingYPosition: number;
+  landingXPosition: number;
+  startingScale: number;
+  endingScale: number;
+  scaleEndYPosition: number;
+  scaleAnimationCurve: keyof typeof animationCurves | 'disabled';
+  fadeOutEndYPosition: number;
+  fadeOutAnimationCurve: keyof typeof animationCurves | 'disabled';
+  lockToViewportEdge: LockToViewportEdgeType;
+}
+
+export interface ElementWrapperProps {
   children: React.ReactNode;
-  element: ElementConfig; // Simplified: ElementConfig directly. React keys are handled by parent.
+  element: ElementConfig;
   experienceSettings: ExperienceSettings;
   scrollY: number;
   windowHeight: number;
   TOTAL_PAGES: number;
-  explicitLockTo?: LockToViewportEdgeType; // Use the new type
+  onControlChange: () => void;
 }
 
 const ElementWrapper: React.FC<ElementWrapperProps> = ({ 
@@ -36,50 +50,60 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   scrollY, 
   windowHeight, 
   TOTAL_PAGES,
-  explicitLockTo // Use the new prop
+  onControlChange,
 }) => {
   const [measuredHeight, setMeasuredHeight] = useState(0);
-  const currentChildRef = useRef<HTMLElement>(null);
+  const { isSetupMode } = useSetupMode();
 
-  let controlsSchema: any = { 
-    opacity: { value: 1, min: 0, max: 1, step: 0.01 },
-  };
+  const controlsSchema = useMemo(() => {
+    // Return a default empty schema if element.id doesn't exist to prevent leva errors
+    if (!element || !element.id) {
+        return {};
+    }
+    let schema: any = { 
+      opacity: { value: 1, min: 0, max: 1, step: 0.01 },
+    };
 
-  if (element.type === 'text') {
-    controlsSchema = {
-      ...controlsSchema,
-      landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
-    };
-  } else if (element.type === 'photo' && element.name !== 'background-image') {
-    controlsSchema = {
-      ...controlsSchema,
-      landingXPosition: { value: 0, step: 1, label: 'X Offset (px)' },
-      landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
-      startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
-      endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
-      scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
-      scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-      fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-      fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
-      lockToViewportEdge: { 
-        value: explicitLockTo || 'disabled', // Use explicitLockTo prop for default
-        options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], 
-        label: 'Lock to Viewport Edge'
-      },
-    };
-  } else if (element.type === 'component' && element.name === 'RSVP Form') {
-    // RSVP Form specific controls - currently only opacity is managed by ElementWrapper
-  }
+    if (element.type === 'text') {
+      schema = {
+        ...schema,
+        landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
+        fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+        fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+      };
+    } else if (element.type === 'photo' && element.name !== 'background-image') {
+      schema = {
+        ...schema,
+        landingXPosition: { value: 0, step: 1, label: 'X Offset (px)' },
+        landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
+        startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
+        endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+        scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
+        scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
+        fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+        fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+        lockToViewportEdge: { 
+          value: 'disabled',
+          options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], 
+          label: 'Lock to Viewport Edge'
+        },
+      };
+    }
+    // No special controls for RSVP Form component in this wrapper
+    return schema;
+  }, [element]);
   
-  const folderName = `Element ${element.id} (${element.name || element.type})`;
+  const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : element.type.replace(/\s+/g, '_')}`;
 
-  const controls = useTrackedControls(
-    folderName, 
-    controlsSchema, 
-    { collapsed: true }
-  );
+  const { values } = useTrackedControls(folderName, controlsSchema, {
+    hidden: !isSetupMode,
+  });
+
+  useEffect(() => {
+    if (onControlChange) {
+      onControlChange();
+    }
+  }, [values, onControlChange]);
 
   const {
     opacity = 1,
@@ -91,24 +115,22 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     scaleAnimationCurve = 'linear',
     fadeOutEndYPosition = 1,
     fadeOutAnimationCurve = 'disabled',
-    // Use explicitLockTo as the ultimate fallback if Leva control isn't present or value is undefined
-    lockToViewportEdge = controls.values.lockToViewportEdge !== undefined ? controls.values.lockToViewportEdge : (explicitLockTo || 'disabled') 
-  } = controls.values;
+    lockToViewportEdge = 'disabled' 
+  } = (values || {}) as ControlValues;
 
   useEffect(() => {
-    if (currentChildRef.current) {
-      setMeasuredHeight(currentChildRef.current.offsetHeight);
+    if (measuredHeight === 0) {
+      setMeasuredHeight(window.innerHeight);
     }
-  }, [children]); // Re-measure if children change
+  }, []);
 
-  const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0; // Ensure multiplier is not negative
+  const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
   const startMarker = experienceSettings.markers.find((m: TimelineMarker) => m.elementId === element.id && m.type === 'start');
   const endMarker = experienceSettings.markers.find((m: TimelineMarker) => m.elementId === element.id && m.type === 'end');
   
-  // Default to 0 if markers are not found to prevent NaN issues
   const elementStartScroll = startMarker ? startMarker.position * pageMultiplier * windowHeight : 0;
-  const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES; // Fallback to total scroll length
-  const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1); // Prevent division by zero
+  const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
+  const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
 
   let currentScale = 1;
   if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
@@ -131,7 +153,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   // Revised transform logic inspired by the working GuestExperience.jsx
   let yTransformBase: number;
   const actualDisplayedHeight = measuredHeight * currentScale;
-  const effectiveLockTo = (controls.values.lockToViewportEdge !== undefined ? controls.values.lockToViewportEdge : explicitLockTo) || 'disabled';
+  const effectiveLockTo = lockToViewportEdge || 'disabled';
   const lockIsActive = effectiveLockTo !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
 
   if (lockIsActive && effectiveLockTo === 'imageBottom-viewportBottom') {
@@ -153,12 +175,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     position: 'relative',
   };
 
-  let childToRender = children;
-  if (React.isValidElement(children) && (element.type === 'photo' || element.type === 'text')) {
-     childToRender = React.cloneElement(children as React.ReactElement, { ref: currentChildRef as any });
-  }
-
-  return <div style={elementStyle}>{childToRender}</div>;
+  return <div style={elementStyle}>{children}</div>;
 };
 
 export default ElementWrapper;

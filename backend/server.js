@@ -294,6 +294,50 @@ exports.handler = async (event, context) => {
           return createResponse(200, { message: `Layout settings for ${viewType} view (Slot ${slotNumber}) saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
       }
       
+      // GET /api/weddings/:customId/layoutSettings/preview/:viewType
+      const getPreviewLayoutSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layoutSettings\/preview\/(desktop|mobile)$/);
+      if (httpMethod === "GET" && getPreviewLayoutSettingsMatch) {
+          const customId = getPreviewLayoutSettingsMatch[1];
+          const viewType = getPreviewLayoutSettingsMatch[2];
+          const fieldToSelect = viewType === 'mobile' ? 'layoutSettingsMobilePreview' : 'layoutSettingsDesktopPreview';
+
+          console.log(`[GET /layoutSettings/preview/:viewType] customId: ${customId}, view: ${viewType}, selecting: ${fieldToSelect}`);
+
+          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding data not found for preview layout settings.' }, requestOrigin);
+          }
+          
+          const settingsData = wedding[fieldToSelect] || {};
+          return createResponse(200, { settings: settingsData }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/layoutSettings/preview/:viewType
+      const postPreviewLayoutSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/layoutSettings\/preview\/(desktop|mobile)$/);
+      if (httpMethod === "POST" && postPreviewLayoutSettingsMatch) {
+          const customId = postPreviewLayoutSettingsMatch[1];
+          const viewType = postPreviewLayoutSettingsMatch[2];
+          const { settings: newLayoutSettings } = body;
+
+          if (typeof newLayoutSettings !== 'object' || newLayoutSettings === null) {
+              return createResponse(400, { message: 'Invalid layout settings. Expected an object under a top-level \'settings\' key.' }, requestOrigin);
+          }
+
+          const fieldToUpdate = viewType === 'mobile' ? 'layoutSettingsMobilePreview' : 'layoutSettingsDesktopPreview';
+          console.log(`[POST /layoutSettings/preview/:viewType] customId: ${customId}, view: ${viewType}, updating field: ${fieldToUpdate}`);
+          
+          const updateQuery = { $set: { [fieldToUpdate]: newLayoutSettings } };
+          const wedding = await WeddingData.findOneAndUpdate(
+              { customId }, 
+              updateQuery,
+              { new: true, runValidators: true, select: `${fieldToUpdate} customId` }
+          );
+
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found for preview layout update.' }, requestOrigin);
+          
+          return createResponse(200, { message: `Preview layout for ${viewType} view saved.` });
+      }
+      
       // GET /api/weddings/:customId/experience-settings
       const getExperienceSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/experience-settings$/);
       if (httpMethod === "GET" && getExperienceSettingsMatch) {

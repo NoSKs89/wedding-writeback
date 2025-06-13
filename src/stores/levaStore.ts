@@ -1,581 +1,127 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { enableMapSet } from 'immer';
+import { useCreateStore } from 'leva';
 import axios from 'axios';
-import { getApiBaseUrl } from '../config/apiConfig'; // Import the centralized helper
+import { getApiBaseUrl } from '../config/apiConfig';
 
-// ADDED: Call enableMapSet to allow Immer to handle Map and Set structures
+type LevaStore = ReturnType<typeof useCreateStore>;
+
 enableMapSet();
 
-// Type for Leva's folder() return structure (approximated)
-// interface LevaFolderInput { // This was LevaFolderObject.schema's type
-//   [key: string]: any; 
-// }
-
-// Represents a standard control item in a Leva schema
-export interface LevaControlSchemaItem {
-  value: any;
-  label?: string;
-  options?: any[] | Record<string, any>; // For select
-  min?: number;
-  max?: number;
-  step?: number;
-  rows?: number; // For textarea-like string inputs
-  [key: string]: any; // Catch-all for other properties
-}
-
-// Represents a folder item in a Leva schema, mimicking Leva's FolderInput
-export interface LevaSchemaFolder { // Renamed from LevaFolderObject
-  type: 'FOLDER'; // Crucial: Literal type 'FOLDER'
-  schema: LevaFolderSchema; // Recursive definition for the folder's content
-  settings?: { collapsed?: boolean; render?: (get: any) => boolean; [key: string]: any; };
-}
-
-// Represents a Leva schema, which is an object where keys are control/folder names
-// and values are their definitions.
-export interface LevaFolderSchema {
-  [key: string]: LevaControlSchemaItem | LevaSchemaFolder; // Uses updated types
-}
-
-
-// Renamed helper function to avoid conflict with zustand/shallow
-function shallowCompareObjects(obj1: Record<string, any> | undefined, obj2: Record<string, any> | undefined): boolean {
-  if (!obj1 || !obj2) return obj1 === obj2;
-  const keys1 = Object.keys(obj1);
-  const keys2 = Object.keys(obj2);
-  if (keys1.length !== keys2.length) return false;
-  for (const key of keys1) {
-    if (obj1[key] !== obj2[key]) return false;
-  }
-  return true;
-}
-
-// --- ADDED HELPER FUNCTION: deepMerge ---
-function isObject(item: any): item is Record<string, any> {
-  return item && typeof item === 'object' && !Array.isArray(item);
-}
-
-function deepMerge<T extends Record<string, any>>(target: T, source: Record<string, any>): T {
-  const output = { ...target };
-  if (isObject(target) && isObject(source)) {
-    Object.keys(source).forEach(key => {
-      if (isObject(source[key])) {
-        if (!(key in target)) Object.assign(output, { [key]: source[key] });
-        else (output as Record<string, any>)[key] = deepMerge(target[key], source[key]);
-      } else {
-        Object.assign(output, { [key]: source[key] });
-      }
-    });
-  }
-  return output;
-}
-
-// --- ADDED HELPER FUNCTION: unNestFolders ---
-function unNestFolders(
-  nestedData: Record<string, any>,
-  schema: LevaFolderSchema | undefined
-): Record<string, any> {
-  if (!schema || !nestedData) {
-    return nestedData || {};
-  }
-
-  const flatResult: Record<string, any> = {};
-
-  for (const key in nestedData) {
-    const schemaEntry = schema[key];
-    const value = nestedData[key];
-
-    if (
-      schemaEntry &&
-      typeof schemaEntry === 'object' &&
-      (schemaEntry as LevaSchemaFolder).type === 'FOLDER' && // Check for Leva folder structure
-      isObject(value)
-    ) {
-      // It's a folder, recursively un-nest its contents
-      const subSchema = (schemaEntry as LevaSchemaFolder).schema;
-      const unNestedSubFolder = unNestFolders(value, subSchema);
-      for (const subKey in unNestedSubFolder) {
-        flatResult[subKey] = unNestedSubFolder[subKey];
-      }
-    } else {
-      // Not a folder or no schema entry, keep the value as is
-      flatResult[key] = value;
-    }
-  }
-  return flatResult;
-}
-
-// --- ADDED HELPER FUNCTION ---
-function transformFlatToNested(
-  flatData: Record<string, any>,
-  schema: LevaFolderSchema | undefined // schema can be undefined if not yet registered
-): Record<string, any> {
-  if (!schema || !flatData) {
-    return flatData || {};
-  }
-
-  const nestedResult: Record<string, any> = {};
-  const flatDataCopy = { ...flatData }; // Work on a copy
-
-  // First, populate top-level keys that are not folders
-  for (const schemaKey in schema) {
-    const schemaEntry = schema[schemaKey];
-    if (
-      !(
-        schemaEntry &&
-        typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
-        schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
-        typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
-      ) && 
-      flatDataCopy.hasOwnProperty(schemaKey)
-    ) {
-      nestedResult[schemaKey] = flatDataCopy[schemaKey];
-      delete flatDataCopy[schemaKey]; 
-    } else if (
-        !(
-        schemaEntry &&
-        typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
-        schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
-        typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
-      )
-    ) {
-         if (schemaEntry && typeof schemaEntry === 'object' && !('type' in schemaEntry && schemaEntry.type === 'FOLDER') && 'value' in schemaEntry) {
-            nestedResult[schemaKey] = (schemaEntry as LevaControlSchemaItem).value;
-        }
-    }
-  }
-
-  // Then, process folders
-  for (const schemaKey in schema) {
-    const schemaEntry = schema[schemaKey];
-
-    if (
-      schemaEntry &&
-      typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
-      schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
-      typeof (schemaEntry as any).schema === 'object' // Ensure the sub-schema is an object
-    ) {
-      const subSchema = (schemaEntry as any).schema;
-      const subFolderData = transformFlatToNested(flatDataCopy, subSchema);
-      nestedResult[schemaKey] = subFolderData;
-
-      for (const subKey in subSchema) {
-        if (flatDataCopy.hasOwnProperty(subKey)) {
-          delete flatDataCopy[subKey];
-        }
-      }
-    }
-  }
-  return nestedResult;
-}
-
-// Corrected and simplified helper function to flatten data for Leva's setter
-function flattenDataForLevaSetter(
-  data: Record<string, any>,
-  schema: LevaFolderSchema, // The schema for the current level of data
-  keyPrefix: string = ''    // The prefix for keys at the current level of recursion
-): Record<string, any> {
-  const flattened: Record<string, any> = {};
-  for (const key in data) {
-    if (!data.hasOwnProperty(key)) continue;
-
-    const schemaEntry = schema[key]; // Schema definition for the current key
-    const value = data[key];    // Value for the current key
-
-    if (
-      schemaEntry &&
-      typeof schemaEntry === 'object' && schemaEntry !== null && // Ensure schemaEntry is an object
-      schemaEntry.hasOwnProperty('schema') && // Check if it defines a sub-schema (Leva's folder() pattern)
-      typeof (schemaEntry as any).schema === 'object' && // Ensure the sub-schema is an object
-      isObject(value) // Ensure the data for the folder is an object
-    ) {
-      // It's a folder. Recursively flatten its contents.
-      const subSchema = (schemaEntry as any).schema; // Get the sub-schema
-      const newPrefixForSubItems = keyPrefix ? `${keyPrefix}${key}.` : `${key}.`;
-      Object.assign(
-        flattened,
-        flattenDataForLevaSetter(value, subSchema, newPrefixForSubItems)
-      );
-    } else {
-      // It's a simple control (not a folder).
-      // Prepend the current keyPrefix to this control's key.
-      flattened[`${keyPrefix}${key}`] = value;
-    }
-  }
-  return flattened;
-}
-
-// REMOVED OLD LevaControlSchemaItem (now defined at top)
-// REMOVED OLD LevaFolderSchema (now defined at top)
-// REMOVED OLD LevaFolderObject (now LevaSchemaFolder, defined at top)
+export type LevaFolderSchema = any;
 
 export interface LevaStoreState {
-  rawDbSettings: { [folderName: string]: Record<string, any> }; 
+  rawDbSettings: { [folderName: string]: Record<string, any> };
   controlValues: { [folderName: string]: Record<string, any> };
   initialControlValues: { [folderName: string]: Record<string, any> };
   changedKeys: { [folderName: string]: Set<string> };
-  schemas: { [folderName: string]: LevaFolderSchema }; // Uses new LevaFolderSchema
-  levaSetters: { [folderName: string]: (values: Record<string, any>) => void }; 
-  currentPreviewingSlot: number; // ADDED: To track the currently loaded/previewed slot
-
-  // Actions
-  registerControls: (folderName: string, schema: LevaFolderSchema, initialValuesFromLevaSchema: Record<string, any>, setter: (values: Record<string, any>) => void) => void;
+  schemas: { [folderName: string]: LevaFolderSchema };
+  levaSetters: { [folderName: string]: (values: Record<string, any>) => void };
+  currentPreviewingSlot: number;
+  isLoading: boolean;
+  error: string | null;
+  levaStore: LevaStore | null;
+  initializeLevaStore: (store: LevaStore) => void;
+  registerControls: (folderName: string, schema: LevaFolderSchema, initialValues: Record<string, any>, setter: (values: Record<string, any>) => void) => void;
   updateControlValues: (folderName: string, newValues: Record<string, any>) => void;
   getSettingsForSave: () => { [folderName: string]: Record<string, any> };
-  loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }, slotNumber?: number) => void; // MODIFIED: slotNumber is optional for initial load via prop
-  getDisplayDataForHUD: () => Array<{ folderName: string; key: string; label: string; value: any; isChanged: boolean }>;
-  
-  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>; // MODIFIED: Added slotNumber
-  loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>; // MODIFIED: Added slotNumber
-  switchPreviewingSlot: (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => Promise<void>; // ADDED: Action to switch slots
+  loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }, slotNumber?: number) => void;
+  loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>;
+  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>;
+  switchPreviewingSlot: (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => Promise<void>;
 }
-
-// Explicitly define the type for the store hook if direct create is problematic
-// type LevaStoreHook = UseBoundStore<StoreApi<LevaStoreState>>;
-
-// MOVED to src/config/apiConfig.js
-// const getApiBaseUrl = () => {
-//   const useLocalBackend = process.env.NODE_ENV === 'development'; // Basic check, can be more sophisticated
-//   const localApiBaseUrl = 'http://localhost:5000/api';
-//   const awsApiBaseUrl = 'https://dzqec1uyx0.execute-api.us-east-1.amazonaws.com/dev/api'; // Replace with your actual deployed URL if different
-//   return useLocalBackend ? localApiBaseUrl : awsApiBaseUrl;
-// };
-
-const flattenObject = (obj: Record<string, any>, prefix = '', result: Record<string, any> = {}): Record<string, any> => {
-  for (const key in obj) {
-    if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-      const schemaItemCandidate = obj[key];
-      // Updated check for LevaControlSchemaItem-like structure
-      if (typeof schemaItemCandidate.value !== 'undefined' && (typeof schemaItemCandidate.label !== 'undefined' || Object.keys(schemaItemCandidate).length === 1)) {
-         result[prefix + key] = schemaItemCandidate.value; 
-      } else {
-        // Check if it's a LevaSchemaFolder-like structure before recursing
-        // This part is tricky; flattenObject's purpose is to get to raw values.
-        // If schemaItemCandidate is a nested object of values (like a folder's content in controlValues), recurse.
-        // If it's a schema definition itself, we'd take 'value'.
-        // Since this `obj` comes from controlValues, it should be data, not schema.
-        flattenObject(obj[key], prefix + key + '.', result);
-      }
-    } else {
-      result[prefix + key] = obj[key];
-    }
-  }
-  return result;
-};
 
 export const useLevaStore = create<LevaStoreState>()(
   immer((set, get) => ({
-    rawDbSettings: {}, 
+    rawDbSettings: {},
     controlValues: {},
     initialControlValues: {},
     changedKeys: {},
     schemas: {},
     levaSetters: {},
-    currentPreviewingSlot: 1, // ADDED: Default to slot 1
+    currentPreviewingSlot: 1,
+    isLoading: false,
+    error: null,
+    levaStore: null,
 
-    registerControls: (folderName, schema, initialValuesFromLevaSchema, setter) => {
-      console.log(`[LevaStore] registerControls CALLED for folder: "${folderName}"`);
-      set((state) => {
-        state.schemas[folderName] = schema;
-        state.levaSetters[folderName] = setter;
+    initializeLevaStore: (storeInstance) => {
+      set(state => { state.levaStore = storeInstance; });
+    },
 
-        let finalValuesForStore = { ...initialValuesFromLevaSchema }; 
-
-        const rawFolderSettingsFromDB = state.rawDbSettings[folderName];
-
-        if (rawFolderSettingsFromDB) {
-          console.log(`[LevaStore registerControls - "${folderName}"] Found raw DB settings. Transforming and merging.`);
-          const transformedDbSettings = transformFlatToNested(rawFolderSettingsFromDB, schema);
-          console.log(`[LevaStore registerControls - "${folderName}"] Transformed DB settings:`, JSON.parse(JSON.stringify(transformedDbSettings)));
-          
-          finalValuesForStore = deepMerge(initialValuesFromLevaSchema, transformedDbSettings);
-           console.log(`[LevaStore registerControls - "${folderName}"] Merged with Leva defaults (DB takes precedence):`, JSON.parse(JSON.stringify(finalValuesForStore)));
-        } else {
-          console.log(`[LevaStore registerControls - "${folderName}"] No raw DB settings found. Using Leva schema defaults.`);
-        }
-        
-        state.controlValues[folderName] = { ...finalValuesForStore };
-        state.initialControlValues[folderName] = { ...finalValuesForStore }; 
-        state.changedKeys[folderName] = new Set<string>(); 
-
-        if (setter) {
-          // ALWAYS use flattenDataForLevaSetter for all folder types
-          const dataForLeva = flattenDataForLevaSetter(finalValuesForStore, schema);
-          console.log(`[LevaStore registerControls - "${folderName}"] Syncing ALL store values (flattened for Leva) to Leva panel. Data:`, JSON.parse(JSON.stringify(dataForLeva)));
-          if (Object.keys(dataForLeva).length > 0) {
-            setTimeout(() => {
-              setter(dataForLeva);
-            }, 0);
-          } else {
-            console.log(`[LevaStore registerControls - "${folderName}"] No data to set to Leva panel, or finalValuesForStore was effectively empty after flattening.`);
-          }
-        } else {
-            console.warn(`[LevaStore registerControls - "${folderName}"] Leva setter not provided during registration.`);
+    registerControls: (folderName, schema, initialValues, setter) => {
+      set(state => {
+        if (!state.schemas[folderName]) {
+          state.schemas[folderName] = schema;
+          state.levaSetters[folderName] = setter;
+          state.initialControlValues[folderName] = initialValues;
+          state.controlValues[folderName] = initialValues;
+          state.changedKeys[folderName] = new Set();
         }
       });
     },
 
     updateControlValues: (folderName, newValues) => {
-      set((state) => {
-        if (!state.controlValues[folderName]) {
-          console.warn(`[LevaStore updateControlValues] Folder "${folderName}" not found in controlValues. Initializing.`);
-          state.controlValues[folderName] = {}; 
-        }
-        if (!state.initialControlValues[folderName]) {
-          console.warn(`[LevaStore updateControlValues] Folder "${folderName}" not found in initialControlValues. This should not happen if registration is correct.`);
-          const schema = state.schemas[folderName];
-          let schemaDefaults: Record<string, any> = {}; 
-          if (schema) {
-            Object.keys(schema).forEach(key => {
-              const schemaEntry = schema[key]; 
-              // Updated type check for LevaControlSchemaItem
-              if (schemaEntry && typeof schemaEntry === 'object' && 'value' in schemaEntry && (schemaEntry as any).type !== 'FOLDER') {
-                schemaDefaults[key] = (schemaEntry as LevaControlSchemaItem).value;
-              }
-            });
-          }
-          state.initialControlValues[folderName] = schemaDefaults;
-        }
-        if (!state.changedKeys[folderName]) {
-          state.changedKeys[folderName] = new Set<string>();
-        }
-
-        state.controlValues[folderName] = deepMerge(state.controlValues[folderName] || {}, newValues);
-
-        const flatCurrent = flattenObject(state.controlValues[folderName]);
-        const flatInitial = flattenObject(state.initialControlValues[folderName]);
-        
-        Object.keys(flatCurrent).forEach(key => {
-          if (flatCurrent[key] !== flatInitial[key]) {
-            state.changedKeys[folderName].add(key);
-          } else {
-            state.changedKeys[folderName].delete(key);
-          }
-        });
-         console.log(`[LevaStore updateControlValues - "${folderName}"] Values updated:`, JSON.parse(JSON.stringify(state.controlValues[folderName])), `Changed keys: ${Array.from(state.changedKeys[folderName])}`);
+      set(state => {
+        state.controlValues[folderName] = newValues;
       });
     },
 
     getSettingsForSave: () => {
-      const state = get();
-      const settingsToSave: { [folderName: string]: Record<string, any> } = {};
-      for (const folderName in state.controlValues) {
-        const schema = state.schemas[folderName]; 
-        settingsToSave[folderName] = unNestFolders(state.controlValues[folderName], schema);
-      }
-      console.log('[LevaStore getSettingsForSave] Settings prepared for saving (flattened):', settingsToSave);
-      return settingsToSave;
+      return get().controlValues;
     },
 
-    loadSettingsFromDB: (settings, slotNumber) => { // MODIFIED: Accept slotNumber
-      console.log(`[LevaStore] loadSettingsFromDB CALLED for slot ${slotNumber !== undefined ? slotNumber : '(not specified, initial prop load)'} with:`, settings);
-      set((state) => {
-        if (typeof slotNumber === 'number') {
+    loadSettingsFromDB: (settings, slotNumber) => {
+      set(state => {
+        if (slotNumber) {
           state.currentPreviewingSlot = slotNumber;
         }
-        const newRawDbSettings: { [folderName: string]: Record<string, any> } = {};
-        for (const oldFolderName in settings) {
-          // Attempt to parse old folder name to generate new simplified name
-          // This logic needs to be robust enough to handle various old naming patterns
-          // and match the new simplified naming convention used in GuestExperience.jsx
-          let newFolderName = oldFolderName;
-          const match = oldFolderName.match(/^Element\s(\d+)\s\(([^)]+)\)$/);
-          const componentMatch = oldFolderName.match(/^(Overall Controls \(Guest\)|Dynamic Background Gradient|RSVP Form Style|Scrapbook Layout \(Guest\))$/);
-
-          if (match && match[1] && match[2]) {
-            const id = match[1];
-            const nameOrType = match[2];
-            // Replicate the simplification logic from GuestExperience.jsx
-            // This is a simplified assumption; GuestExperience might have more complex logic
-            // if element.type was used when name wasn't present.
-            // For now, assume name was always present in the old complex key if it had parentheses.
-            const simplifiedNameOrType = nameOrType.replace(/\s+/g, '_');
-            newFolderName = `element_${id}_${simplifiedNameOrType}`;
-          } else if (componentMatch) {
-            // For known, static folder names, keep them as is (or simplify if needed)
-            // For now, assume these names don't need to change or are already simple enough
-            newFolderName = oldFolderName; // Or apply a specific simplification if their registration also changed
-          } else {
-            // Fallback for any other folder names not matching the patterns
-            // This might include new controls or ones that don't follow the element pattern
-            console.warn(`[LevaStore loadSettingsFromDB] Unrecognized folder name pattern: "${oldFolderName}". Using as is or consider specific transformation.`);
-            // newFolderName = oldFolderName; // Or apply a default simplification
-          }
-          newRawDbSettings[newFolderName] = settings[oldFolderName];
-        }
-        // state.rawDbSettings = newRawDbSettings; // This was for multiple folders from a single DB load.
-        // Now, 'settings' IS the data for the current slot's folders.
-        // So, rawDbSettings should be cleared and repopulated for the specific folders in 'settings'.
+        state.controlValues = settings;
+        state.initialControlValues = settings;
+        state.rawDbSettings = settings;
         
-        // Clear previous rawDbSettings for all folders before loading new slot data.
-        // Or, more precisely, 'settings' itself represents the collection of folder data for the slot.
-        state.rawDbSettings = { ...settings }; // Assuming 'settings' is { folderName1: data, folderName2: data } for the slot.
-
-        console.log(`[LevaStore loadSettingsFromDB] Raw DB settings for slot ${state.currentPreviewingSlot} stored:`, JSON.parse(JSON.stringify(state.rawDbSettings)));
-
-        Object.keys(state.schemas).forEach(folderName => {
-          const schema = state.schemas[folderName];
-          const setter = state.levaSetters[folderName];
-          const rawFolderSettingsFromDB = state.rawDbSettings[folderName];
-
-          if (schema && setter && rawFolderSettingsFromDB) {
-            console.log(`[LevaStore loadSettingsFromDB - PostProcessing] Re-applying settings for already registered folder: "${folderName}"`);
-            
-            const initialValuesFromLevaSchema: Record<string, any> = {};
-            Object.entries(schema).forEach(([key, schemaEntryUntyped]) => {
-                const schemaEntry = schemaEntryUntyped as LevaControlSchemaItem | LevaSchemaFolder; // Keep this cast for clarity of intent
-                // Updated type check for LevaControlSchemaItem vs LevaSchemaFolder
-                if (typeof schemaEntry === 'object' && schemaEntry !== null && 'value' in schemaEntry && (schemaEntry as any).type !== 'FOLDER') {
-                    initialValuesFromLevaSchema[key] = (schemaEntry as LevaControlSchemaItem).value;
-                } else if (typeof schemaEntry === 'object' && schemaEntry !== null && (schemaEntry as any).type === 'FOLDER' && 'schema' in schemaEntry) {
-                    const subSchema = (schemaEntry as LevaSchemaFolder).schema; // Safe to cast here
-                    const subDefaults: Record<string, any> = {};
-                    Object.entries(subSchema).forEach(([subKey, subSchemaEntryUntypedFromSub]) => {
-                        const subSchemaEntry = subSchemaEntryUntypedFromSub as LevaControlSchemaItem | LevaSchemaFolder;
-                        if (typeof subSchemaEntry === 'object' && subSchemaEntry !== null && 'value' in subSchemaEntry && (subSchemaEntry as any).type !== 'FOLDER') {
-                            subDefaults[subKey] = (subSchemaEntry as LevaControlSchemaItem).value;
-                        }
-                    });
-                    initialValuesFromLevaSchema[key] = subDefaults;
-                }
-            });
-
-            const transformedDbSettings = transformFlatToNested(rawFolderSettingsFromDB, schema);
-            const finalValuesForStore = deepMerge(initialValuesFromLevaSchema, transformedDbSettings);
-
-            state.controlValues[folderName] = { ...finalValuesForStore };
-            state.initialControlValues[folderName] = { ...finalValuesForStore };
-            state.changedKeys[folderName] = new Set<string>();
-            
-            // ALWAYS call the setter with flattened data for all folder types during post-processing.
-            const dataForLevaPostProcessing = flattenDataForLevaSetter(finalValuesForStore, schema);
-            console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] Calling Leva setter with re-processed DB values (flattened). Data:`, JSON.parse(JSON.stringify(dataForLevaPostProcessing)));
-            if (Object.keys(dataForLevaPostProcessing).length > 0) {
-                setTimeout(() => {
-                    setter(dataForLevaPostProcessing);
-                }, 0);
-            } else {
-                console.log(`[LevaStore loadSettingsFromDB - PostProcessing "${folderName}"] No data to set to Leva panel after post-processing and flattening.`);
-            }
-          } else {
-             if (!rawFolderSettingsFromDB) {
-                // console.log(`[LevaStore loadSettingsFromDB - PostProcessing] No raw DB settings for already registered folder: "${folderName}". Skipping re-application.`);
-             }
-             // if (!schema || !setter) console.log(`[LevaStore loadSettingsFromDB - PostProcessing] Schema or setter missing for "${folderName}". Skipping re-application.`);
-          }
+        Object.keys(state.changedKeys).forEach(folderName => {
+            state.changedKeys[folderName].clear();
         });
       });
-
-      console.log('[LevaStore] Finished loading settings into store.');
     },
 
-    getDisplayDataForHUD: () => {
-      const state = get();
-      const displayData = [];
-      for (const folderName in state.controlValues) {
-        const schema = state.schemas[folderName];
-        const flatCurrentValues = flattenObject(state.controlValues[folderName]);
-        const flatInitialValues = flattenObject(state.initialControlValues[folderName]);
-
-        for (const key in flatCurrentValues) {
-          let label = key;
-          const keyParts = key.split('.');
-          let currentSchemaLevel: LevaFolderSchema | LevaControlSchemaItem | LevaSchemaFolder | undefined = schema; 
-          for (let i = 0; i < keyParts.length; i++) {
-            const part = keyParts[i];
-            if (currentSchemaLevel && typeof currentSchemaLevel === 'object' && part in currentSchemaLevel) {
-              currentSchemaLevel = (currentSchemaLevel as Record<string, LevaControlSchemaItem | LevaSchemaFolder>)[part]; 
-              // Updated type check for LevaControlSchemaItem vs LevaSchemaFolder
-              if (i === keyParts.length - 1 && typeof currentSchemaLevel === 'object' && currentSchemaLevel !== null && 'label' in currentSchemaLevel && (currentSchemaLevel as any).type !== 'FOLDER') {
-                label = (currentSchemaLevel as LevaControlSchemaItem).label || label;
-              } else if (typeof currentSchemaLevel === 'object' && currentSchemaLevel !== null && (currentSchemaLevel as any).type === 'FOLDER' && 'schema' in currentSchemaLevel){
-                if (i < keyParts.length -1) {
-                    currentSchemaLevel = (currentSchemaLevel as LevaSchemaFolder).schema; // Safe to cast here
-                } 
-              }
-            } else {
-              break; 
-            }
-          }
-          
-          const value = flatCurrentValues[key];
-          const isChanged = state.changedKeys[folderName]?.has(key) || flatCurrentValues[key] !== flatInitialValues[key];
-          displayData.push({ folderName, key, label, value, isChanged });
-        }
-      }
-      return displayData;
-    },
-
-    saveSettingsToServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // MODIFIED: Added slotNumber
-      const settings = get().getSettingsForSave(); 
-      const apiBase = getApiBaseUrl();
-      // Backend endpoint will need to handle slotNumber, e.g., in query param or body
-      const endpoint = `${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`; 
-      try {
-        console.log(`[LevaStore saveSettingsToServer] Saving to ${endpoint} for slot ${slotNumber}:`, settings);
-        // The backend will need to know which slot to save to.
-        // This could be a query parameter: `${endpoint}?slot=${slotNumber}`
-        // Or part of the POST body: { settings, slotNumber }
-        // For this example, let's assume it's part of the body.
-        await axios.post(endpoint, { settings, slotNumber }); 
-        console.log(`[LevaStore saveSettingsToServer] Settings for slot ${slotNumber} saved successfully.`);
-        set(state => {
-          Object.keys(state.changedKeys).forEach(folderName => {
-            state.changedKeys[folderName] = new Set<string>();
-          });
-          Object.keys(state.controlValues).forEach(folderName => {
-            state.initialControlValues[folderName] = JSON.parse(JSON.stringify(state.controlValues[folderName])); 
-          });
-        });
-
-      } catch (error) {
-        console.error('[LevaStore saveSettingsToServer] Error saving settings:', error);
-        throw error; 
-      }
-    },
-
-    loadSettingsFromServer: async (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => { // ADDED slotNumber
+    loadSettingsFromServer: async (weddingId, viewType, slotNumber) => {
+      set({ isLoading: true, error: null });
       const apiBase = getApiBaseUrl();
       try {
-        console.log(`[LevaStore] Loading settings for slot ${slotNumber} from server...`);
-        // Pass slotNumber as a query parameter
         const response = await axios.get(`${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`, {
-          params: { slotNumber: slotNumber }
+          params: { slotNumber }
         });
-
-        const { settings } = response.data;
-        if (settings && typeof settings === 'object' && Object.keys(settings).length > 0) {
-          // Use the existing loadSettingsFromDB action to populate the store
-          useLevaStore.getState().loadSettingsFromDB(settings, slotNumber);
+        if (response.data.settings && Object.keys(response.data.settings).length > 0) {
+          get().loadSettingsFromDB(response.data.settings, slotNumber);
         } else {
-          console.log(`[LevaStore loadSettingsFromServer] No settings found on server for slot ${slotNumber} or unexpected format.`);
-           // If a slot is not found, we should clear the settings or load defaults.
-           // For now, let's load empty settings, which should reset Leva to schema defaults.
           get().loadSettingsFromDB({}, slotNumber);
         }
-      } catch (error) {
-        // @ts-ignore
-        if (error.response && error.response.status === 404) {
-          console.log(`[LevaStore loadSettingsFromServer] No settings found on server for slot ${slotNumber} (404). Loading empty/default settings.`);
-           get().loadSettingsFromDB({}, slotNumber); // Load empty settings to reset to defaults
-        } else {
-          console.error(`[LevaStore loadSettingsFromServer] Error loading settings for slot ${slotNumber}:`, error);
-          throw error; 
-        }
+        set({ isLoading: false });
+      } catch (error: any) {
+        console.error(`Error loading settings for slot ${slotNumber}:`, error);
+        get().loadSettingsFromDB({}, slotNumber);
+        set({ isLoading: false, error: error.message || 'Failed to fetch layout.' });
       }
     },
 
-    // ADDED: Action to switch previewing slot
-    switchPreviewingSlot: async (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => {
-      console.log(`[LevaStore] switchPreviewingSlot CALLED for slot: ${newSlotNumber}`);
-      // Optional: Could add logic here to check for unsaved changes in the current slot
-      // and prompt the user before switching. For now, direct switch.
-      set(state => {
-        state.currentPreviewingSlot = newSlotNumber;
-      });
-      // Load settings for the new slot
+    saveSettingsToServer: async (weddingId, viewType, slotNumber) => {
+      const settingsToSave = get().getSettingsForSave();
+      const apiBase = getApiBaseUrl();
+      try {
+        await axios.post(`${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`, {
+          slotNumber,
+          settings: settingsToSave
+        });
+      } catch (error: any) {
+        console.error(`Error saving settings for slot ${slotNumber}:`, error);
+        throw error;
+      }
+    },
+
+    switchPreviewingSlot: async (weddingId, viewType, newSlotNumber) => {
       await get().loadSettingsFromServer(weddingId, viewType, newSlotNumber);
-      console.log(`[LevaStore] switchPreviewingSlot: Settings for slot ${newSlotNumber} loaded and Leva panels should be updated.`);
-    }
+    },
   }))
-); 
+);

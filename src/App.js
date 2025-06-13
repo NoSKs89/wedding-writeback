@@ -9,10 +9,12 @@ import {
   useNavigate
 } from 'react-router-dom';
 import { ParallaxProvider } from 'react-scroll-parallax';
+import { LevaStoreProvider, useCreateStore } from 'leva'; // IMPORT THE PROVIDER AND HOOK
 import './App.css';
 import WeddingJourney from './components/WeddingJourney'; // Original Journey - RE-ADDED
 import GuestExperience from './components/GuestExperience/GuestExperience'; // New Guest Experience
 import axios from 'axios'; // Import axios
+import { debounce } from 'lodash'; // ADD THIS IMPORT
 import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
 import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Ensure this is the correct path and component name
 import { SetupModeProvider, useSetupMode } from './contexts/SetupModeContext'; // UPDATED: Added useSetupMode
@@ -23,6 +25,8 @@ import FontGrabber from './components/FontGrabber'; // ADDED
 import AccountSetupPage from './components/SetupPage/AccountSetupPage';
 import ExperienceSetupPage from './components/ExperienceSetupPage/ExperienceSetupPage'; // Added import
 import HowToPage from './components/SetupPage/HowToPage'; // Added import for HowToPage
+import MobileLayoutEditor from './components/SetupPage/MobileLayoutEditor'; // ADDED
+import MobileLayoutPreview from './components/SetupPage/MobileLayoutPreview'; // ADDED
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -59,7 +63,7 @@ const formatDate = (isoDateString) => {
 };
 
 // ADDED: transformWeddingData function
-const transformWeddingData = (sourceData) => {
+export const transformWeddingData = (sourceData) => {
   if (!sourceData || !sourceData.customId) {
     console.warn('[App.js] transformWeddingData: sourceData is null or missing customId. Returning null.');
     return null;
@@ -112,7 +116,32 @@ const WeddingPageController = ({ isSetupMode = false }) => {
   const { weddingId } = useParams();
   const [currentWeddingData, setCurrentWeddingData] = useState(null);
   const [error, setError] = useState(null); // State for API errors
-  const isMobile = useIsMobile(); // ADDED
+  const isMobile = useIsMobile();
+  const store = useLevaStore(); // Zustand store, not Leva store
+
+  // --- ADDED: Auto-save logic for setup mode ---
+  const debouncedSave = useCallback(debounce((settings) => {
+    if (!isSetupMode) return;
+    if (!settings || Object.keys(settings).length === 0) {
+        console.log('Auto-save skipped: No settings to save.');
+        return;
+    }
+    const viewType = isMobile ? 'mobile' : 'desktop';
+    const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/${viewType}`;
+    axios.post(apiUrl, { settings })
+        .then(response => console.log(`${viewType} preview auto-saved.`, response.data.message))
+        .catch(err => console.error(`Error auto-saving ${viewType} preview:`, err.response?.data?.message || err.message));
+  }, 500), [weddingId, isMobile, isSetupMode]);
+
+  const handleControlChange = useCallback(() => {
+    if (!isSetupMode) return;
+    setTimeout(() => {
+      // getSettingsForSave now comes from the zustand store
+      const newSettings = store.getSettingsForSave();
+      debouncedSave(newSettings);
+    }, 100);
+  }, [store, debouncedSave, isSetupMode]);
+  // --- END ADDED ---
 
   useEffect(() => {
     const fetchWeddingData = async () => {
@@ -134,22 +163,47 @@ const WeddingPageController = ({ isSetupMode = false }) => {
           
           // Explicitly set initialElementLayouts based on view type AND default slot AFTER base transformation
           if (transformedData && transformedData.experienceSettings && transformedData.allLayoutSlots) {
-            const defaultSlot = isMobile 
-              ? (transformedData.experienceSettings.defaultLayoutSlotMobile || 1)
-              : (transformedData.experienceSettings.defaultLayoutSlotDesktop || 1);
-              
-            let layoutDataForDefaultSlot = {};
+            const viewType = isMobile ? 'mobile' : 'desktop';
+            let initialLayout = {};
 
-            if (isMobile) {
-              layoutDataForDefaultSlot = transformedData.allLayoutSlots.mobile[defaultSlot] || {};
-              console.log(`[App.js] WeddingPageController: Populating initialElementLayouts with MOBILE settings for SLOT ${defaultSlot}:`, layoutDataForDefaultSlot);
-            } else {
-              layoutDataForDefaultSlot = transformedData.allLayoutSlots.desktop[defaultSlot] || {};
-              console.log(`[App.js] WeddingPageController: Populating initialElementLayouts with DESKTOP settings for SLOT ${defaultSlot}:`, layoutDataForDefaultSlot);
+            // If in setup mode, try loading from preview endpoint first
+            if (isSetupMode) {
+              const previewApiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/${viewType}`;
+              try {
+                const previewResponse = await axios.get(previewApiUrl);
+                if (previewResponse.data.settings && Object.keys(previewResponse.data.settings).length > 0) {
+                  initialLayout = previewResponse.data.settings;
+                  console.log(`[WeddingPageController] Loaded ${viewType} settings from PREVIEW.`);
+                }
+              } catch (previewErr) {
+                console.warn(`[WeddingPageController] Could not fetch ${viewType} preview settings, will load from slot.`, previewErr.message);
+              }
             }
-            transformedData.initialElementLayouts = layoutDataForDefaultSlot;
+
+            // If no preview data (or not in setup mode), load from default slot
+            if (Object.keys(initialLayout).length === 0) {
+              const defaultSlot = isMobile 
+                ? (transformedData.experienceSettings.defaultLayoutSlotMobile || 1)
+                : (transformedData.experienceSettings.defaultLayoutSlotDesktop || 1);
+              
+              const slotData = isMobile 
+                ? transformedData.allLayoutSlots.mobile[defaultSlot] 
+                : transformedData.allLayoutSlots.desktop[defaultSlot];
+              
+              initialLayout = slotData || {};
+              console.log(`[WeddingPageController] Populating initialElementLayouts with ${viewType.toUpperCase()} settings for SLOT ${defaultSlot}:`, initialLayout);
+              transformedData.defaultLayoutSlotToLoad = defaultSlot;
+            } else {
+              // If we loaded from preview, still tell Leva which slot is the "active" one
+               const defaultSlot = isMobile 
+                ? (transformedData.experienceSettings.defaultLayoutSlotMobile || 1)
+                : (transformedData.experienceSettings.defaultLayoutSlotDesktop || 1);
+              transformedData.defaultLayoutSlotToLoad = store.getState().currentPreviewingSlot || defaultSlot;
+            }
+
+            transformedData.initialElementLayouts = initialLayout;
             // Pass the default slot to GuestExperience so it can initialize its controls
-            transformedData.defaultLayoutSlotToLoad = defaultSlot; 
+            // transformedData.defaultLayoutSlotToLoad = defaultSlot; 
 
           } else {
             console.warn('[App.js] WeddingPageController: Missing experienceSettings or allLayoutSlots in transformedData. Cannot set initial layouts.');
@@ -185,7 +239,7 @@ const WeddingPageController = ({ isSetupMode = false }) => {
     };
 
     fetchWeddingData();
-  }, [weddingId, isMobile]);
+  }, [weddingId, isMobile, isSetupMode]); // Added isSetupMode to dependencies
 
   useEffect(() => {
     if (currentWeddingData && currentWeddingData.eventName) {
@@ -227,9 +281,10 @@ const WeddingPageController = ({ isSetupMode = false }) => {
   return <GuestExperience 
     weddingDataFromApp={currentWeddingData} 
     experienceSettingsFromApp={currentWeddingData.experienceSettings} 
-    weddingIdFromApp={weddingId} // Pass weddingId for any internal use if needed
-    defaultLayoutSlotToLoad={currentWeddingData.defaultLayoutSlotToLoad} // ADDED: Pass the determined default slot
-    isSetupMode={isSetupMode} // Pass down the setup mode flag
+    weddingIdFromApp={weddingId}
+    defaultLayoutSlotToLoad={currentWeddingData.defaultLayoutSlotToLoad}
+    isSetupMode={isSetupMode}
+    onControlChange={isSetupMode ? handleControlChange : () => {}}
   />;
 };
 
@@ -239,7 +294,7 @@ const MainAppContent = () => {
   const isMobile = useIsMobile(); // ADDED: Define isMobile here
   const [defaultWeddingIdToUse, setDefaultWeddingIdToUse] = useState('erickson2025');
 
-  // Get showGuideLines from Zustand store
+  // Get showGuideLines from Zustand store, but now pass it our central store
   const showGuideLinesFromStore = useLevaStore(state => state.controlValues.overallControls?.toggleGuideLines);
 
   useEffect(() => {
@@ -277,6 +332,7 @@ const MainAppContent = () => {
       )}
       <Routes>
         <Route path="/:weddingId" element={<WeddingPageController isSetupMode={false} />} />
+        <Route path="/:weddingId/mobile-preview" element={<MobileLayoutPreview />} />
         {defaultWeddingIdToUse && (
           <Route path="/" element={<Navigate to={`/${defaultWeddingIdToUse}`} replace />} />
         )}
@@ -287,6 +343,7 @@ const MainAppContent = () => {
           <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
           <Route path="layout" element={<WeddingPageController isSetupMode={true} />} />
+          <Route path="layoutmobile" element={<MobileLayoutEditor />} />
           <Route path="account" element={<AccountSetupPage />} />
           <Route path="experience" element={<ExperienceSetupPage />} />
           <Route path="how-to" element={<HowToPage />} />
@@ -310,95 +367,30 @@ const googleFontsToLoad = [
 ];
 
 function App() {
+  // Create the single, global Leva store here. This is the key to the fix.
+  const levaStore = useCreateStore();
+  const initializeLevaStore = useLevaStore((state) => state.initializeLevaStore);
+
+  // On initial mount, pass the created Leva store instance to our Zustand store.
+  useEffect(() => {
+    if (initializeLevaStore) {
+      initializeLevaStore(levaStore);
+    }
+  }, [initializeLevaStore, levaStore]);
+
   return (
-    <ParallaxProvider>
-      <SetupModeProvider>
-        <Router>
-          <FontGrabber fonts={googleFontsToLoad} />
-          <MainAppContent />
-        </Router>
-      </SetupModeProvider>
-    </ParallaxProvider>
+    // Provide the store to the entire application.
+    <LevaStoreProvider store={levaStore}>
+      <ParallaxProvider>
+        <SetupModeProvider>
+          <Router>
+            <FontGrabber fonts={googleFontsToLoad} />
+            <MainAppContent />
+          </Router>
+        </SetupModeProvider>
+      </ParallaxProvider>
+    </LevaStoreProvider>
   );
 }
-
-// Placeholder wrapper component to set setup mode for WeddingJourney
-// This will eventually fetch weddingData similar to WeddingPageController
-// or WeddingPageController will be refactored to be more versatile.
-const WeddingJourneyWrapperForSetup = () => {
-  const { weddingId } = useParams();
-  const { setIsSetupMode } = useSetupMode(); // Removed isSetupMode as it's not used directly here
-  const isMobile = useIsMobile();
-  const [weddingDataForLeva, setWeddingDataForLeva] = useState(null);
-  const [elementLayoutsForLeva, setElementLayoutsForLeva] = useState(undefined);
-  const [resolvedScrapbookImages, setResolvedScrapbookImages] = useState([]); // Added for scrapbook images
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    setIsSetupMode(true);
-    return () => setIsSetupMode(false);
-  }, [setIsSetupMode, weddingId]);
-
-  useEffect(() => {
-    const fetchAndTransform = async () => {
-      if (!weddingId) return;
-      try {
-        const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}`;
-        const response = await axios.get(apiUrl);
-        const transformed = transformWeddingData(response.data);
-        setWeddingDataForLeva(transformed);
-
-        if (transformed && transformed.scrapbookImages) {
-           const imagePaths = transformed.scrapbookImages.map(img => {
-            if (img.fileName && (img.fileName.startsWith('http://') || img.fileName.startsWith('https://'))) {
-              return img.fileName;
-            }
-            const folder = transformed.scrapbookImageFolder.endsWith('/') ? transformed.scrapbookImageFolder : transformed.scrapbookImageFolder + '/';
-            const name = img.fileName.startsWith('/') ? img.fileName.substring(1) : img.fileName;
-            return folder + name;
-          });
-          setResolvedScrapbookImages(imagePaths);
-        }
-
-        const viewType = isMobile ? 'mobile' : 'desktop';
-        // console.log(`[App.js] WeddingJourneyWrapperForSetup: Attempting to load ${viewType} layout settings for ${weddingId}`);
-        const layoutSettingsResponse = await axios.get(`${getApiBaseUrl()}/weddings/${weddingId}/layout-settings?view=${viewType}`);
-        setElementLayoutsForLeva(layoutSettingsResponse.data || {});
-        // console.log(`[App.js] WeddingJourneyWrapperForSetup: Layout settings for ${viewType} loaded:`, layoutSettingsResponse.data);
-
-      } catch (err) {
-        console.error('[App.js] WeddingJourneyWrapperForSetup: Error fetching/transforming data or loading settings for ' + weddingId + ':', err);
-        setError(err.message || 'Failed to load data or settings for setup.');
-        setWeddingDataForLeva(null);
-        setElementLayoutsForLeva({});
-      }
-    };
-    fetchAndTransform();
-  }, [weddingId, isMobile]);
-
-  if (error) return <div>Error in setup: {error}</div>;
-  if (!weddingDataForLeva || elementLayoutsForLeva === undefined) return <div>Loading setup data for {weddingId}...</div>;
-  
-  const finalWeddingData = {
-    ...weddingDataForLeva,
-    // initialElementLayouts: elementLayoutsForLeva, // This was for the old WeddingJourney setup
-    // For WeddingJourney in setup mode, we might need to decide if it also uses slots
-    // or if it continues to use a single layout (elementLayoutsForLeva).
-    // For now, to keep WeddingJourneyWrapperForSetup simple and focused on its original purpose (editing WeddingJourney controls)
-    // let's assume it loads the primary/default layout for editing, or we adapt it fully to slots later if needed.
-    // If WeddingJourney also needs slot support, its Leva integration would need significant changes similar to GuestExperience.
-    // Let's assume for now it loads the settings for slot 1 (or the default slot) for the setup page view.
-    initialElementLayouts: elementLayoutsForLeva, // Keeping this for now, implies WeddingJourney edits a single general layout
-  };
-
-  // This setup route STILL uses WeddingJourney to allow editing of its specific Leva controls.
-  // If GuestExperience were to have its OWN setup/edit mode, that would be a different component or logic branch.
-  return <WeddingJourney 
-    weddingData={finalWeddingData} 
-    resolvedScrapbookImages={resolvedScrapbookImages} 
-    experienceSettings={finalWeddingData.experienceSettings} 
-    isMobileView={isMobile} 
-  />;
-};
 
 export default App; 

@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-// import { useSpring, animated } from 'react-spring'; // No longer directly used here for item animation
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useSpring, animated } from 'react-spring';
+import { useGesture } from '@use-gesture/react';
+import { useLevaStore } from '../../stores/levaStore';
+import { useSetupMode } from '../../contexts/SetupModeContext';
 import ScrapbookImageItem from '../ScrapbookImageItem';
 import { useTrackedControls } from '../../hooks/useTrackedControls';
 
