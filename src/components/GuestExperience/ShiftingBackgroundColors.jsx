@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { animated } from '@react-spring/web'; // Removed useSpring as it's not directly used for this simpler version
-import { useTrackedControls } from '../../hooks/useTrackedControls';
+// import { useTrackedControls } from '../../hooks/useTrackedControls';
 import { useSetupMode } from '../../contexts/SetupModeContext';
+import { useControls } from 'leva';
 
 const dynamicGradientControlsSchema = {
   gradientMode: {
@@ -33,24 +34,24 @@ const dynamicGradientControlsSchema = {
 const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selectedColorScheme }) => {
   const { isSetupMode } = useSetupMode();
 
-  const controls = useTrackedControls(
+  const controlValues = useControls(
     'Dynamic Background Gradient',
     dynamicGradientControlsSchema,
-    { collapsed: true, hidden: !isSetupMode } // Keep expanded in setup, hidden otherwise, AND COLLAPSED
+    { collapsed: true, render: () => isSetupMode }
   );
 
   const {
-    gradientMode = dynamicGradientControlsSchema.gradientMode.value,
-    gradientColorStart = dynamicGradientControlsSchema.gradientColorStart.value,
-    gradientColorStop = dynamicGradientControlsSchema.gradientColorStop.value,
-    gradientAngleOffset = dynamicGradientControlsSchema.gradientAngleOffset.value,
-    gradientScrollFactor = dynamicGradientControlsSchema.gradientScrollFactor.value,
-    maxGradientOpacity = dynamicGradientControlsSchema.maxGradientOpacity.value,
-    startOpacity = dynamicGradientControlsSchema.startOpacity.value,
-    startFadeYPercent = dynamicGradientControlsSchema.startFadeYPercent.value,
-    endFadeYPercent = dynamicGradientControlsSchema.endFadeYPercent.value,
-    opacityFadeCurve = dynamicGradientControlsSchema.opacityFadeCurve.value,
-  } = controls?.values || {};
+    gradientMode,
+    gradientColorStart,
+    gradientColorStop,
+    gradientAngleOffset,
+    gradientScrollFactor,
+    maxGradientOpacity,
+    startOpacity,
+    startFadeYPercent,
+    endFadeYPercent,
+    opacityFadeCurve,
+  } = controlValues;
 
   // Determine actual gradient colors based on mode and scheme
   let actualStartColor = gradientColorStart;
@@ -95,7 +96,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
       windowHeight,
       parallaxScrollHeight,
       currentScrollYPercent,
-      controlsValues: controls?.values,
+      controlsValues: controlValues,
       destructuredMaxOpacity: maxGradientOpacity,
       destructuredStartOpacity: startOpacity,
       destructuredStartFadeY: startFadeYPercent,

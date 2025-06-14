@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useSpring, animated } from 'react-spring';
 import { useGesture } from '@use-gesture/react';
+import { useControls } from 'leva';
 import { useLevaStore } from '../../stores/levaStore';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import ScrapbookImageItem from '../ScrapbookImageItem';
-import { useTrackedControls } from '../../hooks/useTrackedControls';
+// import { useTrackedControls } from '../../hooks/useTrackedControls';
 
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
 const scrapbookLayoutControlsSchema = {
@@ -127,20 +128,21 @@ const InteractiveScrapbook = ({
   windowWidth,
   windowHeight,
 }) => {
-  // --- Leva Controls for Scrapbook Layout (Local to this component) ---
-  // These controls are now part of InteractiveScrapbook and not WeddingJourney
-  const layoutControls = useTrackedControls(
+  const { isSetupMode } = useSetupMode();
+
+  const layoutValues = useControls(
     'Scrapbook Layout (Guest)',
     scrapbookLayoutControlsSchema,
-    { collapsed: true } // Initially collapsed in guest view
+    { collapsed: true, render: () => isSetupMode }
   );
+
   const { 
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
     baseRotationRange, baseSizeMin, baseSizeMax,
     borderWidth, borderColor, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, baseOpacity,
     dynamicRotationRange, scrollSensitivityFactor, parallaxDepthFactor,
     itemBaseScale, movementScrollCap
-  } = layoutControls.values;
+  } = layoutValues;
 
   // --- Derived State & Memoizations ---
   const resolvedImageSrcs = useMemo(() => {
@@ -178,7 +180,7 @@ const InteractiveScrapbook = ({
     // It contains base styles and parameters for dynamic calculation.
     return imagesToProcess.map((imageInfo, displayIndex) => {
       const { src, originalIndex, alt, id } = imageInfo;
-      const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, windowDims, layoutControls.values);
+      const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, windowDims, layoutValues);
       
       const parallaxXDirection = Math.random() < 0.5 ? -1 : 1;
       const parallaxYDirection = Math.random() < 0.5 ? -1 : 1;
@@ -192,15 +194,15 @@ const InteractiveScrapbook = ({
         initialStyle: style,
         parallaxXDirection, 
         parallaxYDirection,
-        itemScrollSensitivity: layoutControls.values.scrollSensitivityFactor,
-        itemDynamicRotationRange: layoutControls.values.dynamicRotationRange,
+        itemScrollSensitivity: layoutValues.scrollSensitivityFactor,
+        itemDynamicRotationRange: layoutValues.dynamicRotationRange,
       };
     });
   }, [
     resolvedImageSrcs,
     windowWidth,
     windowHeight,
-    // All values from layoutControls.values that affect generateInitialScrapbookStyle
+    // All values from layoutValues that affect generateInitialScrapbookStyle
     // or are parameters for dynamic calculation (even if used globally later)
     // need to be listed if they should trigger a re-calculation of this memo.
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
@@ -213,7 +215,7 @@ const InteractiveScrapbook = ({
     // but not necessarily displayedImagesAndTheirData itself unless they also affect generateInitialScrapbookStyle.
     // For safety and clarity, if generateInitialScrapbookStyle *also* uses them (it doesn't currently for dynamic ones),
     // they would belong here. Let's keep it clean for now.
-    layoutControls.values // Simplest way to capture all layout control changes that *might* affect base styles.
+    layoutValues // Simplest way to capture all layout control changes that *might* affect base styles.
   ]);
 
   // Update GuestExperience with the images that will be displayed and their data
@@ -257,7 +259,7 @@ const InteractiveScrapbook = ({
           const scrollDependent = calculateScrollDependentValues(
             displayIndex, 
             scrollY, 
-            layoutControls.values, // Pass all layout controls
+            layoutValues, // Pass all layout controls
             imageData // Pass the current item's data (might contain overrides in the future)
           );
 

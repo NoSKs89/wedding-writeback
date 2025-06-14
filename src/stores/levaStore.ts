@@ -19,6 +19,7 @@ export interface LevaStoreState {
   schemas: { [folderName: string]: LevaFolderSchema };
   levaSetters: { [folderName: string]: (values: Record<string, any>) => void };
   currentPreviewingSlot: number;
+  isSwitchingSlots: boolean;
   isLoading: boolean;
   error: string | null;
   levaStore: LevaStore | null;
@@ -28,7 +29,7 @@ export interface LevaStoreState {
   getSettingsForSave: () => { [folderName: string]: Record<string, any> };
   loadSettingsFromDB: (settings: { [folderName: string]: Record<string, any> }, slotNumber?: number) => void;
   loadSettingsFromServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>;
-  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number) => Promise<void>;
+  saveSettingsToServer: (weddingId: string, viewType: 'desktop' | 'mobile', slotNumber: number, settings: { [folderName: string]: Record<string, any> }) => Promise<void>;
   switchPreviewingSlot: (weddingId: string, viewType: 'desktop' | 'mobile', newSlotNumber: number) => Promise<void>;
 }
 
@@ -41,6 +42,7 @@ export const useLevaStore = create<LevaStoreState>()(
     schemas: {},
     levaSetters: {},
     currentPreviewingSlot: 1,
+    isSwitchingSlots: true,
     isLoading: false,
     error: null,
     levaStore: null,
@@ -72,21 +74,31 @@ export const useLevaStore = create<LevaStoreState>()(
     },
 
     loadSettingsFromDB: (settings, slotNumber) => {
-      set(state => {
-        if (slotNumber) {
-          state.currentPreviewingSlot = slotNumber;
-        }
-        state.controlValues = settings;
-        state.initialControlValues = settings;
-        state.rawDbSettings = settings;
-        
-        Object.keys(state.changedKeys).forEach(folderName => {
+      console.log(`%c[levaStore] loadSettingsFromDB called for slot ${slotNumber}. Setting isSwitchingSlots: true.`, 'color: orange');
+      set({ isSwitchingSlots: true });
+    
+      setTimeout(() => {
+        console.log(`%c[levaStore] setTimeout fired for slot ${slotNumber}. Updating values and setting isSwitchingSlots: false.`, 'color: lightgreen');
+        set(state => {
+          if (slotNumber) {
+            state.currentPreviewingSlot = slotNumber;
+          }
+    
+          state.controlValues = settings;
+          state.initialControlValues = settings;
+          state.rawDbSettings = settings;
+    
+          Object.keys(state.changedKeys).forEach(folderName => {
             state.changedKeys[folderName].clear();
+          });
+    
+          state.isSwitchingSlots = false;
         });
-      });
+      }, 0);
     },
 
     loadSettingsFromServer: async (weddingId, viewType, slotNumber) => {
+      console.log(`%c[levaStore] loadSettingsFromServer called for slot ${slotNumber}`, 'color: cyan');
       set({ isLoading: true, error: null });
       const apiBase = getApiBaseUrl();
       try {
@@ -96,6 +108,7 @@ export const useLevaStore = create<LevaStoreState>()(
         if (response.data.settings && Object.keys(response.data.settings).length > 0) {
           get().loadSettingsFromDB(response.data.settings, slotNumber);
         } else {
+          console.log(`%c[levaStore] Slot ${slotNumber} is empty. Loading empty settings.`, 'color: yellow');
           get().loadSettingsFromDB({}, slotNumber);
         }
         set({ isLoading: false });
@@ -106,8 +119,7 @@ export const useLevaStore = create<LevaStoreState>()(
       }
     },
 
-    saveSettingsToServer: async (weddingId, viewType, slotNumber) => {
-      const settingsToSave = get().getSettingsForSave();
+    saveSettingsToServer: async (weddingId, viewType, slotNumber, settingsToSave) => {
       const apiBase = getApiBaseUrl();
       try {
         await axios.post(`${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`, {

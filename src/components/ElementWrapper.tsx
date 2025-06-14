@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useTrackedControls } from '../hooks/useTrackedControls.tsx';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useControls, folder } from 'leva';
+import { useLevaStore } from '../stores/levaStore';
 import { ElementConfig, ExperienceSettings, TimelineMarker } from '../types';
 import { useSetupMode } from '../contexts/SetupModeContext';
 
@@ -40,7 +41,6 @@ export interface ElementWrapperProps {
   scrollY: number;
   windowHeight: number;
   TOTAL_PAGES: number;
-  onControlChange: () => void;
 }
 
 const ElementWrapper: React.FC<ElementWrapperProps> = ({ 
@@ -50,60 +50,50 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   scrollY, 
   windowHeight, 
   TOTAL_PAGES,
-  onControlChange,
 }) => {
-  const [measuredHeight, setMeasuredHeight] = useState(0);
   const { isSetupMode } = useSetupMode();
+  
+  const folderName = useMemo(() => `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : element.type.replace(/\s+/g, '_')}`, [element.id, element.name, element.type]);
+  
+  const getInitialValues = useLevaStore(state => state.controlValues[folderName]);
+  const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
 
   const controlsSchema = useMemo(() => {
-    // Return a default empty schema if element.id doesn't exist to prevent leva errors
-    if (!element || !element.id) {
-        return {};
-    }
-    let schema: any = { 
-      opacity: { value: 1, min: 0, max: 1, step: 0.01 },
+    const schema: any = { 
+      opacity: { value: getInitialValues?.opacity ?? 1, min: 0, max: 1, step: 0.01 },
     };
 
-    if (element.type === 'text') {
-      schema = {
-        ...schema,
-        landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
-        fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-        fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
-      };
+    if (element.type === 'text' || (element.type === 'component' && (element.name === "RSVP Form" || element.name === "Scrapbook"))) {
+      Object.assign(schema, {
+        landingYPosition: { value: getInitialValues?.landingYPosition ?? 0, step: 1, label: 'Y Offset (px)' },
+        fadeOutEndYPosition: { value: getInitialValues?.fadeOutEndYPosition ?? 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+        fadeOutAnimationCurve: { value: getInitialValues?.fadeOutAnimationCurve ?? 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+      });
     } else if (element.type === 'photo' && element.name !== 'background-image') {
-      schema = {
-        ...schema,
-        landingXPosition: { value: 0, step: 1, label: 'X Offset (px)' },
-        landingYPosition: { value: 0, step: 1, label: 'Y Offset (px)' },
-        startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
-        endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
-        scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
-        scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-        fadeOutEndYPosition: { value: 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-        fadeOutAnimationCurve: { value: 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
+      Object.assign(schema, {
+        landingXPosition: { value: getInitialValues?.landingXPosition ?? 0, step: 1, label: 'X Offset (px)' },
+        landingYPosition: { value: getInitialValues?.landingYPosition ?? 0, step: 1, label: 'Y Offset (px)' },
+        startingScale: { value: getInitialValues?.startingScale ?? 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
+        endingScale: { value: getInitialValues?.endingScale ?? 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+        scaleEndYPosition: { value: getInitialValues?.scaleEndYPosition ?? 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
+        scaleAnimationCurve: { value: getInitialValues?.scaleAnimationCurve ?? 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
+        fadeOutEndYPosition: { value: getInitialValues?.fadeOutEndYPosition ?? 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
+        fadeOutAnimationCurve: { value: getInitialValues?.fadeOutAnimationCurve ?? 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
         lockToViewportEdge: { 
-          value: 'disabled',
+          value: getInitialValues?.lockToViewportEdge ?? 'disabled',
           options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], 
           label: 'Lock to Viewport Edge'
         },
-      };
+      });
     }
-    // No special controls for RSVP Form component in this wrapper
     return schema;
-  }, [element]);
-  
-  const folderName = `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : element.type.replace(/\s+/g, '_')}`;
+  }, [element.type, element.name, getInitialValues]);
 
-  const { values } = useTrackedControls(folderName, controlsSchema, {
-    hidden: !isSetupMode,
-  });
+  const values = useControls(folderName, controlsSchema, { render: () => isSetupMode }, [controlsSchema]);
 
   useEffect(() => {
-    if (onControlChange) {
-      onControlChange();
-    }
-  }, [values, onControlChange]);
+    updateControlValuesInStore(folderName, values);
+  }, [values, folderName, updateControlValuesInStore]);
 
   const {
     opacity = 1,
@@ -116,13 +106,12 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     fadeOutEndYPosition = 1,
     fadeOutAnimationCurve = 'disabled',
     lockToViewportEdge = 'disabled' 
-  } = (values || {}) as ControlValues;
+  } = values as ControlValues;
 
+  const [measuredHeight, setMeasuredHeight] = useState(0);
   useEffect(() => {
-    if (measuredHeight === 0) {
-      setMeasuredHeight(window.innerHeight);
-    }
-  }, []);
+    setMeasuredHeight(windowHeight);
+  }, [windowHeight]);
 
   const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
   const startMarker = experienceSettings.markers.find((m: TimelineMarker) => m.elementId === element.id && m.type === 'start');
@@ -142,7 +131,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
 
   let finalOpacity = opacity;
   if (fadeOutAnimationCurve !== 'disabled') {
-    const fadeOutStartScrollPoint = elementStartScroll; // Or adjust if fade out starts later
+    const fadeOutStartScrollPoint = elementStartScroll;
     const fadeOutDurationScroll = elementScrollDuration * fadeOutEndYPosition;
     const safeFadeOutDurationScroll = fadeOutDurationScroll <= 0 ? 1 : fadeOutDurationScroll;
     const fadeOutProgress = Math.min(1, Math.max(0, (scrollY - fadeOutStartScrollPoint) / safeFadeOutDurationScroll));
@@ -150,7 +139,6 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
   }
 
-  // Revised transform logic inspired by the working GuestExperience.jsx
   let yTransformBase: number;
   const actualDisplayedHeight = measuredHeight * currentScale;
   const effectiveLockTo = lockToViewportEdge || 'disabled';
@@ -161,7 +149,6 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   } else if (lockIsActive && effectiveLockTo === 'imageTop-viewportTop') {
     yTransformBase = -(windowHeight - actualDisplayedHeight) / 2;
   } else {
-    // If ParallaxLayer perfectly centers, yTransformBase for centered content should be 0.
     yTransformBase = 0; 
   }
   
