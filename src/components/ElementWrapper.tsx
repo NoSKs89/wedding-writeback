@@ -3,21 +3,10 @@ import { useControls, folder } from 'leva';
 import { useLevaStore } from '../stores/levaStore';
 import { ElementConfig, ExperienceSettings, TimelineMarker } from '../types';
 import { useSetupMode } from '../contexts/SetupModeContext';
+import { getElementSchema, animationCurves } from './GuestExperience/levaSchemas';
+import { fontFamilyOptions } from '../config/fontConfig';
 
-// Easing functions (can be moved to a utils file)
-const easeInOutQuad = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 const linear = (t: number) => t;
-const easeInCubic = (t: number) => t * t * t;
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeInQuint = (t: number) => t * t * t * t * t;
-
-const animationCurves: { [key: string]: (t: number) => number } = {
-  linear: linear,
-  easeInOutQuad: easeInOutQuad,
-  easeInCubic: easeInCubic,
-  easeOutCubic: easeOutCubic,
-  easeInQuint: easeInQuint,
-};
 
 export type LockToViewportEdgeType = 'disabled' | 'imageBottom-viewportBottom' | 'imageTop-viewportTop';
 
@@ -32,6 +21,37 @@ interface ControlValues {
   fadeOutEndYPosition: number;
   fadeOutAnimationCurve: keyof typeof animationCurves | 'disabled';
   lockToViewportEdge: LockToViewportEdgeType;
+  opacityAtStart: number;
+  opacityAtMiddle: number;
+  opacityAtEnd: number;
+  opacityAnimationCurve: keyof typeof animationCurves | 'disabled';
+  textColor: string;
+  fontFamily: string;
+  fontSizeAtStart: number;
+  fontSizeAtEnd: number;
+  fontSizeAnimationCurve: keyof typeof animationCurves | 'disabled';
+  lineHeight: number;
+  spreadAnimationCurve: keyof typeof animationCurves | 'disabled';
+  yOffsetAtAnimStart: number;
+  yOffsetAtAnimEnd: number;
+  letterSpacingAtAnimStart: number;
+  letterSpacingAtAnimEnd: number;
+  textShadowEffect: boolean;
+  textShadowCurve: keyof typeof animationCurves | 'disabled';
+  textShadowXStart: number;
+  textShadowYStart: number;
+  textShadowBlurStart: number;
+  textShadowXEnd: number;
+  textShadowYEnd: number;
+  textShadowBlurEnd: number;
+  textShadowColor: string;
+  cropToCircleEffect: boolean;
+  circleEffectCurve: keyof typeof animationCurves | 'disabled';
+  circleInitialRadius: number;
+  circleFinalRadius: number;
+  bgImageInitialScale: number;
+  bgImageFinalScale: number;
+  fontSize: number;
 }
 
 export interface ElementWrapperProps {
@@ -42,6 +62,7 @@ export interface ElementWrapperProps {
   windowHeight: number;
   TOTAL_PAGES: number;
   layoutSettingsFromPreview?: any;
+  overallFontFamily?: string;
 }
 
 const ElementWrapper: React.FC<ElementWrapperProps> = ({ 
@@ -52,6 +73,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   windowHeight, 
   TOTAL_PAGES,
   layoutSettingsFromPreview,
+  overallFontFamily = fontFamilyOptions[0]
 }) => {
   const { isSetupMode } = useSetupMode();
   
@@ -61,39 +83,18 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
 
   const controlsSchema = useMemo(() => {
-    const schema: any = { 
-      opacity: { value: getInitialValues?.opacity ?? 1, min: 0, max: 1, step: 0.01 },
-    };
-
-    if (element.type === 'text' || (element.type === 'component' && (element.name === "RSVP Form" || element.name === "Scrapbook"))) {
-      Object.assign(schema, {
-        landingYPosition: { value: getInitialValues?.landingYPosition ?? 0, step: 1, label: 'Y Offset (px)' },
-        fadeOutEndYPosition: { value: getInitialValues?.fadeOutEndYPosition ?? 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-        fadeOutAnimationCurve: { value: getInitialValues?.fadeOutAnimationCurve ?? 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
-      });
-    } else if (element.type === 'photo' && element.name !== 'background-image') {
-      Object.assign(schema, {
-        landingXPosition: { value: getInitialValues?.landingXPosition ?? 0, step: 1, label: 'X Offset (px)' },
-        landingYPosition: { value: getInitialValues?.landingYPosition ?? 0, step: 1, label: 'Y Offset (px)' },
-        startingScale: { value: getInitialValues?.startingScale ?? 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
-        endingScale: { value: getInitialValues?.endingScale ?? 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
-        scaleEndYPosition: { value: getInitialValues?.scaleEndYPosition ?? 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
-        scaleAnimationCurve: { value: getInitialValues?.scaleAnimationCurve ?? 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-        fadeOutEndYPosition: { value: getInitialValues?.fadeOutEndYPosition ?? 1, min: 0, max: 1, step: 0.01, label: 'Fade Out End Y (% duration)' },
-        fadeOutAnimationCurve: { value: getInitialValues?.fadeOutAnimationCurve ?? 'disabled', options: ['disabled', ...Object.keys(animationCurves)], label: 'Fade Out Animation Curve' },
-        lockToViewportEdge: { 
-          value: getInitialValues?.lockToViewportEdge ?? 'disabled',
-          options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], 
-          label: 'Lock to Viewport Edge'
-        },
-      });
-    }
-    return schema;
-  }, [element.type, element.name, getInitialValues]);
+    const schema: any = getElementSchema(element, overallFontFamily);
+    const initialValues = getInitialValues || {};
+    const schemaWithValues = Object.keys(schema).reduce((acc, key) => {
+        acc[key] = { ...schema[key], value: initialValues[key] ?? schema[key].value };
+        return acc;
+    }, {} as { [key: string]: any });
+    return schemaWithValues;
+  }, [element, overallFontFamily, getInitialValues]);
 
   const levaValues = useControls(folderName, controlsSchema, { render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
   
-  const values = layoutSettingsFromPreview ? layoutSettingsFromPreview[folderName] : levaValues;
+  const values = layoutSettingsFromPreview ? layoutSettingsFromPreview[folderName] || {} : levaValues;
 
   useEffect(() => {
     if (!layoutSettingsFromPreview) {
@@ -111,7 +112,38 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     scaleAnimationCurve = 'linear',
     fadeOutEndYPosition = 1,
     fadeOutAnimationCurve = 'disabled',
-    lockToViewportEdge = 'disabled' 
+    lockToViewportEdge = 'disabled',
+    opacityAtStart = 1,
+    opacityAtMiddle = 1,
+    opacityAtEnd = 1,
+    opacityAnimationCurve = 'linear',
+    textColor = '#333333',
+    fontFamily = overallFontFamily,
+    fontSizeAtStart = 16,
+    fontSizeAtEnd = 16,
+    fontSizeAnimationCurve = 'linear',
+    lineHeight = 1.5,
+    spreadAnimationCurve = 'linear',
+    yOffsetAtAnimStart = 0,
+    yOffsetAtAnimEnd = 0,
+    letterSpacingAtAnimStart = 0,
+    letterSpacingAtAnimEnd = 0,
+    textShadowEffect = false,
+    textShadowCurve = 'linear',
+    textShadowXStart = 0,
+    textShadowYStart = 0,
+    textShadowBlurStart = 0,
+    textShadowXEnd = 2,
+    textShadowYEnd = 2,
+    textShadowBlurEnd = 3,
+    textShadowColor = 'rgba(0,0,0,0.5)',
+    cropToCircleEffect = false,
+    circleEffectCurve = 'linear',
+    circleInitialRadius = 150,
+    circleFinalRadius = 0,
+    bgImageInitialScale = 1,
+    bgImageFinalScale = 0.1,
+    fontSize = 16,
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -131,7 +163,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
     const scaleAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * scaleEndYPosition);
     const scaleProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (scaleAnimationEndScrollPoint - elementStartScroll || 1)));
-    const selectedScaleCurve = animationCurves[scaleAnimationCurve] || linear;
+    const selectedScaleCurve = animationCurves[scaleAnimationCurve as keyof typeof animationCurves] || linear;
     currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
   }
 
@@ -141,8 +173,20 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     const fadeOutDurationScroll = elementScrollDuration * fadeOutEndYPosition;
     const safeFadeOutDurationScroll = fadeOutDurationScroll <= 0 ? 1 : fadeOutDurationScroll;
     const fadeOutProgress = Math.min(1, Math.max(0, (scrollY - fadeOutStartScrollPoint) / safeFadeOutDurationScroll));
-    const selectedFadeOutCurve = animationCurves[fadeOutAnimationCurve] || linear;
+    const selectedFadeOutCurve = animationCurves[fadeOutAnimationCurve as keyof typeof animationCurves] || linear;
     finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
+  }
+
+  const elementProgress = Math.max(0, Math.min(1, (scrollY - elementStartScroll) / elementScrollDuration));
+
+  if (opacityAnimationCurve !== 'disabled') {
+    if (elementProgress < 0.5) {
+        const progress = elementProgress * 2;
+        finalOpacity = opacityAtStart + (opacityAtMiddle - opacityAtStart) * progress;
+    } else {
+        const progress = (elementProgress - 0.5) * 2;
+        finalOpacity = opacityAtMiddle + (opacityAtEnd - opacityAtMiddle) * progress;
+    }
   }
 
   let yTransformBase: number;

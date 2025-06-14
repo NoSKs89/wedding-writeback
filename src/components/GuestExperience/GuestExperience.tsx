@@ -438,7 +438,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
               return (
                 <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ ...centerStyle, zIndex: element.type === 'background-image' ? -5 : (elementsFromBlueprint.length - (element.id || 0) + 1) }}>
-                  <ElementWrapper element={element} experienceSettings={experienceSettingsFromApp} scrollY={scrollY} windowHeight={windowHeight} TOTAL_PAGES={TOTAL_PAGES}>
+                  <ElementWrapper 
+                    element={element} 
+                    experienceSettings={experienceSettingsFromApp} 
+                    scrollY={scrollY} 
+                    windowHeight={windowHeight} 
+                    TOTAL_PAGES={TOTAL_PAGES}
+                    overallFontFamily={overallFontFamily}
+                  >
                     {contentToRender}
                   </ElementWrapper>
                 </ParallaxLayer>

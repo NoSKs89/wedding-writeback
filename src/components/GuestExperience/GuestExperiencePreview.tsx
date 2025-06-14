@@ -230,7 +230,15 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
             return (
               <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ ...centerStyle, zIndex: element.type === 'background-image' ? -5 : (elementsFromBlueprint.length - (element.id || 0) + 1) }}>
-                <ElementWrapper element={element} experienceSettings={experienceSettingsFromApp} scrollY={scrollY} windowHeight={windowHeight} TOTAL_PAGES={TOTAL_PAGES} layoutSettingsFromPreview={layoutSettingsFromPreview}>
+                <ElementWrapper 
+                  element={element} 
+                  experienceSettings={experienceSettingsFromApp} 
+                  scrollY={scrollY} 
+                  windowHeight={windowHeight} 
+                  TOTAL_PAGES={TOTAL_PAGES} 
+                  layoutSettingsFromPreview={layoutSettingsFromPreview}
+                  overallFontFamily={overallFontFamily}
+                >
                   {contentToRender}
                 </ElementWrapper>
               </ParallaxLayer>
