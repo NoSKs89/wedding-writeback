@@ -79,8 +79,6 @@ const MobileLayoutEditor = () => {
                     flexDirection: 'column',
                     alignItems: 'center',
                     gap: '2rem',
-                    zIndex: 1000,
-                    position: 'relative',
                 }}>
                     
                     <div style={{ width: '100%', padding: '1rem', background: 'white', borderRadius: '8px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
@@ -139,13 +137,13 @@ const MobileLayoutEditor = () => {
                                 isSetupModeFromProps={true}
                                 forceMobileView={true}
                                 saveButtonContainerStyle={{
-                                    position: 'absolute',
-                                    bottom: '2rem',
-                                    right: '1rem',
+                                    position: 'fixed',
+                                    bottom: '1rem',
+                                    left: '1rem',
                                     zIndex: 10001,
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    alignItems: 'flex-end',
+                                    alignItems: 'flex-start',
                                     gap: '5px'
                                 }}
                             />
