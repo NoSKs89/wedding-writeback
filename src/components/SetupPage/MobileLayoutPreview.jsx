@@ -1,51 +1,79 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import GuestExperience from '../GuestExperience/GuestExperience';
+import GuestExperiencePreview from '../GuestExperience/GuestExperiencePreview';
 import useWeddingData from '../../hooks/useWeddingData';
 import { useSetupMode } from '../../contexts/SetupModeContext';
-import { useLevaStore } from '../../stores/levaStore';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
 
 const MobileLayoutPreview = () => {
     const { weddingId } = useParams();
     const { setIsSetupMode } = useSetupMode();
-    const { weddingData, experienceSettings, loading, error } = useWeddingData(weddingId);
+    const { weddingData, experienceSettings, loading: initialDataLoading, error } = useWeddingData(weddingId);
     
+    const [liveLayoutSettings, setLiveLayoutSettings] = useState(null);
+    const [isInactive, setIsInactive] = useState(false);
+    const inactivityTimer = useRef(null);
+
     // This component is strictly for preview, so setup mode is always false.
     useEffect(() => {
         setIsSetupMode(false);
     }, [setIsSetupMode]);
 
-    // This effect will specifically load the LATEST preview settings from the server
-    useEffect(() => {
+    const loadPreviewSettings = useCallback(async () => {
         if (!weddingId) return;
-
-        const loadPreviewSettings = async () => {
-            const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/mobile`;
-            try {
-                const response = await axios.get(apiUrl);
-                if (response.data.settings && Object.keys(response.data.settings).length > 0) {
-                    // Use the loadSettingsFromDB action to populate the store with preview data
-                    useLevaStore.getState().loadSettingsFromDB(response.data.settings, 'preview');
-                    console.log("Mobile preview loaded.");
-                } else {
-                    // If no preview, load default slot 1 as a fallback
-                    console.log("No mobile preview found, loading slot 1 as fallback.");
-                    useLevaStore.getState().switchPreviewingSlot(weddingId, 'mobile', 1);
-                }
-            } catch (err) {
-                console.error("Failed to load mobile preview, loading slot 1 as fallback.", err);
-                useLevaStore.getState().switchPreviewingSlot(weddingId, 'mobile', 1);
+        const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/mobile`;
+        try {
+            const response = await axios.get(apiUrl);
+            if (response.data.settings && Object.keys(response.data.settings).length > 0) {
+                setLiveLayoutSettings(response.data.settings);
             }
+        } catch (err) {
+            console.error("Failed to load mobile preview.", err);
+        }
+    }, [weddingId]);
+    
+    // Effect for polling data
+    useEffect(() => {
+        if (isInactive) return;
+
+        loadPreviewSettings(); // Initial load when becoming active
+        const pollingInterval = setInterval(loadPreviewSettings, 4000); // Poll every 4 seconds
+
+        return () => {
+            clearInterval(pollingInterval);
+        };
+    }, [isInactive, loadPreviewSettings]);
+
+    // Effect for inactivity timer
+    useEffect(() => {
+        const resetInactivityTimer = () => {
+            if (inactivityTimer.current) {
+                clearTimeout(inactivityTimer.current);
+            }
+            if (isInactive) {
+                setIsInactive(false);
+            }
+            inactivityTimer.current = setTimeout(() => {
+                setIsInactive(true);
+            }, 20000); // 20 seconds
         };
 
-        loadPreviewSettings();
+        const activityEvents = ['mousemove', 'keydown', 'scroll', 'touchstart'];
+        activityEvents.forEach(event => window.addEventListener(event, resetInactivityTimer));
+        
+        resetInactivityTimer(); // Initial call to start the timer
 
-    }, [weddingId]);
+        return () => {
+            if (inactivityTimer.current) {
+                clearTimeout(inactivityTimer.current);
+            }
+            activityEvents.forEach(event => window.removeEventListener(event, resetInactivityTimer));
+        };
+    }, [isInactive]);
 
 
-    if (loading) {
+    if (initialDataLoading) {
         return <div>Loading Mobile Preview...</div>;
     }
 
@@ -66,6 +94,22 @@ const MobileLayoutPreview = () => {
             justifyContent: 'center',
             backgroundColor: '#333'
         }}>
+            {isInactive && (
+                 <div style={{
+                     position: 'fixed',
+                     top: 0, left: 0, right: 0, bottom: 0,
+                     backgroundColor: 'rgba(0,0,0,0.7)',
+                     color: 'white',
+                     display: 'flex',
+                     justifyContent: 'center',
+                     alignItems: 'center',
+                     textAlign: 'center',
+                     zIndex: 10000,
+                     fontSize: '1.2rem'
+                 }}>
+                     <p>Preview paused due to inactivity.<br/><small>(Move mouse or scroll to resume)</small></p>
+                 </div>
+            )}
             <div style={{
                 width: '414px',
                 height: '896px',
@@ -83,13 +127,16 @@ const MobileLayoutPreview = () => {
                     height: '100%',
                     overflow: 'auto',
                 }}>
-                    <GuestExperience
-                        weddingDataFromApp={weddingData}
-                        experienceSettingsFromApp={experienceSettings}
-                        weddingIdFromApp={weddingId}
-                        isSetupModeFromProps={false} // This is a preview, so no setup controls
-                        forceMobileView={true}      // Always force mobile view
-                    />
+                    {liveLayoutSettings ? (
+                        <GuestExperiencePreview
+                            weddingDataFromApp={weddingData}
+                            experienceSettingsFromApp={experienceSettings}
+                            layoutSettingsFromPreview={liveLayoutSettings}
+                            forceMobileView={true}
+                        />
+                    ) : (
+                        <div>Loading live layout...</div>
+                    )}
                 </div>
                 {/* Notch */}
                 <div style={{

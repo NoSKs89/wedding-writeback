@@ -41,6 +41,7 @@ export interface ElementWrapperProps {
   scrollY: number;
   windowHeight: number;
   TOTAL_PAGES: number;
+  layoutSettingsFromPreview?: any;
 }
 
 const ElementWrapper: React.FC<ElementWrapperProps> = ({ 
@@ -50,6 +51,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   scrollY, 
   windowHeight, 
   TOTAL_PAGES,
+  layoutSettingsFromPreview,
 }) => {
   const { isSetupMode } = useSetupMode();
   
@@ -89,11 +91,15 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     return schema;
   }, [element.type, element.name, getInitialValues]);
 
-  const values = useControls(folderName, controlsSchema, { render: () => isSetupMode }, [controlsSchema]);
+  const levaValues = useControls(folderName, controlsSchema, { render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
+  
+  const values = layoutSettingsFromPreview ? layoutSettingsFromPreview[folderName] : levaValues;
 
   useEffect(() => {
-    updateControlValuesInStore(folderName, values);
-  }, [values, folderName, updateControlValuesInStore]);
+    if (!layoutSettingsFromPreview) {
+      updateControlValuesInStore(folderName, values);
+    }
+  }, [values, folderName, updateControlValuesInStore, layoutSettingsFromPreview]);
 
   const {
     opacity = 1,
