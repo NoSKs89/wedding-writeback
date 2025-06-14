@@ -11,10 +11,7 @@ import {
 import { ParallaxProvider } from 'react-scroll-parallax';
 import { LevaStoreProvider, useCreateStore } from 'leva'; // IMPORT THE PROVIDER AND HOOK
 import './App.css';
-import WeddingJourney from './components/WeddingJourney'; // Original Journey - RE-ADDED
 import GuestExperience from './components/GuestExperience/GuestExperience'; // New Guest Experience
-import axios from 'axios'; // Import axios
-import { debounce } from 'lodash'; // ADD THIS IMPORT
 import SetupLayout from './components/SetupPage/SetupLayout'; // Import SetupLayout
 import ImageUploadSetup from './components/SetupPage/ImageUploadSetup'; // Ensure this is the correct path and component name
 import { SetupModeProvider, useSetupMode } from './contexts/SetupModeContext'; // UPDATED: Added useSetupMode
@@ -28,7 +25,6 @@ import HowToPage from './components/SetupPage/HowToPage'; // Added import for Ho
 import MobileLayoutEditor from './components/SetupPage/MobileLayoutEditor'; // ADDED
 import MobileLayoutPreview from './components/SetupPage/MobileLayoutPreview'; // ADDED
 import useWeddingData from './hooks/useWeddingData'; // Import the new hook
-import DesktopLayoutEditor from './components/SetupPage/DesktopLayoutEditor'; // Import the new editor component
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -205,7 +201,7 @@ const MainAppContent = () => {
         <Route path="/:weddingId/setup" element={<SetupLayout />}>
           <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
-          <Route path="layout" element={<DesktopLayoutEditor />} />
+          <Route path="layout" element={<Navigate to="../experience" replace />} />
           <Route path="layoutmobile" element={<MobileLayoutEditor />} />
           <Route path="account" element={<AccountSetupPage />} />
           <Route path="experience" element={<ExperienceSetupPage />} />
