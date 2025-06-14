@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, CSSProperties } from 'react';
 import { Parallax, ParallaxLayer, IParallax, ParallaxLayerProps } from '@react-spring/parallax';
-import { Leva, useControls, folder } from 'leva';
+import { useControls, folder } from 'leva';
 import { useSpring, animated } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
 
@@ -42,6 +42,7 @@ interface GuestExperienceProps {
   defaultLayoutSlotToLoad?: number;
   isSetupModeFromProps?: boolean;
   forceMobileView?: boolean;
+  saveButtonContainerStyle?: CSSProperties;
 }
 
 interface FocusedImageState {
@@ -116,7 +117,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     weddingIdFromApp, 
     defaultLayoutSlotToLoad = 1,
     isSetupModeFromProps = false, 
-    forceMobileView = false, 
+    forceMobileView = false,
+    saveButtonContainerStyle,
   } = props;
 
   const { isSetupMode } = useSetupMode();
@@ -384,11 +386,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   // --- MAIN RENDER ---
   return (
     <>
-      <Leva hidden={!isSetupMode} />
       <FontGrabber fonts={googleFontsToLoad} />
 
       {isSetupMode && (
-        <div style={{ position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
+        <div style={saveButtonContainerStyle || { position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
           <button onClick={handleSaveConfiguration} disabled={isSaving || showSaveConfirm} style={{ padding: '10px 15px', fontSize: '0.9rem', color: 'white', backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'), border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
             {isSaving ? 'Saving...' : 'Save Layout'}
           </button>

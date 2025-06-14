@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { debounce } from 'lodash';
+import { Leva } from 'leva';
 import { useLevaStore } from '../../stores/levaStore';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import GuestExperience from '../GuestExperience/GuestExperience';
@@ -57,65 +58,117 @@ const MobileLayoutEditor = () => {
     }
 
     return (
-        <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            padding: '2rem 1rem',
-            backgroundColor: '#dcdcdc',
-            minHeight: '100vh',
-            boxSizing: 'border-box'
-        }}>
-            <div style={{ marginBottom: '1rem', padding: '1rem', background: 'white', borderRadius: '8px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                <h2 style={{marginTop: 0}}>Mobile Layout Editor</h2>
-                <p>Changes auto-save. Use the link below to see them on your phone.</p>
-                <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{color: '#007bff'}}>
-                    Open Live Preview in New Tab
-                </a>
-            </div>
-
+        <>
             <div style={{
-                width: '414px',
-                height: '896px',
-                maxHeight: 'calc(100vh - 220px)',
-                border: '10px solid black',
-                borderRadius: '40px',
-                boxShadow: '0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22)',
+                display: 'flex',
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                width: '100%',
+                minHeight: '100vh',
+                backgroundColor: '#f8f8f8',
                 position: 'relative',
-                overflow: 'hidden'
             }}>
+                {/* Column 1: Info */}
                 <div style={{
-                    position: 'absolute',
-                    top: '0',
-                    left: '0',
-                    width: '100%',
-                    height: '100%',
-                    overflow: 'auto',
+                    flex: '0 0 25%',
+                    padding: '2rem 1rem',
+                    boxSizing: 'border-box',
+                    height: '100vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '2rem',
+                    zIndex: 1000,
+                    position: 'relative',
                 }}>
-                    <GuestExperience
-                        weddingDataFromApp={weddingData}
-                        experienceSettingsFromApp={experienceSettings}
-                        weddingIdFromApp={weddingId}
-                        defaultLayoutSlotToLoad={experienceSettings.defaultLayoutSlotMobile || 1}
-                        isSetupModeFromProps={true}
-                        forceMobileView={true}
-                    />
+                    
+                    <div style={{ width: '100%', padding: '1rem', background: 'white', borderRadius: '8px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                        <h2 style={{marginTop: 0}}>Mobile Layout Editor</h2>
+                        <p>Changes auto-save. Use the link below to see them on your phone.</p>
+                        <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{color: '#007bff'}}>
+                            Open Live Preview in New Tab
+                        </a>
+                    </div>
                 </div>
-                {/* Notch */}
+
+                {/* Column 2: Leva Controls */}
                 <div style={{
-                    position: 'absolute',
-                    top: '0px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    width: '180px',
-                    height: '25px',
-                    backgroundColor: 'black',
-                    borderBottomLeftRadius: '15px',
-                    borderBottomRightRadius: '15px',
-                }} />
+                    flex: '0 0 50%',
+                    height: '100vh',
+                    overflowY: 'auto',
+                    borderLeft: '1px solid #dfdfdf',
+                    borderRight: '1px solid #dfdfdf',
+                }}>
+                    <Leva fill />
+                </div>
+
+                {/* Column 3: Phone Preview */}
+                <div style={{
+                    flex: '0 0 25%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    height: '100vh',
+                    padding: '1rem',
+                    boxSizing: 'border-box',
+                    position: 'relative',
+                    zIndex: 1,
+                }}>
+                    <div style={{
+                        width: '100%',
+                        maxWidth: '414px',
+                        height: 'calc(100vh - 4rem)',
+                        maxHeight: '896px',
+                        border: '10px solid black',
+                        borderRadius: '40px',
+                        boxShadow: '0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                    }}>
+                        <div style={{
+                            width: '100%',
+                            height: '100%',
+                            overflow: 'auto',
+                        }}>
+                           <GuestExperience
+                                weddingDataFromApp={weddingData}
+                                experienceSettingsFromApp={experienceSettings}
+                                weddingIdFromApp={weddingId}
+                                defaultLayoutSlotToLoad={experienceSettings.defaultLayoutSlotMobile || 1}
+                                isSetupModeFromProps={true}
+                                forceMobileView={true}
+                                saveButtonContainerStyle={{
+                                    position: 'absolute',
+                                    bottom: '2rem',
+                                    right: '1rem',
+                                    zIndex: 10001,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-end',
+                                    gap: '5px'
+                                }}
+                            />
+                        </div>
+                        {/* Notch */}
+                        <div style={{
+                            position: 'absolute',
+                            top: '0px',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            width: '50%',
+                            maxWidth: '180px',
+                            height: '25px',
+                            backgroundColor: 'black',
+                            borderBottomLeftRadius: '15px',
+                            borderBottomRightRadius: '15px',
+                            zIndex: 10
+                        }} />
+                    </div>
+                </div>
             </div>
-        </div>
+        </>
     );
 };
 
-export default MobileLayoutEditor; 
+export default MobileLayoutEditor;
