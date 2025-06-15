@@ -428,7 +428,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
                 case 'component':
                   if (element.name === 'RSVP Form') {
-                    contentToRender = <RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} />;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     contentToRender = <InteractiveScrapbook weddingData={weddingDataFromApp} config={element.content} scrollY={scrollY} onImageClick={handleImageClick} focusedImageGlobal={focusedImage} imageReturningToScrapbookGlobal={imageReturningToScrapbook} lastPutDownIndexGlobal={lastPutDownIndex} scrapbookImageRefs={scrapbookImageRefs} onDisplayedImagesUpdate={handleDisplayedImagesUpdate} windowWidth={windowWidth} windowHeight={windowHeight} />;
                   } else { return null; }
@@ -437,7 +437,18 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               }
 
               return (
-                <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ ...centerStyle, zIndex: element.type === 'background-image' ? -5 : (elementsFromBlueprint.length - (element.id || 0) + 1) }}>
+                <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
+                  ...centerStyle, 
+                  zIndex: 
+                    element.type === 'background-image' 
+                      ? -5 
+                      : element.type === 'component' && element.name === 'Scrapbook' 
+                      ? 100 
+                      : element.type === 'component' && element.name === 'RSVP Form'
+                      ? 150
+                      : (elementsFromBlueprint.length - (element.id || 0) + 1),
+                  pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
+                }}>
                   <ElementWrapper 
                     element={element} 
                     experienceSettings={experienceSettingsFromApp} 

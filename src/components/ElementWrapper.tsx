@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { useControls, folder } from 'leva';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useControls } from 'leva';
 import { useLevaStore } from '../stores/levaStore';
 import { ElementConfig, ExperienceSettings, TimelineMarker } from '../types';
 import { useSetupMode } from '../contexts/SetupModeContext';
@@ -11,22 +11,20 @@ const linear = (t: number) => t;
 export type LockToViewportEdgeType = 'disabled' | 'imageBottom-viewportBottom' | 'imageTop-viewportTop';
 
 interface ControlValues {
-  opacity: number;
-  landingYPosition: number;
-  landingXPosition: number;
-  startingScale: number;
-  endingScale: number;
-  scaleEndYPosition: number;
-  scaleAnimationCurve: keyof typeof animationCurves | 'disabled';
-  fadeOutEndYPosition: number;
-  fadeOutAnimationCurve: keyof typeof animationCurves | 'disabled';
-  lockToViewportEdge: LockToViewportEdgeType;
   opacityAtStart: number;
   opacityAtMiddle: number;
   opacityAtEnd: number;
   opacityAnimationCurve: keyof typeof animationCurves | 'disabled';
+  landingXPosition: number;
+  landingYPosition: number;
+  startingScale: number;
+  endingScale: number;
+  scaleEndYPosition: number;
+  scaleAnimationCurve: keyof typeof animationCurves | 'disabled';
+  lockToViewportEdge: LockToViewportEdgeType;
   textColor: string;
   fontFamily: string;
+  fontSize: number;
   fontSizeAtStart: number;
   fontSizeAtEnd: number;
   fontSizeAnimationCurve: keyof typeof animationCurves | 'disabled';
@@ -51,7 +49,6 @@ interface ControlValues {
   circleFinalRadius: number;
   bgImageInitialScale: number;
   bgImageFinalScale: number;
-  fontSize: number;
 }
 
 export interface ElementWrapperProps {
@@ -62,7 +59,7 @@ export interface ElementWrapperProps {
   windowHeight: number;
   TOTAL_PAGES: number;
   layoutSettingsFromPreview?: any;
-  overallFontFamily?: string;
+  overallFontFamily?: any;
 }
 
 const ElementWrapper: React.FC<ElementWrapperProps> = ({ 
@@ -76,21 +73,26 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   overallFontFamily = fontFamilyOptions[0]
 }) => {
   const { isSetupMode } = useSetupMode();
+  const currentChildRef = useRef<HTMLElement>(null);
   
   const folderName = useMemo(() => `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : element.type.replace(/\s+/g, '_')}`, [element.id, element.name, element.type]);
   
   const getInitialValues = useLevaStore(state => state.controlValues[folderName]);
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
 
+  const fontToUse = typeof overallFontFamily === 'string' ? overallFontFamily : overallFontFamily.value;
+
   const controlsSchema = useMemo(() => {
-    const schema: any = getElementSchema(element, overallFontFamily);
+    const schema = getElementSchema(element, fontToUse);
     const initialValues = getInitialValues || {};
     const schemaWithValues = Object.keys(schema).reduce((acc, key) => {
-        acc[key] = { ...schema[key], value: initialValues[key] ?? schema[key].value };
+        const a = schema as any;
+        const b = initialValues as any;
+        acc[key] = { ...a[key], value: b[key] ?? a[key].value };
         return acc;
     }, {} as { [key: string]: any });
     return schemaWithValues;
-  }, [element, overallFontFamily, getInitialValues]);
+  }, [element, fontToUse, getInitialValues]);
 
   const levaValues = useControls(folderName, controlsSchema, { render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
   
@@ -103,22 +105,20 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   }, [values, folderName, updateControlValuesInStore, layoutSettingsFromPreview]);
 
   const {
-    opacity = 1,
-    landingYPosition = 0,
-    landingXPosition = 0,
-    startingScale = 1,
-    endingScale = 1,
-    scaleEndYPosition = 0.5,
-    scaleAnimationCurve = 'linear',
-    fadeOutEndYPosition = 1,
-    fadeOutAnimationCurve = 'disabled',
-    lockToViewportEdge = 'disabled',
     opacityAtStart = 1,
     opacityAtMiddle = 1,
     opacityAtEnd = 1,
     opacityAnimationCurve = 'linear',
+    landingXPosition = 0,
+    landingYPosition = 0,
+    startingScale = 1, 
+    endingScale = 1, 
+    scaleEndYPosition = 0.5, 
+    scaleAnimationCurve = 'linear',
+    lockToViewportEdge = 'disabled',
     textColor = '#333333',
-    fontFamily = overallFontFamily,
+    fontFamily = fontToUse,
+    fontSize = 16,
     fontSizeAtStart = 16,
     fontSizeAtEnd = 16,
     fontSizeAnimationCurve = 'linear',
@@ -128,6 +128,12 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     yOffsetAtAnimEnd = 0,
     letterSpacingAtAnimStart = 0,
     letterSpacingAtAnimEnd = 0,
+    cropToCircleEffect = false,
+    circleEffectCurve = 'linear',
+    circleInitialRadius = 150,
+    circleFinalRadius = 0,
+    bgImageInitialScale = 1,
+    bgImageFinalScale = 0.1,
     textShadowEffect = false,
     textShadowCurve = 'linear',
     textShadowXStart = 0,
@@ -136,20 +142,15 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     textShadowXEnd = 2,
     textShadowYEnd = 2,
     textShadowBlurEnd = 3,
-    textShadowColor = 'rgba(0,0,0,0.5)',
-    cropToCircleEffect = false,
-    circleEffectCurve = 'linear',
-    circleInitialRadius = 150,
-    circleFinalRadius = 0,
-    bgImageInitialScale = 1,
-    bgImageFinalScale = 0.1,
-    fontSize = 16,
+    textShadowColor = 'rgba(0,0,0,0.5)'
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
   useEffect(() => {
-    setMeasuredHeight(windowHeight);
-  }, [windowHeight]);
+    if (currentChildRef.current) {
+        setMeasuredHeight(currentChildRef.current.offsetHeight);
+    }
+  }, [children, currentChildRef.current]);
 
   const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
   const startMarker = experienceSettings.markers.find((m: TimelineMarker) => m.elementId === element.id && m.type === 'start');
@@ -159,6 +160,26 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const elementEndScroll = endMarker ? endMarker.position * pageMultiplier * windowHeight : windowHeight * TOTAL_PAGES;
   const elementScrollDuration = Math.max(elementEndScroll - elementStartScroll, 1);
 
+  const rawElementScrollProgress = useMemo(() => {
+    if (elementScrollDuration <= 0) return scrollY >= elementStartScroll ? 1 : 0;
+    const progress = (scrollY - elementStartScroll) / elementScrollDuration;
+    return Math.min(1, Math.max(0, progress));
+  }, [scrollY, elementStartScroll, elementScrollDuration]);
+
+
+  let finalOpacity = opacityAtEnd;
+  if (opacityAnimationCurve !== 'disabled') {
+    const selectedCurve = animationCurves[opacityAnimationCurve] || linear;
+    const easedProgress = selectedCurve(rawElementScrollProgress);
+    if (easedProgress <= 0.5) {
+      const progressFirstHalf = easedProgress * 2;
+      finalOpacity = opacityAtStart + (opacityAtMiddle - opacityAtStart) * progressFirstHalf;
+    } else {
+      const progressSecondHalf = (easedProgress - 0.5) * 2;
+      finalOpacity = opacityAtMiddle + (opacityAtEnd - opacityAtMiddle) * progressSecondHalf;
+    }
+  }
+
   let currentScale = 1;
   if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
     const scaleAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * scaleEndYPosition);
@@ -167,52 +188,93 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
   }
 
-  let finalOpacity = opacity;
-  if (fadeOutAnimationCurve !== 'disabled') {
-    const fadeOutStartScrollPoint = elementStartScroll;
-    const fadeOutDurationScroll = elementScrollDuration * fadeOutEndYPosition;
-    const safeFadeOutDurationScroll = fadeOutDurationScroll <= 0 ? 1 : fadeOutDurationScroll;
-    const fadeOutProgress = Math.min(1, Math.max(0, (scrollY - fadeOutStartScrollPoint) / safeFadeOutDurationScroll));
-    const selectedFadeOutCurve = animationCurves[fadeOutAnimationCurve as keyof typeof animationCurves] || linear;
-    finalOpacity = opacity * (1 - selectedFadeOutCurve(fadeOutProgress));
-  }
+  let currentAnimatedYOffset = 0;
+  let letterSpacingToApply = letterSpacingAtAnimEnd;
+  let currentFontSize = fontSizeAtEnd;
+  let textShadowToApply = 'none';
 
-  const elementProgress = Math.max(0, Math.min(1, (scrollY - elementStartScroll) / elementScrollDuration));
+  if (element.type === 'text') {
+    if (spreadAnimationCurve !== 'disabled') {
+      const selectedCurve = animationCurves[spreadAnimationCurve as keyof typeof animationCurves] || linear;
+      const easedProgress = selectedCurve(rawElementScrollProgress);
+      currentAnimatedYOffset = yOffsetAtAnimStart + (yOffsetAtAnimEnd - yOffsetAtAnimStart) * easedProgress;
+      letterSpacingToApply = letterSpacingAtAnimStart + (letterSpacingAtAnimEnd - letterSpacingAtAnimStart) * easedProgress;
+    }
 
-  if (opacityAnimationCurve !== 'disabled') {
-    if (elementProgress < 0.5) {
-        const progress = elementProgress * 2;
-        finalOpacity = opacityAtStart + (opacityAtMiddle - opacityAtStart) * progress;
-    } else {
-        const progress = (elementProgress - 0.5) * 2;
-        finalOpacity = opacityAtMiddle + (opacityAtEnd - opacityAtMiddle) * progress;
+    if (fontSizeAnimationCurve !== 'disabled') {
+        const selectedCurve = animationCurves[fontSizeAnimationCurve as keyof typeof animationCurves] || linear;
+        const easedProgress = selectedCurve(rawElementScrollProgress);
+        currentFontSize = fontSizeAtStart + (fontSizeAtEnd - fontSizeAtStart) * easedProgress;
+    }
+      
+    if (textShadowEffect) {
+        if (textShadowCurve !== 'disabled') {
+            const selectedCurve = animationCurves[textShadowCurve as keyof typeof animationCurves] || linear;
+            const easedProgress = selectedCurve(rawElementScrollProgress);
+            const currentX = textShadowXStart + (textShadowXEnd - textShadowXStart) * easedProgress;
+            const currentY = textShadowYStart + (textShadowYEnd - textShadowYStart) * easedProgress;
+            const currentBlur = textShadowBlurStart + (textShadowBlurEnd - textShadowBlurStart) * easedProgress;
+            textShadowToApply = `${currentX}px ${currentY}px ${currentBlur}px ${textShadowColor}`;
+        } else {
+            textShadowToApply = `${textShadowXEnd}px ${textShadowYEnd}px ${textShadowBlurEnd}px ${textShadowColor}`;
+        }
     }
   }
 
-  let yTransformBase: number;
-  const actualDisplayedHeight = measuredHeight * currentScale;
-  const effectiveLockTo = lockToViewportEdge || 'disabled';
-  const lockIsActive = effectiveLockTo !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
+  let clipPathToApply = 'none';
+  let scaleForBgImage = bgImageInitialScale;
+  if (element.type === 'background-image' && cropToCircleEffect) {
+      if (circleEffectCurve !== 'disabled') {
+          const selectedCurve = animationCurves[circleEffectCurve as keyof typeof animationCurves] || linear;
+          const easedProgress = selectedCurve(rawElementScrollProgress);
+          const currentRadius = circleInitialRadius + (circleFinalRadius - circleInitialRadius) * easedProgress;
+          clipPathToApply = `circle(${currentRadius}% at 50% 50%)`;
+          scaleForBgImage = bgImageInitialScale + (bgImageFinalScale - bgImageInitialScale) * easedProgress;
+      } else {
+          clipPathToApply = `circle(${circleInitialRadius}% at 50% 50%)`;
+      }
+  }
 
-  if (lockIsActive && effectiveLockTo === 'imageBottom-viewportBottom') {
-    yTransformBase = (windowHeight - actualDisplayedHeight) / 2;
-  } else if (lockIsActive && effectiveLockTo === 'imageTop-viewportTop') {
-    yTransformBase = -(windowHeight - actualDisplayedHeight) / 2;
-  } else {
-    yTransformBase = 0; 
+  let yTransformBase: number = 0;
+  const actualDisplayedHeight = measuredHeight * currentScale;
+  const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
+
+  if (lockIsActive) {
+      if (lockToViewportEdge === 'imageBottom-viewportBottom') {
+          yTransformBase = (windowHeight - actualDisplayedHeight) / 2;
+      } else if (lockToViewportEdge === 'imageTop-viewportTop') {
+          yTransformBase = -(windowHeight - actualDisplayedHeight) / 2;
+      }
   }
   
-  const finalCalculatedYTransform = yTransformBase + landingYPosition;
+  const finalCalculatedYTransform = yTransformBase + landingYPosition + currentAnimatedYOffset;
   
   const elementStyle: React.CSSProperties = {
     opacity: finalOpacity,
-    transform: `translateX(${landingXPosition}px) translateY(${finalCalculatedYTransform}px) scale(${currentScale})`,
+    transform: `translateX(${landingXPosition}px) translateY(${finalCalculatedYTransform}px) scale(${element.type === 'background-image' ? scaleForBgImage : currentScale})`,
     width: element.type === 'background-image' ? '100%' : 'auto',
     height: element.type === 'background-image' ? '100%' : 'auto',
     position: 'relative',
+    clipPath: clipPathToApply,
   };
 
-  return <div style={elementStyle}>{children}</div>;
+  const childWithRef = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement, { ref: currentChildRef }) : children;
+
+  if (element.type === 'text' && React.isValidElement(childWithRef)) {
+      const existingStyle = (childWithRef.props as any).style || {};
+      const newStyle = {
+          ...existingStyle,
+          color: textColor,
+          fontFamily: fontFamily,
+          fontSize: `${currentFontSize}px`,
+          letterSpacing: `${letterSpacingToApply}px`,
+          lineHeight: lineHeight,
+          textShadow: textShadowToApply,
+      };
+      return <div style={elementStyle}>{React.cloneElement(childWithRef as React.ReactElement, {style: newStyle})}</div>;
+  }
+  
+  return <div style={elementStyle}>{childWithRef}</div>;
 };
 
 export default ElementWrapper;

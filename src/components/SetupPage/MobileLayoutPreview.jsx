@@ -5,6 +5,7 @@ import useWeddingData from '../../hooks/useWeddingData';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { useIsMobile } from '../../utils/deviceDetect';
 
 const MobileLayoutPreview = () => {
     const { weddingId } = useParams();
@@ -14,6 +15,7 @@ const MobileLayoutPreview = () => {
     const [liveLayoutSettings, setLiveLayoutSettings] = useState(null);
     const [isInactive, setIsInactive] = useState(false);
     const inactivityTimer = useRef(null);
+    const isMobile = useIsMobile();
 
     // This component is strictly for preview, so setup mode is always false.
     useEffect(() => {
@@ -85,6 +87,27 @@ const MobileLayoutPreview = () => {
         return <div>No data found for this wedding.</div>;
     }
 
+    const previewContent = (
+        liveLayoutSettings ? (
+            <GuestExperiencePreview
+                weddingDataFromApp={weddingData}
+                experienceSettingsFromApp={experienceSettings}
+                layoutSettingsFromPreview={liveLayoutSettings}
+                forceMobileView={true}
+            />
+        ) : (
+            <div>Loading live layout...</div>
+        )
+    );
+
+    if (isMobile) {
+        return (
+            <div style={{ width: '100%', height: '100%' }}>
+                {previewContent}
+            </div>
+        );
+    }
+
     return (
         <div style={{
             width: '100vw',
@@ -127,16 +150,7 @@ const MobileLayoutPreview = () => {
                     height: '100%',
                     overflow: 'auto',
                 }}>
-                    {liveLayoutSettings ? (
-                        <GuestExperiencePreview
-                            weddingDataFromApp={weddingData}
-                            experienceSettingsFromApp={experienceSettings}
-                            layoutSettingsFromPreview={liveLayoutSettings}
-                            forceMobileView={true}
-                        />
-                    ) : (
-                        <div>Loading live layout...</div>
-                    )}
+                    {previewContent}
                 </div>
                 {/* Notch */}
                 <div style={{

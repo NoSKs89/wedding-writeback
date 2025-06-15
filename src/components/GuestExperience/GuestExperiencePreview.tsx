@@ -108,11 +108,83 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   layoutSettingsFromPreview,
   forceMobileView = false,
 }) => {
+  const [notification, setNotification] = useState({ text: '', visible: false });
+  const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const notificationSpring = useSpring({
+    opacity: notification.visible ? 1 : 0,
+    config: { tension: 280, friction: 60 },
+  });
+
+  const [isUserActive, setIsUserActive] = useState(true);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleUserActivity = () => {
+      if (!isUserActive) {
+        setIsUserActive(true);
+      }
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      inactivityTimerRef.current = setTimeout(() => {
+        setIsUserActive(false);
+      }, 5000); // 5 seconds of inactivity
+    };
+
+    const events = ['mousemove', 'keydown', 'mousedown', 'scroll'];
+    events.forEach(event => window.addEventListener(event, handleUserActivity));
+    handleUserActivity();
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+      events.forEach(event => window.removeEventListener(event, handleUserActivity));
+    };
+  }, [isUserActive]);
+
+  const firstRender = useRef(true);
+  useEffect(() => {
+    if (firstRender.current) {
+      firstRender.current = false;
+      return;
+    }
+    
+    if (isUserActive) {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      setNotification({ text: 'Preview Updated', visible: true });
+      notificationTimeoutRef.current = setTimeout(() => {
+        // Hide it, but keep the text for a smoother fade-out
+        setNotification(n => ({ ...n, visible: false }));
+      }, 1500);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutSettingsFromPreview, isUserActive]);
+
+  useEffect(() => {
+    if (!isUserActive) {
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      setNotification({ text: 'User Inactive', visible: true });
+    } else {
+      if (notification.text === 'User Inactive') {
+        setNotification({ text: '', visible: false });
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isUserActive, notification.text]);
+
   const isActuallyMobile = useIsMobile();
   const isMobile = forceMobileView || isActuallyMobile;
 
   const {
     'Overall Controls (Guest)': overallControls = {},
+    'Scrapbook Layout (Guest)': scrapbookLayoutControls = {},
+    ...elementControls
   } = layoutSettingsFromPreview || {};
 
   const {
@@ -207,6 +279,21 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
   return (
     <>
+      <animated.div style={{
+        position: 'fixed',
+        top: '10px',
+        left: '10px',
+        zIndex: 99999,
+        background: 'rgba(0,0,0,0.7)',
+        color: 'white',
+        padding: '5px 10px',
+        borderRadius: '4px',
+        fontSize: '12px',
+        pointerEvents: 'none',
+        ...notificationSpring
+      }}>
+        {notification.text}
+      </animated.div>
       <FontGrabber fonts={googleFontsToLoad} />
       <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>
@@ -221,22 +308,33 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               case 'photo': contentToRender = <img src={element.content} alt={element.name || 'Wedding photo'} style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }} />; break;
               case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
               case 'component':
-                if (element.name === 'RSVP Form') contentToRender = <RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} />;
-                else if (element.name === 'Scrapbook') contentToRender = <InteractiveScrapbook weddingData={weddingDataFromApp} config={element.content} scrollY={scrollY} onImageClick={handleImageClick} focusedImageGlobal={focusedImage} imageReturningToScrapbookGlobal={imageReturningToScrapbook} lastPutDownIndexGlobal={lastPutDownIndex} scrapbookImageRefs={scrapbookImageRefs} onDisplayedImagesUpdate={handleDisplayedImagesUpdate} windowWidth={windowWidth} windowHeight={windowHeight} />;
+                if (element.name === 'RSVP Form') contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} /></div>;
+                else if (element.name === 'Scrapbook') contentToRender = <InteractiveScrapbook weddingData={weddingDataFromApp} config={element.content} scrollY={scrollY} onImageClick={handleImageClick} focusedImageGlobal={focusedImage} imageReturningToScrapbookGlobal={imageReturningToScrapbook} lastPutDownIndexGlobal={lastPutDownIndex} scrapbookImageRefs={scrapbookImageRefs} onDisplayedImagesUpdate={handleDisplayedImagesUpdate} windowWidth={windowWidth} windowHeight={windowHeight} layoutControlsFromProp={scrapbookLayoutControls} />;
                 else return null;
                 break;
               default: return null;
             }
 
             return (
-              <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ ...centerStyle, zIndex: element.type === 'background-image' ? -5 : (elementsFromBlueprint.length - (element.id || 0) + 1) }}>
+              <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
+                  ...centerStyle, 
+                  zIndex: 
+                    element.type === 'background-image'
+                      ? -5
+                      : element.type === 'component' && element.name === 'Scrapbook'
+                      ? 100
+                      : element.type === 'component' && element.name === 'RSVP Form'
+                      ? 150
+                      : (elementsFromBlueprint.length - (element.id || 0) + 1),
+                  pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
+              }}>
                 <ElementWrapper 
                   element={element} 
                   experienceSettings={experienceSettingsFromApp} 
                   scrollY={scrollY} 
                   windowHeight={windowHeight} 
                   TOTAL_PAGES={TOTAL_PAGES} 
-                  layoutSettingsFromPreview={layoutSettingsFromPreview}
+                  layoutSettingsFromPreview={elementControls}
                   overallFontFamily={overallFontFamily}
                 >
                   {contentToRender}

@@ -7,6 +7,16 @@ import { useSetupMode } from '../../contexts/SetupModeContext';
 import ScrapbookImageItem from '../ScrapbookImageItem';
 // import { useTrackedControls } from '../../hooks/useTrackedControls';
 
+// A simple seeded pseudo-random number generator for deterministic layouts
+function mulberry32(a) {
+  return function() {
+    var t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
 const scrapbookLayoutControlsSchema = {
   centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
@@ -40,11 +50,13 @@ const generateInitialScrapbookStyle = (index, totalImages, windowDims, layoutVal
     baseOpacity
   } = layoutValues;
 
-  const angle = (Math.random() - 0.5) * (baseRotationRange * 2);
-  const size = baseSizeMin + Math.random() * (baseSizeMax - baseSizeMin);
+  const rand = mulberry32(index); // Use seeded random for deterministic layouts
+
+  const angle = (rand() - 0.5) * (baseRotationRange * 2);
+  const size = baseSizeMin + rand() * (baseSizeMax - baseSizeMin);
 
   const baseRadiusPercentage = spreadRadiusFactor;
-  const radiusRandomFactor = 0.6 + Math.random() * 0.4;
+  const radiusRandomFactor = 0.6 + rand() * 0.4;
 
   const radius = windowDims.innerWidth
     ? Math.min(windowDims.innerWidth * 0.45, windowDims.innerHeight * 0.45) * baseRadiusPercentage * radiusRandomFactor
@@ -59,8 +71,8 @@ const generateInitialScrapbookStyle = (index, totalImages, windowDims, layoutVal
   const finalCenterX = baseCenterX + offsetX;
   const finalCenterY = baseCenterY + offsetY;
 
-  const x = Math.cos((index / totalImages) * 2 * Math.PI) * radius + finalCenterX - (size / 2) + (Math.random() - 0.5) * 50;
-  const y = Math.sin((index / totalImages) * 2 * Math.PI) * radius + finalCenterY - (size / 2) + (Math.random() - 0.5) * 50;
+  const x = Math.cos((index / totalImages) * 2 * Math.PI) * radius + finalCenterX - (size / 2) + (rand() - 0.5) * 50;
+  const y = Math.sin((index / totalImages) * 2 * Math.PI) * radius + finalCenterY - (size / 2) + (rand() - 0.5) * 50;
 
   return {
     position: 'absolute',
@@ -127,14 +139,28 @@ const InteractiveScrapbook = ({
   onDisplayedImagesUpdate, // Callback to GuestExperience
   windowWidth,
   windowHeight,
+  layoutControlsFromProp, // Prop for receiving layout controls in preview mode
 }) => {
   const { isSetupMode } = useSetupMode();
 
-  const layoutValues = useControls(
+  const layoutValuesFromLeva = useControls(
     'Scrapbook Layout (Guest)',
     scrapbookLayoutControlsSchema,
     { collapsed: true, render: () => isSetupMode }
   );
+
+  const defaultLayoutValues = useMemo(() => Object.entries(scrapbookLayoutControlsSchema).reduce((acc, [key, val]) => {
+    acc[key] = val.value;
+    return acc;
+  }, {}), []);
+
+  const layoutValues = useMemo(() => {
+    if (isSetupMode) {
+      return layoutValuesFromLeva;
+    }
+    // In preview mode, use props merged with defaults
+    return { ...defaultLayoutValues, ...(layoutControlsFromProp || {}) };
+  }, [isSetupMode, layoutValuesFromLeva, layoutControlsFromProp, defaultLayoutValues]);
 
   const { 
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
@@ -169,8 +195,9 @@ const InteractiveScrapbook = ({
     if (resolvedImageSrcs.length <= numImagesToDisplay) {
       imagesToProcess = allImagesWithOriginalIndex;
     } else {
-      // Simple shuffle and slice if more images available than max to display
-      const shuffled = [...allImagesWithOriginalIndex].sort(() => 0.5 - Math.random());
+      // Use a STABLE shuffle based on a fixed seed
+      const rand = mulberry32(0);
+      const shuffled = [...allImagesWithOriginalIndex].sort(() => 0.5 - rand());
       imagesToProcess = shuffled.slice(0, numImagesToDisplay);
     }
     
@@ -182,8 +209,9 @@ const InteractiveScrapbook = ({
       const { src, originalIndex, alt, id } = imageInfo;
       const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, windowDims, layoutValues);
       
-      const parallaxXDirection = Math.random() < 0.5 ? -1 : 1;
-      const parallaxYDirection = Math.random() < 0.5 ? -1 : 1;
+      const rand = mulberry32(displayIndex + 100); // Use a different seed for parallax directions
+      const parallaxXDirection = rand() < 0.5 ? -1 : 1;
+      const parallaxYDirection = rand() < 0.5 ? -1 : 1;
 
       return {
         src,
