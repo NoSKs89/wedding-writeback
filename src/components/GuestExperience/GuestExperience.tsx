@@ -430,7 +430,20 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                   if (element.name === 'RSVP Form') {
                     contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} /></div>;
                   } else if (element.name === 'Scrapbook') {
-                    contentToRender = <InteractiveScrapbook weddingData={weddingDataFromApp} config={element.content} scrollY={scrollY} onImageClick={handleImageClick} focusedImageGlobal={focusedImage} imageReturningToScrapbookGlobal={imageReturningToScrapbook} lastPutDownIndexGlobal={lastPutDownIndex} scrapbookImageRefs={scrapbookImageRefs} onDisplayedImagesUpdate={handleDisplayedImagesUpdate} windowWidth={windowWidth} windowHeight={windowHeight} />;
+                    contentToRender = <InteractiveScrapbook 
+                      weddingData={weddingDataFromApp} 
+                      config={element.content} 
+                      scrollY={scrollY} 
+                      onImageClick={handleImageClick} 
+                      focusedImageGlobal={focusedImage} 
+                      imageReturningToScrapbookGlobal={imageReturningToScrapbook} 
+                      lastPutDownIndexGlobal={lastPutDownIndex} 
+                      scrapbookImageRefs={scrapbookImageRefs} 
+                      onDisplayedImagesUpdate={handleDisplayedImagesUpdate} 
+                      windowWidth={windowWidth} 
+                      windowHeight={windowHeight} 
+                      layoutControlsFromProp={null}
+                    />;
                   } else { return null; }
                   break;
                 default: return null;

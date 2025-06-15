@@ -14,6 +14,15 @@ const MobileLayoutEditor = () => {
     const { setIsSetupMode } = useSetupMode();
     const { weddingData, experienceSettings, loading, error } = useWeddingData(weddingId);
     
+    // Set body background color for this page
+    useEffect(() => {
+        const originalColor = document.body.style.backgroundColor;
+        document.body.style.backgroundColor = 'black';
+        return () => {
+            document.body.style.backgroundColor = originalColor;
+        };
+    }, []);
+
     // Get the entire controlValues object from the store
     const allControlValues = useLevaStore(state => state.controlValues);
 
@@ -66,7 +75,7 @@ const MobileLayoutEditor = () => {
                 justifyContent: 'space-between',
                 width: '100%',
                 minHeight: '100vh',
-                backgroundColor: '#f8f8f8',
+                backgroundColor: 'black',
                 position: 'relative',
             }}>
                 {/* Column 1: Info */}
@@ -81,10 +90,10 @@ const MobileLayoutEditor = () => {
                     gap: '2rem',
                 }}>
                     
-                    <div style={{ width: '100%', padding: '1rem', background: 'white', borderRadius: '8px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                    <div style={{ width: '100%', padding: '1rem', background: '#333', color: 'white', borderRadius: '8px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                         <h2 style={{marginTop: 0}}>Mobile Layout Editor</h2>
                         <p>Changes auto-save. Use the link below to see them on your phone.</p>
-                        <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{color: '#007bff'}}>
+                        <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{color: '#87cefa'}}>
                             Open Live Preview in New Tab
                         </a>
                     </div>
@@ -95,8 +104,8 @@ const MobileLayoutEditor = () => {
                     flex: '0 0 50%',
                     height: '100vh',
                     overflowY: 'auto',
-                    borderLeft: '1px solid #dfdfdf',
-                    borderRight: '1px solid #dfdfdf',
+                    borderLeft: '1px solid #444',
+                    borderRight: '1px solid #444',
                 }}>
                     <Leva fill />
                 </div>
@@ -118,9 +127,9 @@ const MobileLayoutEditor = () => {
                         maxWidth: '414px',
                         height: 'calc(100vh - 4rem)',
                         maxHeight: '896px',
-                        border: '10px solid black',
+                        border: '10px solid #4a4a4a',
                         borderRadius: '40px',
-                        boxShadow: '0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22)',
+                        boxShadow: '0 19px 38px rgba(0,0,0,0.40), 0 15px 12px rgba(0,0,0,0.32)',
                         position: 'relative',
                         overflow: 'hidden',
                     }}>
@@ -157,7 +166,7 @@ const MobileLayoutEditor = () => {
                             width: '50%',
                             maxWidth: '180px',
                             height: '25px',
-                            backgroundColor: 'black',
+                            backgroundColor: '#4a4a4a',
                             borderBottomLeftRadius: '15px',
                             borderBottomRightRadius: '15px',
                             zIndex: 10
