@@ -15,6 +15,13 @@ const MealOptionSchema = new mongoose.Schema({
   dietaryTags: [String]
 });
 
+const ShareGalleryImageSchema = new mongoose.Schema({
+  fileName: String,
+  s3Key: String,
+  uploadedBy: String,
+  uploadedAt: { type: Date, default: Date.now }
+});
+
 const EventAddressSchema = new mongoose.Schema({
   venueName: String,
   street: String,
@@ -41,6 +48,8 @@ const WeddingDataSchema = new mongoose.Schema({
   isPlated: Boolean,
   platedOptions: [MealOptionSchema],
   eventAddress: EventAddressSchema,
+  shareGalleryGuid: { type: String, default: null },
+  shareGalleryImages: [ShareGalleryImageSchema],
   // For deeply nested or highly variable structures, Mixed can be used.
   // Consider defining full schemas for these if their structure is stable and needs validation.
   settings: mongoose.Schema.Types.Mixed,

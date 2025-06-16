@@ -99,15 +99,86 @@
 
 
 .statusMessage {
-  width: 100vw;
-  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
+  height: 100vh;
   font-size: 1.5rem;
-  background-color: #1c1c1c;
   color: #ccc;
+  background-color: #1c1c1c;
 }
+
 .statusMessage.error {
-    color: #ff8a80;
+  color: #ff8a8a;
+}
+
+.gallerySection {
+  flex-grow: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.imageContainer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1 / 1;
+}
+
+.imageContainer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.imageContainer:hover img {
+  transform: scale(1.05);
+}
+
+.imageOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  color: white;
+  padding: 1.5rem 1rem 0.5rem;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.errorText {
+  color: #dc3545;
+  text-align: center;
+  font-weight: bold;
+}
+
+.emptyGalleryMessage {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: calc(100vh - 120px); /* Adjust based on upload section height */
+    text-align: center;
+    color: #ccc;
+    padding: 2rem;
+}
+
+.emptyGalleryMessage h2 {
+    font-size: 2rem;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.emptyGalleryMessage p {
+    font-size: 1.1rem;
+    color: #a0a0a0;
 } 

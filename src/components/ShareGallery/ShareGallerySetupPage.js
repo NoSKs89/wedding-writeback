@@ -5,28 +5,6 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import styles from './ShareGallerySetupPage.module.css';
 
-// --- GUID Generator ---
-const generateSecureRandomString = (length = 24) => {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
-  const charactersLength = characters.length;
-  // Use crypto.getRandomValues for better randomness if available
-  const crypto = window.crypto || window.msCrypto; // for IE 11
-  if (crypto && crypto.getRandomValues) {
-    const randomValues = new Uint32Array(length);
-    crypto.getRandomValues(randomValues);
-    for (let i = 0; i < length; i++) {
-      result += characters.charAt(randomValues[i] % charactersLength);
-    }
-  } else {
-    // Fallback for older browsers
-    for (let i = 0; i < length; i++) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    }
-  }
-  return result;
-};
-
 // --- Confirmation Modal ---
 const ConfirmationModal = ({ onConfirm, onCancel, expectedText }) => {
   const [inputText, setInputText] = useState('');
@@ -36,7 +14,10 @@ const ConfirmationModal = ({ onConfirm, onCancel, expectedText }) => {
     <div className={styles.modalBackdrop}>
       <div className={styles.modalContent}>
         <h4>Are you absolutely sure?</h4>
-        <p>This will permanently change the gallery link and invalidate any existing QR codes or shared links. This cannot be undone.</p>
+        <p>
+          This will permanently change the gallery link, <strong>delete all images currently in the gallery</strong>,
+          and invalidate any existing QR codes or shared links. This action cannot be undone.
+        </p>
         <p>To confirm, please type "<strong>{expectedText}</strong>" in the box below.</p>
         <input
           type="text"
@@ -55,11 +36,12 @@ const ConfirmationModal = ({ onConfirm, onCancel, expectedText }) => {
 
 const ShareGallerySetupPage = () => {
   const { weddingId } = useParams();
-  const [galleryGuid, setGalleryGuid] = useState('');
+  const [galleryGuid, setGalleryGuid] = useState(null);
   const [images, setImages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [isConfirmingRegen, setIsConfirmingRegen] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const apiBaseUrl = getApiBaseUrl();
 
   const shareableLink = useMemo(() => {
@@ -67,68 +49,71 @@ const ShareGallerySetupPage = () => {
     return `${window.location.origin}/${weddingId}/share-gallery/${galleryGuid}`;
   }, [galleryGuid, weddingId]);
 
-  const fetchGalleryData = async (guidToUse) => {
+  const fetchGalleryData = async () => {
     setIsLoading(true);
     setError('');
     try {
-      let finalGuid = guidToUse;
-      if (!finalGuid) {
-        // --- TODO: Replace with actual API call to get or create a GUID ---
-        // const guidResponse = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery-guid`);
-        // finalGuid = guidResponse.data.guid;
-        finalGuid = generateSecureRandomString();
-        setGalleryGuid(finalGuid);
-      }
-      
-      // 2. Fetch the images uploaded to this gallery
-      // const imagesResponse = await axios.get(`${apiBaseUrl}/share-gallery/${mockGuid}/images`);
-      // setImages(imagesResponse.data.images);
-      
-      // Creating mock images for demonstration
-      const generateMockImages = (count) => {
-        const sampleImages = [
-          'https://images.unsplash.com/photo-1593460369238-356154684128?q=80&w=2970&auto=format&fit=crop',
-          'https://images.unsplash.com/photo-1598224194079-13a4de81b504?q=80&w=2970&auto=format&fit=crop',
-          'https://images.unsplash.com/photo-1543169863-a583931864a7?q=80&w=2969&auto=format&fit=crop',
-          'https://images.unsplash.com/photo-1520854221256-17452cc351df?q=80&w=2970&auto=format&fit=crop',
-          'https://images.unsplash.com/photo-1587899932088-939634e9a657?q=80&w=3004&auto=format&fit=crop'
-        ];
-        const names = ['Alice', 'Bob', 'Charlie', 'Diana', 'Ethan'];
-        let mocks = [];
-        for (let i = 0; i < count; i++) {
-          mocks.push({
-            id: `img-${i}`,
-            url: sampleImages[i % sampleImages.length],
-            uploadedBy: names[i % names.length],
-          });
-        }
-        return mocks;
-      };
-      setImages(generateMockImages(12)); // Generate 12 mock images
-
+      const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery`);
+      setGalleryGuid(response.data.galleryGuid);
+      setImages(response.data.images.map(img => ({
+          id: img._id,
+          url: img.fileName,
+          uploadedBy: img.uploadedBy || 'N/A',
+      })));
     } catch (err) {
       console.error("Error fetching gallery data:", err);
       setError('Failed to fetch gallery data. Please try again.');
+      // If the error is 404 because a GUID hasn't been made, the backend now auto-creates it,
+      // so a simple retry might work, but for now we just show error.
     } finally {
       setIsLoading(false);
     }
   };
   
   useEffect(() => {
-    fetchGalleryData();
-  }, [weddingId, apiBaseUrl]);
+    if (weddingId) {
+      fetchGalleryData();
+    }
+  }, [weddingId]);
+
+  const handleGenerate = async () => {
+    setIsGenerating(true);
+    setError('');
+    try {
+      const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/generate-guid`);
+      setGalleryGuid(response.data.newGuid);
+    } catch (err) {
+      console.error("Error generating GUID:", err);
+      setError('Failed to generate the URL. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleRegenerate = async () => {
     setIsConfirmingRegen(false);
-    console.log('(Mock) Regenerating GUID...');
-    // --- TODO: Replace with actual API call to generate a new GUID ---
-    // const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/regenerate-share-gallery-guid`);
-    // const newGuid = response.data.newGuid;
-    const newGuid = generateSecureRandomString();
-    setGalleryGuid(newGuid);
-    // Note: In a real app, you might not need to re-fetch images if the backend
-    // just associates the existing images with the new GUID.
-    fetchGalleryData(newGuid);
+    setIsGenerating(true);
+    setError('');
+    try {
+      const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/regenerate-guid`);
+      setGalleryGuid(response.data.newGuid);
+      setImages([]); // Clear images from UI as they are deleted on the backend
+    } catch (err) {
+      console.error("Error regenerating GUID:", err);
+      setError('Failed to update the URL. Please try again.');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleButtonClick = () => {
+    if (galleryGuid) {
+      // If GUID exists, show confirmation before regenerating
+      setIsConfirmingRegen(true);
+    } else {
+      // If no GUID, generate it immediately without confirmation
+      handleGenerate();
+    }
   };
 
   const handleDeleteImage = async (imageId) => {
@@ -136,14 +121,13 @@ const ShareGallerySetupPage = () => {
     setImages(prevImages => prevImages.filter(img => img.id !== imageId));
     
     try {
-      // --- TODO: Replace with actual API call ---
-      // await axios.delete(`${apiBaseUrl}/share-gallery/${galleryGuid}/images/${imageId}`);
-      console.log(`(Mock) Deleted image ${imageId}`);
+      await axios.delete(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/images/${imageId}`);
+      // On success, the image is already removed from the UI.
     } catch (err) {
       console.error("Error deleting image:", err);
-      // If the delete fails, we might want to add the image back to the list
-      // and show an error message. For now, we just log it.
       setError('Failed to delete image. It may reappear on refresh.');
+      // Re-fetch to get the correct state from the server on failure
+      fetchGalleryData(); 
     }
   };
 
@@ -169,17 +153,21 @@ const ShareGallerySetupPage = () => {
           <h2>Share Your Gallery</h2>
           <p>Guests can scan this QR code to upload and view photos from your event.</p>
           <div className={styles.qrCode}>
-            {shareableLink ? (
+            {galleryGuid ? (
               <QRCodeCanvas value={shareableLink} size={256} />
             ) : (
-              <p>Generating QR Code...</p>
+              <div className={styles.noQrCode}>
+                {isGenerating ? 'Generating...' : 'No Share Gallery Exists, Generate Below'}
+              </div>
             )}
           </div>
-          <p className={styles.link}>
-            Or share this link: <a href={shareableLink} target="_blank" rel="noopener noreferrer">{shareableLink}</a>
-          </p>
-          <button onClick={() => setIsConfirmingRegen(true)} className={styles.regenerateButton}>
-            Regenerate URL
+          {galleryGuid && (
+            <p className={styles.link}>
+              Or share this link: <a href={shareableLink} target="_blank" rel="noopener noreferrer">{shareableLink}</a>
+            </p>
+          )}
+          <button onClick={handleButtonClick} className={styles.regenerateButton} disabled={isGenerating}>
+            {galleryGuid ? 'Regenerate URL' : 'Generate'}
           </button>
         </div>
         

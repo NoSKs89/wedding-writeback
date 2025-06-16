@@ -382,6 +382,7 @@ exports.handler = async (event, context) => {
           switch (imageType) {
               case 'introCouple': case 'introBackground': s3KeyPrefix = `${weddingId}/main/`; break;
               case 'scrapbook': s3KeyPrefix = `${weddingId}/scrapbook/`; break;
+              case 'shareGallery': s3KeyPrefix = `${weddingId}/share-gallery/`; break;
               default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
           const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
@@ -455,6 +456,173 @@ exports.handler = async (event, context) => {
           return createResponse(200, { message: 'All scrapbook images cleared.', weddingData: wedding }, requestOrigin);
       }
       
+      // --- Share Gallery Admin Endpoints ---
+
+      // GET /api/weddings/:customId/share-gallery (For Setup Page)
+      const getShareGalleryMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery$/);
+      if (httpMethod === "GET" && getShareGalleryMatch) {
+          const customId = getShareGalleryMatch[1];
+          console.log(`[GET /share-gallery] Admin page loading for weddingId: ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId });
+          if (!wedding) {
+              console.log(`[GET /share-gallery] Wedding data NOT FOUND for customId: ${customId}.`);
+              return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
+          }
+
+          console.log(`[GET /share-gallery] Found wedding data. The shareGalleryGuid from DB is: '${wedding.shareGalleryGuid}'.`);
+          // The following log will show the whole document fetched from MongoDB.
+          // If 'shareGalleryGuid' is not in this log after you regenerate it, the server is running with an old data model and needs a restart/redeploy.
+          console.log(`[GET /share-gallery] Full wedding document from DB:`, wedding);
+
+          // Send back the GUID if it exists, otherwise null. Do not create it here.
+          return createResponse(200, { 
+              galleryGuid: wedding.shareGalleryGuid || null,
+              images: wedding.shareGalleryImages || [] 
+          }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/share-gallery/generate-guid (For Setup Page - First time generation)
+      const generateGuidMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/generate-guid$/);
+      if (httpMethod === "POST" && generateGuidMatch) {
+          const customId = generateGuidMatch[1];
+          const wedding = await WeddingData.findOne({ customId });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
+          
+          if (wedding.shareGalleryGuid) {
+              return createResponse(409, { message: 'A gallery link already exists. Use regenerate to create a new one.' }, requestOrigin);
+          }
+
+          const newGuid = uuidv4();
+          wedding.shareGalleryGuid = newGuid;
+          await wedding.save();
+          
+          return createResponse(201, { newGuid: wedding.shareGalleryGuid }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/share-gallery/regenerate-guid (For Setup Page)
+      const regenerateGuidMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/regenerate-guid$/);
+      if (httpMethod === "POST" && regenerateGuidMatch) {
+          const customId = regenerateGuidMatch[1];
+          
+          // First, find the wedding to get existing images for deletion
+          const weddingForImageDeletion = await WeddingData.findOne({ customId });
+          if (!weddingForImageDeletion) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
+
+          // If there are existing images, delete them from S3
+          if (weddingForImageDeletion.shareGalleryImages && weddingForImageDeletion.shareGalleryImages.length > 0) {
+              console.log(`[Regenerate GUID] Deleting ${weddingForImageDeletion.shareGalleryImages.length} images from share gallery for ${customId}.`);
+              for (const img of weddingForImageDeletion.shareGalleryImages) {
+                  if (img.s3Key) {
+                      try {
+                          await s3Client.send(new DeleteObjectCommand({ Bucket: AWS_S3_BUCKET_NAME, Key: img.s3Key }));
+                          console.log(`S3 Share Gallery (GUID Regen) Delete Success: ${img.s3Key}`);
+                      } catch (s3Error) {
+                          console.error(`S3 Share Gallery (GUID Regen) Delete Fail: ${img.s3Key}`, s3Error);
+                      }
+                  }
+              }
+          }
+
+          const newGuid = uuidv4();
+          
+          // Now, atomically update the document
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { 
+                  $set: { 
+                      shareGalleryGuid: newGuid,
+                      shareGalleryImages: [] // Also clear the images array
+                  } 
+              },
+              { new: true } // Return the updated document
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding data not found during update.' }, requestOrigin);
+          }
+          
+          return createResponse(200, { newGuid: updatedWedding.shareGalleryGuid }, requestOrigin);
+      }
+
+      // DELETE /api/weddings/:customId/share-gallery/images/:imageId (For Setup Page)
+      const deleteShareGalleryImageMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_.-]+)\/share-gallery\/images\/([a-zA-Z0-9_.-]+)$/);
+      if (httpMethod === "DELETE" && deleteShareGalleryImageMatch) {
+          const customId = deleteShareGalleryImageMatch[1];
+          const imageId = deleteShareGalleryImageMatch[2];
+          const wedding = await WeddingData.findOne({ customId });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
+
+          const imageToDelete = wedding.shareGalleryImages.id(imageId);
+          if (!imageToDelete) return createResponse(404, { message: 'Share gallery image not found by ID.' }, requestOrigin);
+          
+          if (imageToDelete.s3Key) {
+              try {
+                  await s3Client.send(new DeleteObjectCommand({ Bucket: AWS_S3_BUCKET_NAME, Key: imageToDelete.s3Key }));
+                  console.log(`S3 Share Gallery Delete: ${imageToDelete.s3Key}`);
+              } catch (s3Error) { console.error(`S3 Share Gallery Delete Fail: ${imageToDelete.s3Key}`, s3Error); }
+          }
+          wedding.shareGalleryImages.pull({ _id: imageId });
+          await wedding.save();
+          return createResponse(200, { message: 'Share gallery image deleted.', images: wedding.shareGalleryImages }, requestOrigin);
+      }
+
+      // --- Public Share Gallery Endpoints ---
+      
+      // GET /api/weddings/:customId/share-gallery/:guid (For Guest Page to fetch images)
+      const getPublicShareGalleryMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/([a-zA-Z0-9-]+)$/);
+      if (httpMethod === "GET" && getPublicShareGalleryMatch) {
+        const customId = getPublicShareGalleryMatch[1];
+        const guid = getPublicShareGalleryMatch[2];
+        
+        // First, find the wedding by customId to see if the link is just stale
+        const wedding = await WeddingData.findOne({ customId: customId });
+        if (!wedding) return createResponse(404, { message: 'Gallery not found. The wedding ID may be incorrect.' }, requestOrigin);
+
+        // Now check if the GUID matches. If not, the link is stale.
+        if (wedding.shareGalleryGuid !== guid) {
+          return createResponse(409, { 
+            message: 'Conflict: This share link is outdated.', 
+            correctGuid: wedding.shareGalleryGuid 
+          }, requestOrigin);
+        }
+
+        // If we're here, the GUID is valid. Proceed as before.
+        return createResponse(200, {
+          eventName: wedding.eventName,
+          images: wedding.shareGalleryImages || [],
+          weddingId: wedding.customId // Keep sending this for the uploader utility
+        }, requestOrigin);
+      }
+      
+      // POST /api/share-gallery/:guid/images (For Guest Page to save image ref)
+      const postPublicShareGalleryImageMatch = routePath.match(/^\/api\/share-gallery\/([a-zA-Z0-9-]+)\/images$/);
+      if (httpMethod === "POST" && postPublicShareGalleryImageMatch) {
+        const guid = postPublicShareGalleryImageMatch[1];
+        const { imageUrl, s3Key, uploadedBy } = body;
+        if (!imageUrl || !s3Key || !uploadedBy) {
+          return createResponse(400, { message: 'imageUrl, s3Key, and uploadedBy are required.' }, requestOrigin);
+        }
+
+        const wedding = await WeddingData.findOne({ shareGalleryGuid: guid });
+        if (!wedding) return createResponse(404, { message: 'Gallery not found.' }, requestOrigin);
+        
+        if (!wedding.shareGalleryImages) {
+            wedding.shareGalleryImages = [];
+        }
+
+        wedding.shareGalleryImages.push({
+          fileName: imageUrl,
+          s3Key,
+          uploadedBy: uploadedBy || 'Anonymous',
+          uploadedAt: new Date()
+        });
+
+        await wedding.save();
+        const newImage = wedding.shareGalleryImages[wedding.shareGalleryImages.length - 1];
+        return createResponse(201, { message: 'Image uploaded successfully.', image: newImage }, requestOrigin);
+      }
+
       // POST /api/rsvp/:customId
       const rsvpMatch = routePath.match(/^\/api\/rsvp\/([a-zA-Z0-9_-]+)$/);
       if (httpMethod === "POST" && rsvpMatch) {
