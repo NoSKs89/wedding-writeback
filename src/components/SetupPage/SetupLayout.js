@@ -141,7 +141,15 @@ const SetupLayout = () => {
                 <>
                   <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
-                  <button onClick={() => navigate(`/${weddingId}/setup/images`)} className={styles.navButton}>Image Management</button>
+                  
+                  <div className={styles.dropdown}>
+                    <button className={styles.navButton}>Image Management</button>
+                    <div className={styles.dropdownContent}>
+                      <Link to={`/${weddingId}/setup/images`}>Scrapbook Images</Link>
+                      <Link to={`/${weddingId}/setup/share-gallery`}>Guest Share Gallery</Link>
+                    </div>
+                  </div>
+
                   <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>

@@ -1,0 +1,113 @@
+.pageContainer {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden; /* Important to contain the absolutely positioned upload section */
+  background-color: #1c1c1c;
+}
+
+.uploadSection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+  transition: background-color 0.3s ease;
+}
+
+.inputGroup {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    background-color: rgba(45, 45, 45, 0.9);
+    padding: 0.5rem;
+    border-radius: 99px; /* Pill shape */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nameInput {
+  background-color: transparent;
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  width: 150px;
+  transition: width 0.3s ease;
+}
+
+.nameInput:focus {
+  outline: none;
+  width: 180px;
+}
+
+.nameInput::placeholder {
+  color: #aaa;
+}
+
+.uploadButton {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 99px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.uploadButton:hover:not(:disabled) {
+  background-color: #0056b3;
+  transform: scale(1.05);
+}
+
+.uploadButton:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+.uploadMessage {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.uploadMessage.info {
+    background-color: rgba(80, 80, 80, 0.8);
+    color: white;
+}
+.uploadMessage.success {
+    background-color: rgba(40, 167, 69, 0.9);
+    color: white;
+}
+.uploadMessage.error {
+    background-color: rgba(220, 53, 69, 0.9);
+    color: white;
+}
+
+
+.statusMessage {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 1.5rem;
+  background-color: #1c1c1c;
+  color: #ccc;
+}
+.statusMessage.error {
+    color: #ff8a80;
+} 
