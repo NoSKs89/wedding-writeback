@@ -1,26 +1,30 @@
 .gridContainer {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  align-content: start; /* Fixes gap issue */
   width: 100vw;
   min-height: 100vh;
+  padding-top: 120px; /* Add padding to push grid below upload bar */
+  box-sizing: border-box;
   background-color: #1c1c1c;
+  perspective: 2500px; /* Increased perspective to reduce distortion */
   /* No gap for a tight grid */
 }
 
 .gridItem {
   position: relative;
   overflow: hidden;
-  aspect-ratio: 1 / 1;
-  transition: transform 1s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 0 0 1px #333; /* 1px border between items */
+  border-radius: 8px;
+  background-color: #333;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transform-style: preserve-3d;
+  transition: transform 0.5s ease, box-shadow 0.3s ease;
+  cursor: zoom-in;
 }
 
-/* Add a bit of extra transition delay for a more dynamic feel when returning to active */
-.gridContainer:not(.inactive) .gridItem {
-    transition-duration: 0.5s;
-    transition-timing-function: cubic-bezier(0.6, -0.28, 0.735, 0.045);
+.gridItem:hover {
+  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
 }
-
 
 .gridItem img {
   width: 100%;
@@ -52,6 +56,55 @@
 .gridItem:hover .uploaderInfo {
   opacity: 1;
   transform: translateY(0);
+}
+
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  z-index: 100;
+  will-change: opacity;
+  cursor: zoom-out;
+}
+
+.focusedImageWrapper {
+  position: fixed;
+  will-change: transform, opacity, top, left, width, height;
+  cursor: zoom-out;
+  z-index: 1001;
+  display: flex; /* Use flexbox for alignment */
+  flex-direction: column; /* Stack image and text vertically */
+  align-items: center; /* Center horizontally */
+  justify-content: center; /* Center vertically */
+  overflow: hidden; /* Prevent content from spilling during animation */
+}
+
+.focusedImageWrapper img {
+  display: block;
+  width: 100%;
+  height: auto; /* Let height be determined by aspect ratio */
+  max-height: 100%; /* Ensure image doesn't overflow its wrapper */
+  object-fit: contain;
+  box-shadow: 0px 15px 40px rgba(0, 0, 0, 0.5);
+  border: 10px solid white;
+  border-radius: 4px;
+  background-color: #333; /* Dark background for transparent images */
+}
+
+.focusedUploaderInfo {
+  color: white;
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 8px 16px;
+  border-radius: 15px;
+  margin-top: 15px; /* Space between image and text */
+  font-size: 0.9rem;
+  font-weight: bold;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  pointer-events: none; /* Prevent text from intercepting clicks meant for the wrapper */
 }
 
 .emptyMessage {

@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useSpring, animated, config } from 'react-spring';
 import InteractiveImageGrid from './InteractiveImageGrid';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import styles from './ShareGalleryGuestPage.module.css';
+import { createPortal } from 'react-dom';
 
 const UploadIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -40,6 +42,140 @@ const uploadFile = async ({ file, weddingId, uploaderName, guid }) => {
     }
 };
 
+// FocusedImagePortal renders the focused image in a portal at the document body level
+function FocusedImagePortal({
+  visible,
+  imageUrl,
+  uploader,
+  startRect,
+  startTransform,
+  endRect,
+  onClose,
+  onAnimationEnd,
+}) {
+  const [spring, api] = useSpring(() => ({
+    opacity: 0,
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+    transform: 'scale(1) rotateX(0deg) rotateY(0deg) rotateZ(0deg)',
+    config: { ...config.wobbly, tension: 220, friction: 22 },
+  }));
+
+  // Freeze animation props at open
+  const [frozen, setFrozen] = useState(null);
+  useEffect(() => {
+    if (visible && startRect && endRect && !frozen) {
+      setFrozen({
+        startRect: { ...startRect },
+        startTransform,
+        endRect: { ...endRect },
+      });
+    }
+    if (!visible) {
+      setFrozen(null);
+    }
+  }, [visible, startRect, endRect, startTransform, frozen]);
+
+  // Only animate in when frozen values are set
+  useEffect(() => {
+    if (visible && frozen) {
+      console.log('[PORTAL] Opening animation (frozen)', frozen);
+      api.start({
+        immediate: false,
+        from: {
+          top: frozen.startRect.top,
+          left: frozen.startRect.left,
+          width: frozen.startRect.width,
+          height: frozen.startRect.height,
+          transform: frozen.startTransform,
+          opacity: 1,
+        },
+        to: {
+          top: frozen.endRect.top,
+          left: frozen.endRect.left,
+          width: frozen.endRect.width,
+          height: frozen.endRect.height,
+          transform: 'scale(1) rotateX(0deg) rotateY(0deg) rotateZ(0deg)',
+          opacity: 1,
+        },
+        onRest: () => {
+          console.log('[PORTAL] Opening animation finished');
+          if (onAnimationEnd) onAnimationEnd();
+        },
+      });
+    }
+  }, [visible, frozen, api, onAnimationEnd]);
+
+  // Closing animation
+  const [isClosing, setIsClosing] = useState(false);
+  useEffect(() => {
+    if (isClosing && visible && frozen) {
+      api.start({
+        immediate: false,
+        from: {
+          top: frozen.endRect.top,
+          left: frozen.endRect.left,
+          width: frozen.endRect.width,
+          height: frozen.endRect.height,
+          transform: 'scale(1) rotateX(0deg) rotateY(0deg) rotateZ(0deg)',
+          opacity: 1,
+        },
+        to: {
+          top: frozen.startRect.top,
+          left: frozen.startRect.left,
+          width: frozen.startRect.width,
+          height: frozen.startRect.height,
+          transform: frozen.startTransform,
+          opacity: 1,
+        },
+        onRest: () => {
+          setIsClosing(false);
+          if (onClose) onClose();
+        },
+      });
+    }
+  }, [isClosing, visible, frozen, api, onClose]);
+
+  // Always mount the portal, only render content when visible && frozen
+  return createPortal(
+    <>
+      {visible && frozen && (
+        <>
+          <animated.div
+            className={styles.backdrop}
+            style={{
+              opacity: spring.opacity.to(o => o > 0.1 ? 1 : 0),
+              pointerEvents: visible ? 'auto' : 'none',
+            }}
+            onClick={() => setIsClosing(true)}
+          />
+          <animated.div
+            className={styles.focusedImageWrapper}
+            style={{
+              top: spring.top,
+              left: spring.left,
+              width: spring.width,
+              height: spring.height,
+              transform: spring.transform,
+              opacity: spring.opacity,
+              position: 'fixed',
+              zIndex: 1001,
+              pointerEvents: 'auto',
+            }}
+            onClick={() => setIsClosing(true)}
+          >
+            <img src={imageUrl} alt={`Uploaded by ${uploader}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            <div className={styles.focusedUploaderInfo}>Uploaded by: {uploader || 'Anonymous'}</div>
+          </animated.div>
+        </>
+      )}
+    </>,
+    document.body
+  );
+}
+
 const ShareGalleryGuestPage = () => {
     const { weddingId, guid } = useParams();
     const navigate = useNavigate();
@@ -52,6 +188,8 @@ const ShareGalleryGuestPage = () => {
     const fileInputRef = useRef(null);
     const apiBaseUrl = getApiBaseUrl();
     const [eventName, setEventName] = useState('');
+    const [focusedImage, setFocusedImage] = useState(null); // { url, uploader, startRect, startTransform, endRect, index }
+    const [portalVisible, setPortalVisible] = useState(false);
 
     useEffect(() => {
         const savedName = localStorage.getItem('uploaderName');
@@ -145,6 +283,18 @@ const ShareGalleryGuestPage = () => {
         setTimeout(() => setUploadMessage({ text: '', type: '' }), 5000);
     };
 
+    // Handler for grid tile click
+    const handleFocusImage = (data) => {
+        setFocusedImage(data);
+        setPortalVisible(true);
+    };
+
+    // Handler for closing the portal
+    const handlePortalClose = () => {
+        setPortalVisible(false);
+        setTimeout(() => setFocusedImage(null), 300); // Wait for animation to finish
+    };
+
     if (isLoading) {
         return <div className={styles.statusMessage}>Loading Gallery...</div>;
     }
@@ -192,7 +342,24 @@ const ShareGalleryGuestPage = () => {
             </div>
 
             {images.length > 0 ? (
-                <InteractiveImageGrid images={images} />
+                <>
+                    <FocusedImagePortal
+                        visible={portalVisible && focusedImage}
+                        imageUrl={focusedImage?.url}
+                        uploader={focusedImage?.uploader}
+                        startRect={focusedImage?.startRect}
+                        startTransform={focusedImage?.startTransform}
+                        endRect={focusedImage?.endRect}
+                        onClose={handlePortalClose}
+                        onAnimationEnd={() => {}}
+                    />
+                    <InteractiveImageGrid
+                        images={images}
+                        onFocusImage={handleFocusImage}
+                        // Hide the focused tile by passing focusedIndex
+                        focusedIndex={portalVisible && focusedImage ? focusedImage.index : null}
+                    />
+                </>
             ) : (
                 <div className={styles.emptyGalleryMessage}>
                     <h2>Be the first to upload a photo!</h2>
