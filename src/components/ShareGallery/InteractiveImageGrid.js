@@ -1,15 +1,131 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
+import { useSpring, animated } from 'react-spring';
 import styles from './InteractiveImageGrid.module.css';
 
-const InteractiveImageGrid = ({ images, onFocusImage, focusedIndex }) => {
+// Custom hook for scroll-based parallax spring
+function useScrollSpring(ref) {
+  const [spring, api] = useSpring(() => ({
+    parallax: 0,
+    config: { mass: 1, tension: 180, friction: 26 },
+  }));
+
+  useEffect(() => {
+    if (!ref.current) return;
+    function handleScroll() {
+      const rect = ref.current.getBoundingClientRect();
+      const windowH = window.innerHeight;
+      // Distance from center of viewport, normalized [-1, 1]
+      const centerY = rect.top + rect.height / 2;
+      const distFromCenter = (centerY - windowH / 2) / (windowH / 2);
+      // Clamp and scale for effect
+      const clamped = Math.max(-1, Math.min(1, distFromCenter));
+      api.start({ parallax: clamped });
+    }
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('resize', handleScroll);
+    };
+  }, [ref, api]);
+
+  return spring;
+}
+
+// Per-tile component
+function GridImageTile({
+  image,
+  index,
+  focusedIndex,
+  inView,
+  getTransformForGridItem,
+  onClick,
+  setInViewAtIndex,
+  cancelFocus,
+  isInactive,
+}) {
+  const ref = useRef(null);
+  const spring = useScrollSpring(ref);
+
+  // Intersection Observer for in-view animation
+  useEffect(() => {
+    if (!ref.current) return;
+    const observer = new window.IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInViewAtIndex(index);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(ref.current);
+    return () => observer.disconnect();
+  }, [index, setInViewAtIndex]);
+
+  // Classic tilt values for this tile
+  const classicTilt = getTransformForGridItem(index, true); // true = get raw tilt values
+
+  // Compute transform
+  const logTransform = (p) => {
+    if (!isInactive) {
+      // Active: snap together, no tilt, no parallax
+      return 'rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1)';
+    } else {
+      // Inactive: blend classic tilt and parallax (add parallax to Y axis)
+      // classicTilt: { x, y, z }
+      const yWithParallax = classicTilt.y + p * 45; // Blend parallax into Y
+      return `rotateX(${classicTilt.x}deg) rotateY(${yWithParallax}deg) rotateZ(${classicTilt.z}deg) scale(0.9)`;
+    }
+  };
+
+  return (
+    <animated.div
+      key={image.id || index}
+      ref={ref}
+      className={
+        styles.gridItem +
+        (inView ? ' ' + styles.inView : '')
+      }
+      style={{
+        transform: spring.parallax.to(logTransform),
+        transition: 'transform 0.5s cubic-bezier(.4,2,.6,1), opacity 0.5s cubic-bezier(.4,2,.6,1)',
+        opacity: focusedIndex === index ? 0 : 1,
+      }}
+      onClick={() => {
+        if (focusedIndex === index && cancelFocus) {
+          cancelFocus();
+        } else {
+          onClick(index);
+        }
+      }}
+    >
+      <img src={image.url} alt={`Uploaded by ${image.uploadedBy}`} />
+      <div className={styles.uploaderInfo}>{image.uploadedBy || 'Anonymous'}</div>
+    </animated.div>
+  );
+}
+
+const InteractiveImageGrid = ({ images, onFocusImage, focusedIndex, cancelFocus }) => {
   const [isInactive, setIsInactive] = React.useState(false);
   const inactivityTimer = useRef(null);
   const gridRef = useRef(null);
-  const imageRefs = useRef([]);
+  const [inViewArr, setInViewArr] = useState([]);
 
   useEffect(() => {
-    imageRefs.current = Array(images.length).fill().map((_, i) => imageRefs.current[i] || React.createRef());
+    setInViewArr(Array(images.length).fill(false));
   }, [images.length]);
+
+  // Set inView for a specific index (for animation)
+  const setInViewAtIndex = useCallback((idx) => {
+    setInViewArr(prev => {
+      if (prev[idx]) return prev;
+      const next = [...prev];
+      next[idx] = true;
+      return next;
+    });
+  }, []);
 
   // Inactivity timer logic (allow tilt even when focused)
   const resetInactivityTimer = useCallback(() => {
@@ -30,25 +146,30 @@ const InteractiveImageGrid = ({ images, onFocusImage, focusedIndex }) => {
     };
   }, [resetInactivityTimer]);
 
-  // Calculate transform for grid item
-  const getTransformForGridItem = useCallback((index) => {
-    if (!isInactive || !gridRef.current) return 'rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1)';
-    const gridComputedStyle = window.getComputedStyle(gridRef.current);
-    const numColumns = gridComputedStyle.getPropertyValue('grid-template-columns').split(' ').length;
-    if (numColumns === 0) return 'scale(0.9)';
+  // Classic tilt values for each tile
+  const getClassicTilt = useCallback((index) => {
+    const numColumns = 2;
     const rowIndex = Math.floor(index / numColumns);
     const colIndex = index % numColumns;
-    const xAngle = rowIndex % 2 === 0 ? 8 : -8;
-    const yAngle = (colIndex - (numColumns - 1) / 2) * 2;
-    const zAngle = (index % 7 - 3) * -1;
-    const scale = 'scale(0.9)';
-    return `rotateX(${xAngle}deg) rotateY(${yAngle}deg) rotateZ(${zAngle}deg) ${scale}`;
-  }, [isInactive]);
+    const x = rowIndex % 2 === 0 ? 8 : -8;
+    const y = colIndex === 0 ? -8 : 8;
+    const z = (index % 4 - 2) * 2;
+    return { x, y, z };
+  }, []);
+
+  // getTransformForGridItem returns either classic tilt values or a string
+  const getTransformForGridItem = useCallback((index, asObject = false) => {
+    if (asObject) return getClassicTilt(index);
+    if (!isInactive) return 'rotateX(0deg) rotateY(0deg) rotateZ(0deg) scale(1)';
+    const { x, y, z } = getClassicTilt(index);
+    return `rotateX(${x}deg) rotateY(${y}deg) rotateZ(${z}deg) scale(0.9)`;
+  }, [isInactive, getClassicTilt]);
 
   // Handle image click: send data to parent
   const handleImageClick = (index) => {
     resetInactivityTimer();
-    const el = imageRefs.current[index]?.current;
+    // Focus logic unchanged
+    const el = document.querySelectorAll('.' + styles.gridItem)[index];
     if (!el) return;
     const domRect = el.getBoundingClientRect();
     const spreadRect = {
@@ -94,23 +215,23 @@ const InteractiveImageGrid = ({ images, onFocusImage, focusedIndex }) => {
   };
 
   return (
-    <div ref={gridRef} className={styles.gridContainer}>
-      {images.map((image, index) => (
-        <div
-          key={image.id || index}
-          ref={imageRefs.current[index]}
-          className={styles.gridItem}
-          style={{
-            transform: getTransformForGridItem(index),
-            transition: 'transform 0.5s ease, opacity 0.5s ease',
-            opacity: focusedIndex === index ? 0 : 1,
-          }}
-          onClick={() => handleImageClick(index)}
-        >
-          <img src={image.url} alt={`Uploaded by ${image.uploadedBy}`} />
-          <div className={styles.uploaderInfo}>{image.uploadedBy || 'Anonymous'}</div>
-        </div>
-      ))}
+    <div className={styles.gridWrapper}>
+      <div ref={gridRef} className={styles.gridContainer}>
+        {images.map((image, index) => (
+          <GridImageTile
+            key={image.id || index}
+            image={image}
+            index={index}
+            focusedIndex={focusedIndex}
+            inView={inViewArr[index]}
+            getTransformForGridItem={getTransformForGridItem}
+            onClick={handleImageClick}
+            setInViewAtIndex={setInViewAtIndex}
+            cancelFocus={cancelFocus}
+            isInactive={isInactive}
+          />
+        ))}
+      </div>
     </div>
   );
 };

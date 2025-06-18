@@ -6,6 +6,7 @@ import InteractiveImageGrid from './InteractiveImageGrid';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import styles from './ShareGalleryGuestPage.module.css';
 import { createPortal } from 'react-dom';
+import SparklesBackground from '../SparklesBackground';
 
 const UploadIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -305,6 +306,7 @@ const ShareGalleryGuestPage = () => {
 
     return (
         <div className={styles.pageContainer}>
+            <SparklesBackground />
             <div className={styles.uploadSection}>
                 <h2>{eventName}</h2>
                 <div className={styles.inputGroup}>
@@ -358,6 +360,7 @@ const ShareGalleryGuestPage = () => {
                         onFocusImage={handleFocusImage}
                         // Hide the focused tile by passing focusedIndex
                         focusedIndex={portalVisible && focusedImage ? focusedImage.index : null}
+                        cancelFocus={handlePortalClose}
                     />
                 </>
             ) : (

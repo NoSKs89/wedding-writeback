@@ -1,61 +1,84 @@
-.gridContainer {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  align-content: start; /* Fixes gap issue */
-  width: 100vw;
+.gridWrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
   min-height: 100vh;
-  padding-top: 120px; /* Add padding to push grid below upload bar */
-  box-sizing: border-box;
-  background-color: #1c1c1c;
-  perspective: 2500px; /* Increased perspective to reduce distortion */
-  /* No gap for a tight grid */
+  overflow-y: auto;
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+}
+.gridWrapper::-webkit-scrollbar {
+  display: none;
+}
+
+.gridContainer {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0;
+  padding: 0;
+  perspective: 1000px;
+  justify-content: center;
+  justify-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (min-width: 900px) {
+  .gridContainer {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    padding: 32px 0;
+  }
 }
 
 .gridItem {
   position: relative;
-  overflow: hidden;
-  border-radius: 8px;
-  background-color: #333;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  aspect-ratio: 1;
+  cursor: pointer;
   transform-style: preserve-3d;
-  transition: transform 0.5s ease, box-shadow 0.3s ease;
-  cursor: zoom-in;
+  will-change: transform, opacity;
+  /* Default state for animation */
+  opacity: 0;
+  transform: rotateX(60deg) scale(1);
 }
 
-.gridItem:hover {
-  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+.gridItem.inView {
+  opacity: 1;
+  transform: rotateX(0deg) scale(1);
+  transition: transform 0.7s cubic-bezier(.4,2,.6,1), opacity 0.7s cubic-bezier(.4,2,.6,1);
 }
 
 .gridItem img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.6s ease;
-}
-
-.gridItem:hover img {
-  transform: scale(1.1);
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .uploaderInfo {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 1rem 0.5rem 0.5rem;
-  background: linear-gradient(to top, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.6);
   color: white;
-  font-size: 0.8rem;
-  font-weight: 500;
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.4s ease, transform 0.4s ease;
-  pointer-events: none;
+  border-radius: 4px;
+  font-size: 0.8em;
+  text-align: center;
+  backdrop-filter: blur(4px);
 }
 
-.gridItem:hover .uploaderInfo {
-  opacity: 1;
-  transform: translateY(0);
+.gridItem:hover {
+  box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+}
+
+.gridItem:hover img {
+  transform: scale(1.1);
 }
 
 .backdrop {
