@@ -433,7 +433,12 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
             <h3 style={{ textAlign: 'center', marginTop: 0 }}>We're so happy you can make it!</h3>
             
             {/* Fields for PLATED style, shown on page 2 */}
-            <label>How many guests in your party?</label>
+            <label>
+              How many guests in your party?
+              <span style={{ fontSize: '0.8em', fontWeight: 'normal', marginLeft: '4px' }}>
+                (including you)
+              </span>
+            </label>
             <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
             
             <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>Email (Optional)</label>

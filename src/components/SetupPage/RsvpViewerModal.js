@@ -42,6 +42,28 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
             .join(', ');
     };
 
+    // This function normalizes the guest count from different possible data schemas
+    const getGuestCount = (rsvp) => {
+        if (!rsvp.attending) {
+            return 0;
+        }
+        // New schema uses guestCount for the total party size
+        if (rsvp.guestCount !== undefined) {
+            return rsvp.guestCount;
+        }
+        // Old schema used separate adult/child counts
+        if (rsvp.respondedAdultCount !== undefined) {
+            return (rsvp.respondedAdultCount || 0) + (rsvp.respondedChildrenCount || 0);
+        }
+        // Fallback for an attending guest with no count data provided
+        return 1;
+    };
+
+    // Calculate the total number of guests who are attending.
+    const totalAttendingGuests = rsvps
+        .filter(rsvp => rsvp.attending)
+        .reduce((sum, rsvp) => sum + getGuestCount(rsvp), 0);
+
     return (
         <>
             <div className={styles.backdrop} onClick={onClose} />
@@ -59,7 +81,12 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
                             <tr>
                                 <th>Name</th>
                                 <th>Attending</th>
-                                <th>Guests</th>
+                                <th>
+                                    Guests
+                                    <span style={{ fontSize: '0.8em', fontWeight: 'normal', marginLeft: '4px' }}>
+                                        ({totalAttendingGuests} total)
+                                    </span>
+                                </th>
                                 <th>Email</th>
                                 <th>Meal Choices</th>
                                 <th>Message</th>
@@ -69,30 +96,35 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
                         </thead>
                         <tbody>
                             {rsvps && rsvps.length > 0 ? (
-                                rsvps.map((rsvp) => (
-                                    <tr key={rsvp.rsvpId || rsvp._id}>
-                                        <td>{rsvp.firstName} {rsvp.lastName}</td>
-                                        <td>
-                                            <div className={`${styles.attendingCellIcon} ${rsvp.attending ? styles.attendingYes : styles.attendingNo}`}>
-                                                {rsvp.attending ? <CheckIcon /> : <XIcon />}
-                                            </div>
-                                        </td>
-                                        <td>{rsvp.guestCount}</td>
-                                        <td>{rsvp.email || 'N/A'}</td>
-                                        <td>{formatMealChoices(rsvp.mealChoices)}</td>
-                                        <td className={styles.messageCell}>{rsvp.message || 'N/A'}</td>
-                                        <td>{formatTimestamp(rsvp.submittedAt)}</td>
-                                        <td>
-                                            <button 
-                                                onClick={() => onDelete(rsvp.rsvpId)} 
-                                                className={styles.deleteButton}
-                                                title="Delete this RSVP"
-                                            >
-                                                &times;
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))
+                                rsvps.map((rsvp) => {
+                                    const guestCount = getGuestCount(rsvp);
+                                    const guestName = rsvp.firstName ? `${rsvp.firstName} ${rsvp.lastName}` : (rsvp.respondingGuestName || 'N/A');
+
+                                    return (
+                                        <tr key={rsvp.rsvpId || rsvp._id}>
+                                            <td>{guestName}</td>
+                                            <td>
+                                                <div className={`${styles.attendingCellIcon} ${rsvp.attending ? styles.attendingYes : styles.attendingNo}`}>
+                                                    {rsvp.attending ? <CheckIcon /> : <XIcon />}
+                                                </div>
+                                            </td>
+                                            <td>{guestCount}</td>
+                                            <td>{rsvp.email || 'N/A'}</td>
+                                            <td>{formatMealChoices(rsvp.mealChoices)}</td>
+                                            <td className={styles.messageCell}>{rsvp.message || 'N/A'}</td>
+                                            <td>{formatTimestamp(rsvp.submittedAt)}</td>
+                                            <td>
+                                                <button 
+                                                    onClick={() => onDelete(rsvp.rsvpId)} 
+                                                    className={styles.deleteButton}
+                                                    title="Delete this RSVP"
+                                                >
+                                                    &times;
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
                             ) : (
                                 <tr>
                                     <td colSpan="8" style={{ textAlign: 'center' }}>No RSVP submissions yet.</td>

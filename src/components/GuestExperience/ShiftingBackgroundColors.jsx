@@ -85,24 +85,9 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
   const currentAngle = gradientAngleOffset + scrollY * gradientScrollFactor;
 
   let currentOpacity = startOpacity;
-  const parallaxScrollHeight = TOTAL_PAGES > 1 ? (TOTAL_PAGES -1) * windowHeight : 0; // Max scroll is (TOTAL_PAGES-1) screens
+  const parallaxScrollHeight = TOTAL_PAGES > 1 ? (TOTAL_PAGES - 1) * windowHeight : 0;
 
   const currentScrollYPercent = parallaxScrollHeight > 0 ? Math.min(scrollY / parallaxScrollHeight, 1) : 0;
-
-  console.log('[ShiftingBackgroundColors] Recalculating Opacity:',
-    {
-      scrollY,
-      TOTAL_PAGES,
-      windowHeight,
-      parallaxScrollHeight,
-      currentScrollYPercent,
-      controlsValues: controlValues,
-      destructuredMaxOpacity: maxGradientOpacity,
-      destructuredStartOpacity: startOpacity,
-      destructuredStartFadeY: startFadeYPercent,
-      destructuredEndFadeY: endFadeYPercent,
-    }
-  );
 
   if (currentScrollYPercent <= startFadeYPercent) {
     currentOpacity = startOpacity;
@@ -118,7 +103,6 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
     }
   }
   currentOpacity = Math.max(0, Math.min(1, currentOpacity));
-  console.log('[ShiftingBackgroundColors] Final Calculated Opacity:', currentOpacity);
 
   const scrollPercentage = useMemo(() => {
     if (TOTAL_PAGES <= 1 || windowHeight <= 0) return 0;

@@ -24,6 +24,7 @@ interface ScrapbookImageItemProps {
   parallaxTranslateX?: number; // New prop for X parallax movement
   parallaxTranslateY?: number; // New prop for Y parallax movement
   parallaxScale?: number; // New prop for Z parallax movement (scale)
+  onLoad?: () => void; // Callback for when the image has loaded
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -39,6 +40,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     parallaxTranslateX = 0, // Destructure with default
     parallaxTranslateY = 0, // Destructure with default
     parallaxScale = 1, // Destructure with default (1 for no scaling)
+    onLoad,
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
@@ -165,6 +167,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
       }}
       onClick={handleClick}
       className="scrapbook-image-item" // Keep any existing class names
+      onLoad={onLoad}
     />
   );
 });

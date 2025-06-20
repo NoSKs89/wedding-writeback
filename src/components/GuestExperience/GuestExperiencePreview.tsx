@@ -4,7 +4,7 @@ import { useSpring, animated } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
 
 import RSVPForm from '../RSVPForm';
-import InteractiveScrapbook from './InteractiveScrapbook';
+import InteractiveScrapbook from './InteractiveScrapbook.tsx';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
@@ -35,6 +35,8 @@ interface GuestExperiencePreviewProps {
   experienceSettingsFromApp: ExperienceSettingsType;
   layoutSettingsFromPreview: any;
   forceMobileView?: boolean;
+  onScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void;
+  hudContent?: React.ReactNode;
 }
 
 interface FocusedImageState {
@@ -107,6 +109,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   experienceSettingsFromApp,
   layoutSettingsFromPreview,
   forceMobileView = false,
+  onScroll,
+  hudContent,
 }) => {
   const [notification, setNotification] = useState({ text: '', visible: false });
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -254,20 +258,28 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const bindFocusedImageDrag = useDrag(({ last, movement: [mx], velocity: [vx], direction: [dx], event }) => { event?.stopPropagation(); if (!focusedImage || !last) return; if (Math.abs(mx) > windowWidth / 4 || Math.abs(vx) > 0.3) { const syntheticEvent = { stopPropagation: () => {} }; if (dx > 0) handlePreviousImage(syntheticEvent); else if (dx < 0) handleNextImage(syntheticEvent); } }, { axis: 'x', filterTaps: true, enabled: !!focusedImage });
   
   useEffect(() => {
-    const handleResize = () => { setWindowHeight(window.innerHeight); setWindowWidth(window.innerWidth); };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
     const parallaxContainer = parallaxRef.current?.container.current;
-    if (!parallaxContainer) return;
-    const handleScroll = () => setScrollY(parallaxContainer.scrollTop);
-    parallaxContainer.addEventListener('scroll', handleScroll);
-    return () => parallaxContainer.removeEventListener('scroll', handleScroll);
-  }, [parallaxRef.current]);
+    if (parallaxContainer) {
+      const handleResize = () => { setWindowHeight(window.innerHeight); setWindowWidth(window.innerWidth); };
+      const handleScroll = () => {
+        const { scrollTop, scrollHeight, clientHeight } = parallaxContainer;
+        setScrollY(scrollTop);
+        if (onScroll) {
+          onScroll(scrollTop, scrollHeight, clientHeight);
+        }
+      };
+      parallaxContainer.addEventListener('scroll', handleScroll);
+      window.addEventListener('resize', handleResize);
+      return () => {
+        parallaxContainer.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+  }, [onScroll]);
 
-  const handleDisplayedImagesUpdate = useCallback((newImageData: DisplayedImage[]) => setDisplayedImagesAndTheirData(newImageData), []);
+  const handleDisplayedImagesUpdate = useCallback((images: DisplayedImage[]) => {
+    setDisplayedImagesAndTheirData(images);
+  }, []);
 
   useEffect(() => { let isMounted = true; if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length) { if (isMounted) setImageNaturalDimensions([]); return; } const imagePaths = weddingDataFromApp.scrapbookImages.map((img: any) => img.fileName?.startsWith('http') ? img.fileName : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`); const dimsPromises = imagePaths.map((src: string) => new Promise<NaturalImageDimensions>(resolve => { if (!src) return resolve({ width: 0, height: 0, src: '' }); const img = new Image(); img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src }); img.onerror = () => resolve({ width: 0, height: 0, src }); img.src = src; })); Promise.all(dimsPromises).then(dims => { if (isMounted) setImageNaturalDimensions(dims); }); return () => { isMounted = false; }; }, [isScrapbookEnabled, weddingDataFromApp]);
   useEffect(() => { if (!isScrapbookEnabled) { if (focusedImage || imageReturningToScrapbook || pendingImageToFocus) { setFocusedImage(null); setImageReturningToScrapbook(null); setPendingImageToFocus(null); focusedImageApi.start({ opacity: 0, immediate: true }); } return; } if (focusedImage) { const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight); const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5); focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${top}px`, left: `${left}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' } }); } else if (imageReturningToScrapbook) { const { currentIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook; const targetEl = scrapbookImageRefs.current[currentIndex]; const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === currentIndex); if (targetEl && itemData) { const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(itemData.initialStyle.transform); const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0); focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } }); focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } }); } else { focusedImageApi.start({ opacity: 0, immediate: true }); setImageReturningToScrapbook(null); if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); } } } else { focusedImageApi.start({ opacity: 0, immediate: true }); } }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollY, activeSpringConfigGuest]);
@@ -275,7 +287,45 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const updateAndFocusNewImage = useCallback((newDisplayIndex: number): FocusedImageState | null => { if (!isScrapbookEnabled || !displayedImagesAndTheirData?.length) return null; const targetData = displayedImagesAndTheirData.find(d => d.displayIndex === newDisplayIndex); const targetEl = scrapbookImageRefs.current[newDisplayIndex]; if (!targetData || !targetEl) return null; let naturalDims = imageNaturalDimensions.find(dim => dim.src === targetData.src); if (!naturalDims?.width) { if (targetEl.naturalWidth > 0) naturalDims = { width: targetEl.naturalWidth, height: targetEl.naturalHeight, src: targetData.src }; else return null; } const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(targetData.initialStyle.transform); const dynamicRot = Math.sin(scrollY * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0); return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex }; }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollY]);
   const handlePreviousImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => { e.stopPropagation(); if (!focusedImage || !displayedImagesAndTheirData?.length) return; const newIndex = (focusedImage.currentIndex - 1 + displayedImagesAndTheirData.length) % displayedImagesAndTheirData.length; const newDetails = updateAndFocusNewImage(newIndex); if (newDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newDetails); setFocusedImage(null); } }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
   const handleNextImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => { e.stopPropagation(); if (!focusedImage || !displayedImagesAndTheirData?.length) return; const newIndex = (focusedImage.currentIndex + 1) % displayedImagesAndTheirData.length; const newDetails = updateAndFocusNewImage(newIndex); if (newDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newDetails); setFocusedImage(null); } }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
-  const handleImageClick = useCallback((details: any) => { const { imageSrc, initialStyle, currentBoundingClientRect: rect, imageElement, index } = details; let naturalDims = imageNaturalDimensions.find(dim => dim.src === imageSrc); if (!naturalDims?.width) { if (imageElement?.naturalWidth > 0) naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc }; else return; } const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === index); if (!itemData) return; const baseRot = parseRotationFromStyle(initialStyle.transform); const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0); const clickedDetails: FocusedImageState = { ...itemData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: index }; if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedDetails); setFocusedImage(null); } else { setFocusedImage(clickedDetails); } }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollY, focusedImage]);
+  const handleImageClick = useCallback((itemData: any) => {
+    const { initialStyle, src, altText, description, displayIndex, itemScrollSensitivity, itemDynamicRotationRange } = itemData;
+
+    const scrapbookImageElement = scrapbookImageRefs.current[displayIndex];
+
+    if (!scrapbookImageElement || !initialStyle.width || !initialStyle.height) {
+      console.warn('Cannot focus image: Missing element or initial dimensions.', { scrapbookImageElement, initialStyle });
+      return;
+    }
+
+    const { top, left, width, height } = scrapbookImageElement.getBoundingClientRect();
+    const rotation = parseRotationFromStyle(scrapbookImageElement.style.transform);
+    
+    const { naturalWidth, naturalHeight } = scrapbookImageElement;
+
+    const focusData: FocusedImageState = {
+      src,
+      altText,
+      description,
+      initialTopPx: top,
+      initialLeftPx: left,
+      initialWidthPx: width,
+      initialHeightPx: height,
+      initialRotateDeg: rotation,
+      naturalWidth,
+      naturalHeight,
+      currentIndex: -1, // Not used here, maybe for a different list?
+      displayIndex,
+      itemScrollSensitivity,
+      itemDynamicRotationRange,
+      initialStyle,
+    };
+    
+    if (imageReturningToScrapbookRef.current) {
+      setPendingImageToFocus(focusData);
+    } else {
+      setFocusedImage(focusData);
+    }
+  }, []);
 
   return (
     <>
@@ -295,9 +345,28 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         {notification.text}
       </animated.div>
       <FontGrabber fonts={googleFontsToLoad} />
-      <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
-        <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>
-          <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>
+      <div style={{ width: '100%', height: '100vh', background: selectedColorScheme.background }}>
+        <Parallax
+          ref={parallaxRef}
+          pages={TOTAL_PAGES}
+          style={{
+            width: '100%',
+            height: '100%',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+          }}
+        >
+          <ParallaxLayer
+            offset={0}
+            speed={0}
+            sticky={{ start: 0, end: TOTAL_PAGES }}
+            style={{
+              zIndex: -20,
+              width: '100%',
+              height: '100%',
+            }}
+          >
             <ShiftingBackgroundColors scrollY={scrollY} TOTAL_PAGES={TOTAL_PAGES} windowHeight={windowHeight} selectedColorScheme={selectedColorScheme} />
           </ParallaxLayer>
 
@@ -342,6 +411,13 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               </ParallaxLayer>
             );
           }).filter(Boolean)}
+
+          {/* Render the HUD content if it exists */}
+          {hudContent && (
+            <ParallaxLayer sticky={{ start: 0, end: TOTAL_PAGES }} style={{ zIndex: 1000 }}>
+              {hudContent}
+            </ParallaxLayer>
+          )}
         </Parallax>
       </div>
 

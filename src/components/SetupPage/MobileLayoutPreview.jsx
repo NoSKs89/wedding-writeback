@@ -7,6 +7,42 @@ import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { useIsMobile } from '../../utils/deviceDetect';
 
+const ScrollTracker = ({ scrollPercentage }) => {
+    console.log(`[ScrollTracker] Rendering with percentage: ${scrollPercentage}`);
+    return (
+        <div style={{
+            position: 'absolute',
+            bottom: '10px',
+            left: '10px',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            color: 'white',
+            padding: '5px 10px',
+            borderRadius: '5px',
+            zIndex: 10001,
+            fontSize: '12px',
+            fontFamily: 'monospace'
+        }}>
+            Scroll: {scrollPercentage}%
+        </div>
+    );
+};
+
+const GlobalStyle = ({ active }) => {
+    useEffect(() => {
+        if (active) {
+            document.documentElement.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden';
+        }
+
+        return () => {
+            document.documentElement.style.overflow = '';
+            document.body.style.overflow = '';
+        };
+    }, [active]);
+
+    return null;
+};
+
 const MobileLayoutPreview = () => {
     const { weddingId } = useParams();
     const { setIsSetupMode } = useSetupMode();
@@ -16,6 +52,7 @@ const MobileLayoutPreview = () => {
     const [isInactive, setIsInactive] = useState(false);
     const inactivityTimer = useRef(null);
     const isMobile = useIsMobile();
+    const [scrollPercentage, setScrollPercentage] = useState(0);
 
     // This component is strictly for preview, so setup mode is always false.
     useEffect(() => {
@@ -74,6 +111,21 @@ const MobileLayoutPreview = () => {
         };
     }, [isInactive]);
 
+    // --- Scroll tracking logic ---
+    const handleParallaxScroll = useCallback((scrollTop, scrollHeight, clientHeight) => {
+        const totalScrollableHeight = scrollHeight - clientHeight;
+        let currentPercentage = 0;
+
+        if (totalScrollableHeight > 0) {
+            currentPercentage = Math.min(100, Math.round((scrollTop / totalScrollableHeight) * 100));
+        } else if (scrollTop > 0) {
+            currentPercentage = 100;
+        }
+        
+        console.log(`[MobileLayoutPreview] handleParallaxScroll: scrollTop=${scrollTop}, scrollHeight=${scrollHeight}, clientHeight=${clientHeight}, calculatedPercentage=${currentPercentage}`);
+        setScrollPercentage(currentPercentage);
+    }, []);
+    // --- End scroll tracking logic ---
 
     if (initialDataLoading) {
         return <div>Loading Mobile Preview...</div>;
@@ -87,6 +139,8 @@ const MobileLayoutPreview = () => {
         return <div>No data found for this wedding.</div>;
     }
 
+    const hud = <ScrollTracker scrollPercentage={scrollPercentage} />;
+
     const previewContent = (
         liveLayoutSettings ? (
             <GuestExperiencePreview
@@ -94,6 +148,8 @@ const MobileLayoutPreview = () => {
                 experienceSettingsFromApp={experienceSettings}
                 layoutSettingsFromPreview={liveLayoutSettings}
                 forceMobileView={true}
+                onScroll={handleParallaxScroll}
+                hudContent={hud}
             />
         ) : (
             <div>Loading live layout...</div>
@@ -115,8 +171,10 @@ const MobileLayoutPreview = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: '#333'
+            backgroundColor: '#333',
+            overflow: 'hidden'
         }}>
+            <GlobalStyle active={!isMobile} />
             {isInactive && (
                  <div style={{
                      position: 'fixed',
@@ -142,14 +200,15 @@ const MobileLayoutPreview = () => {
                 position: 'relative',
                 overflow: 'hidden'
             }}>
-                 <div style={{
-                    position: 'absolute',
-                    top: '0',
-                    left: '0',
-                    width: '100%',
-                    height: '100%',
-                    overflow: 'auto',
-                }}>
+                 <div 
+                    style={{
+                        position: 'absolute',
+                        top: '0',
+                        left: '0',
+                        width: '100%',
+                        height: '100%',
+                    }}
+                >
                     {previewContent}
                 </div>
                 {/* Notch */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, forwardRef } from 'react';
 import { useSpring, animated } from 'react-spring';
 import { useGesture } from '@use-gesture/react';
 import { useControls } from 'leva';
@@ -8,7 +8,7 @@ import ScrapbookImageItem from '../ScrapbookImageItem';
 // import { useTrackedControls } from '../../hooks/useTrackedControls';
 
 // A simple seeded pseudo-random number generator for deterministic layouts
-function mulberry32(a) {
+function mulberry32(a: number) {
   return function() {
     var t = a += 0x6D2B79F5;
     t = Math.imul(t ^ t >>> 15, t | 1);
@@ -41,7 +41,7 @@ const scrapbookLayoutControlsSchema = {
 };
 
 // --- Helper: Generate Initial Style for a Scrapbook Image ---
-const generateInitialScrapbookStyle = (index, totalImages, windowDims, layoutValues) => {
+const generateInitialScrapbookStyle = (index: any, totalImages: any, windowDims: any, layoutValues: any) => {
   const {
     centerXOffset, centerYOffset, spreadRadiusFactor,
     baseRotationRange, baseSizeMin, baseSizeMax,
@@ -91,7 +91,7 @@ const generateInitialScrapbookStyle = (index, totalImages, windowDims, layoutVal
 
 // --- Helper: Calculate Dynamic Parallax Values (renamed for clarity) ---
 // This function now returns values to be directly used by ScrapbookImageItem's spring
-const calculateScrollDependentValues = (displayIndex, scrollY, layoutValues, itemData) => {
+const calculateScrollDependentValues = (displayIndex: any, scrollY: any, layoutValues: any, itemData: any) => {
   const {
     dynamicRotationRange, // From global layout controls
     scrollSensitivityFactor, // From global layout controls
@@ -125,23 +125,43 @@ const calculateScrollDependentValues = (displayIndex, scrollY, layoutValues, ite
 };
 
 
-// --- InteractiveScrapbook Component ---
-const InteractiveScrapbook = ({
-  weddingData,
-  config, // This is the element.content for the scrapbook component
-  scrollY,
-  // Focus-related props & handlers from GuestExperience
-  onImageClick,
-  focusedImageGlobal,
-  imageReturningToScrapbookGlobal,
-  lastPutDownIndexGlobal,
-  scrapbookImageRefs, // The ref array from GuestExperience
-  onDisplayedImagesUpdate, // Callback to GuestExperience
-  windowWidth,
-  windowHeight,
-  layoutControlsFromProp, // Prop for receiving layout controls in preview mode
-}) => {
+interface InteractiveScrapbookProps {
+  weddingData: any;
+  config: any;
+  scrollY: number;
+  onImageClick: (details: any) => void;
+  focusedImageGlobal: any;
+  imageReturningToScrapbookGlobal: any;
+  lastPutDownIndexGlobal: number | null;
+  scrapbookImageRefs: React.RefObject<(HTMLImageElement | null)[]>;
+  onDisplayedImagesUpdate: (images: any[]) => void;
+  windowWidth: number;
+  windowHeight: number;
+  layoutControlsFromProp: any;
+}
+
+const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProps>((props, ref) => {
+  const {
+    weddingData,
+    config,
+    scrollY,
+    onImageClick,
+    focusedImageGlobal,
+    imageReturningToScrapbookGlobal,
+    lastPutDownIndexGlobal,
+    scrapbookImageRefs,
+    onDisplayedImagesUpdate,
+    windowWidth,
+    windowHeight,
+    layoutControlsFromProp,
+  } = props;
+
   const { isSetupMode } = useSetupMode();
+  const innerContainerRef = useRef<HTMLDivElement>(null);
+  const imageRefs = useRef<(HTMLImageElement | null)[]>([]);
+  const [loadedImageCount, setLoadedImageCount] = useState(0);
+  const [containerHeight, setContainerHeight] = useState<number | null>(null);
+
 
   const layoutValuesFromLeva = useControls(
     'Scrapbook Layout (Guest)',
@@ -149,7 +169,7 @@ const InteractiveScrapbook = ({
     { collapsed: true, render: () => isSetupMode }
   );
 
-  const defaultLayoutValues = useMemo(() => Object.entries(scrapbookLayoutControlsSchema).reduce((acc, [key, val]) => {
+  const defaultLayoutValues = useMemo(() => Object.entries(scrapbookLayoutControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
     acc[key] = val.value;
     return acc;
   }, {}), []);
@@ -173,12 +193,12 @@ const InteractiveScrapbook = ({
   // --- Derived State & Memoizations ---
   const resolvedImageSrcs = useMemo(() => {
     if (weddingData && weddingData.scrapbookImages && Array.isArray(weddingData.scrapbookImages)) {
-      return weddingData.scrapbookImages.map(img => ({
+      return weddingData.scrapbookImages.map((img: any) => ({
         src: img.s3Url || img.fileName, // Prefer s3Url if available
         alt: img.caption || img.fileName || `Scrapbook image ${img.id || ''}`,
         id: img.id || img.s3Url || img.fileName, // Ensure unique ID for keys
         originalIndex: -1 // Will be populated later if needed
-      })).filter(img => img.src);
+      })).filter((img: any) => img.src);
     }
     return [];
   }, [weddingData]);
@@ -246,81 +266,82 @@ const InteractiveScrapbook = ({
     layoutValues // Simplest way to capture all layout control changes that *might* affect base styles.
   ]);
 
+  const allImagesLoaded = loadedImageCount > 0 && loadedImageCount === displayedImagesAndTheirData.length;
+
+  useEffect(() => {
+    if (allImagesLoaded) {
+      let maxBottom = 0;
+      imageRefs.current.forEach(img => {
+        if (img) {
+          const bottom = img.offsetTop + img.offsetHeight;
+          if (bottom > maxBottom) {
+            maxBottom = bottom;
+          }
+        }
+      });
+      // Add a little buffer
+      setContainerHeight(maxBottom + 50); 
+    }
+  }, [allImagesLoaded]);
+
   // Update GuestExperience with the images that will be displayed and their data
   useEffect(() => {
-    if (typeof onDisplayedImagesUpdate === 'function') {
+    if (onDisplayedImagesUpdate) {
       onDisplayedImagesUpdate(displayedImagesAndTheirData);
     }
-    // IMPORTANT: scrapbookImageRefs (the prop) is a mutable ref object passed from GuestExperience.
-    // We should update ITS .current property here, not re-assign the prop itself.
-    if (scrapbookImageRefs && scrapbookImageRefs.current) {
-        // Ensure the ref array in GuestExperience has the correct length
-        if (scrapbookImageRefs.current.length !== displayedImagesAndTheirData.length) {
-            scrapbookImageRefs.current = Array(displayedImagesAndTheirData.length).fill(null);
-        }
-    }
-  }, [displayedImagesAndTheirData, onDisplayedImagesUpdate, scrapbookImageRefs]);
-
-  if (!weddingData || !config) {
-    return <div style={{ padding: '20px', textAlign: 'center', color: 'white' }}>Loading scrapbook...</div>;
-  }
+  }, [displayedImagesAndTheirData, onDisplayedImagesUpdate]);
   
-  // Use a title from the scrapbook element's config if available, or default
-  const scrapbookTitle = (typeof config === 'object' && config?.title) || "Photo Scrapbook";
-
-
+  // Render logic
   return (
-    <>
-      {/* <h2 style={{ position: 'relative', zIndex: 2, color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px 20px', borderRadius: '5px', marginTop: '20px', textAlign: 'center' }}>
-        {scrapbookTitle}
-      </h2> */}
-      <div style={{ position: 'relative', width: '100%', height: 'calc(100% - 0px)', minHeight: '350px' /* Adjust if title height changes, removed 70px for title */ }}>
-        {displayedImagesAndTheirData.map((imageData, displayIndex) => {
-          if (!imageData || !imageData.initialStyle) {
-            console.warn("Skipping render for scrapbook image due to missing data:", imageData);
-            return null;
-          }
-          
-          const isEffectivelyHidden = focusedImageGlobal?.currentIndex === displayIndex || imageReturningToScrapbookGlobal?.currentIndex === displayIndex;
+    <div 
+      ref={(node) => {
+        (innerContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        if (typeof ref === 'function') {
+          ref(node);
+        } else if (ref) {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+      }} 
+      style={{ position: 'relative', width: '100%', minHeight: containerHeight ? `${containerHeight}px` : '100vh' }}
+    >
+      {displayedImagesAndTheirData.map((itemData, displayIndex) => {
+        if (!itemData || !itemData.initialStyle) {
+          console.warn("Skipping render for scrapbook image due to missing data:", itemData);
+          return null;
+        }
 
-          // Calculate scroll-dependent values IN THE RENDER LOOP
-          const scrollDependent = calculateScrollDependentValues(
-            displayIndex, 
-            scrollY, 
-            layoutValues, // Pass all layout controls
-            imageData // Pass the current item's data (might contain overrides in the future)
-          );
+        const isEffectivelyHidden = focusedImageGlobal !== null && focusedImageGlobal.displayIndex !== displayIndex;
 
-          return (
-            <ScrapbookImageItem
-              key={imageData.id} // Use the unique ID from imageData
-              imageSrc={imageData.src}
-              initialStyle={imageData.initialStyle} // Base style, scroll-independent
-              altText={imageData.altText}
-              index={imageData.displayIndex} // This is the displayIndex
-              isHiddenForFocus={isEffectivelyHidden}
-              lastPutDownIndex={lastPutDownIndexGlobal}
-              ref={(el) => {
-                // Ensure scrapbookImageRefs (the prop) and its .current are valid before assigning
-                if (scrapbookImageRefs && scrapbookImageRefs.current) {
-                  scrapbookImageRefs.current[imageData.displayIndex] = el;
-                }
-              }}
-              onClick={onImageClick} // Propagated from GuestExperience
-              // Pass SCROLL-DEPENDENT values directly, calculated in this render pass:
-              dynamicAngleOffsetDeg={scrollDependent.dynamicAngleOffsetDeg}
-              parallaxTranslateX={scrollDependent.parallaxTranslateX}
-              parallaxTranslateY={scrollDependent.parallaxTranslateY}
-              parallaxScale={scrollDependent.parallaxScale}
-            />
-          );
-        })}
-      </div>
-    </>
+        const scrollDependent = calculateScrollDependentValues(displayIndex, scrollY, layoutValues, itemData);
+
+        return (
+          <ScrapbookImageItem
+            key={itemData.id}
+            ref={el => {
+              imageRefs.current[displayIndex] = el;
+              if (scrapbookImageRefs && scrapbookImageRefs.current) {
+                scrapbookImageRefs.current[displayIndex] = el;
+              }
+            }}
+            onLoad={() => setLoadedImageCount(prev => prev + 1)}
+            imageSrc={itemData.src}
+            initialStyle={itemData.initialStyle}
+            altText={itemData.altText}
+            index={displayIndex}
+            isHiddenForFocus={isEffectivelyHidden}
+            lastPutDownIndex={lastPutDownIndexGlobal}
+            dynamicAngleOffsetDeg={scrollDependent.dynamicAngleOffsetDeg}
+            parallaxTranslateX={scrollDependent.parallaxTranslateX}
+            parallaxTranslateY={scrollDependent.parallaxTranslateY}
+            parallaxScale={scrollDependent.parallaxScale}
+            onClick={() => {
+              onImageClick(itemData);
+            }}
+          />
+        );
+      })}
+    </div>
   );
-};
+});
 
-// Wrap InteractiveScrapbook with React.memo
-const MemoizedInteractiveScrapbook = React.memo(InteractiveScrapbook);
-
-export default MemoizedInteractiveScrapbook; 
+export default InteractiveScrapbook; 

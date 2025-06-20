@@ -1,7 +1,16 @@
 /* App.css or a dedicated CSS file for components */
-body {
+html, body, #root {
+  height: 100%;
   margin: 0;
-  /* Consider a nice global font if not overridden by components */
+  padding: 0;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  /* ... existing code ... */
 }
 
 .wedding-journey-wrapper {
