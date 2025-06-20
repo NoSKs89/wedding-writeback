@@ -46,7 +46,6 @@ const MobileLayoutEditor = () => {
     
     // This effect now listens to the control values from the store
     useEffect(() => {
-        // Only save if there are values to save.
         if (allControlValues && Object.keys(allControlValues).length > 0) {
             debouncedSave(allControlValues);
         }

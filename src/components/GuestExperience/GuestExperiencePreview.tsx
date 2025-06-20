@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef, useMemo, useCallback, CSSProperties
 import { Parallax, ParallaxLayer, IParallax, ParallaxLayerProps } from '@react-spring/parallax';
 import { useSpring, animated } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
+import { useControls, folder } from 'leva';
 
 import RSVPForm from '../RSVPForm';
-import InteractiveScrapbook from './InteractiveScrapbook.tsx';
+import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
@@ -186,8 +187,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const isMobile = forceMobileView || isActuallyMobile;
 
   const {
-    'Overall Controls (Guest)': overallControls = {},
-    'Scrapbook Layout (Guest)': scrapbookLayoutControls = {},
+    'Overall Controls (Guest)': overallControls,
+    'RSVP Form Style': rsvpStyleControlsFromSettings,
+    'Scrapbook Layout (Guest)': scrapbookLayoutControlsFromSettings,
     ...elementControls
   } = layoutSettingsFromPreview || {};
 
@@ -195,7 +197,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     springPreset: selectedSpringPresetKeyGuest = 'default',
     colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name,
     overallFontFamily = fontFamilyOptions[0],
-  } = overallControls;
+  } = overallControls || {};
 
   const [scrollY, setScrollY] = useState(0);
   const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
@@ -246,7 +248,20 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   }, [overallFontFamily, elementsFromBlueprint, layoutSettingsFromPreview]);
 
   const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
+  
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
+
+  const { 
+    background, 
+    primary, 
+    secondary, 
+    accent, 
+    text, 
+    textOnPrimary, 
+    textOnSecondary, 
+    textOnAccent 
+  } = selectedColorScheme?.colors || weddingColorSchemes[0].colors;
+
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
@@ -327,6 +342,72 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     }
   }, []);
 
+  const renderElement = (el: ElementDefinition) => {
+    let componentToRender;
+    switch (el.type) {
+      case 'text': componentToRender = <h2>{el.content}</h2>; break;
+      case 'photo': componentToRender = <img src={el.content} alt={el.name || 'Wedding photo'} style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }} />; break;
+      case 'background-image': componentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${el.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
+      case 'component':
+        if (el.name === 'RSVP Form') {
+          componentToRender = (
+            <RSVPForm
+              weddingData={weddingDataFromApp}
+              backendUrl={weddingDataFromApp.rsvpEndpoint}
+              elementName={`element_${el.id}_${el.name ? el.name.replace(/\s+/g, '_') : 'RSVP_Form'}`}
+              styleControlsFromProp={rsvpStyleControlsFromSettings}
+            />
+          );
+        } else if (el.name === 'Scrapbook') {
+          componentToRender = (
+            <InteractiveScrapbook
+              weddingData={weddingDataFromApp}
+              config={el}
+              scrollY={scrollY}
+              onImageClick={handleImageClick}
+              focusedImageGlobal={focusedImage}
+              imageReturningToScrapbookGlobal={imageReturningToScrapbook}
+              lastPutDownIndexGlobal={lastPutDownIndex}
+              scrapbookImageRefs={scrapbookImageRefs}
+              onDisplayedImagesUpdate={handleDisplayedImagesUpdate}
+              windowWidth={windowWidth}
+              windowHeight={windowHeight}
+              layoutControlsFromProp={scrapbookLayoutControlsFromSettings}
+            />
+          );
+        } else return null;
+        break;
+      default: return null;
+    }
+
+    return (
+      <ParallaxLayer key={el.key} sticky={el.sticky as ParallaxLayerProps['sticky']} style={{ 
+          ...centerStyle, 
+          zIndex: 
+            el.type === 'background-image'
+              ? -5
+              : el.type === 'component' && el.name === 'Scrapbook'
+              ? 100
+              : el.type === 'component' && el.name === 'RSVP Form'
+              ? 150
+              : (elementsFromBlueprint.length - (el.id || 0) + 1),
+          pointerEvents: el.type === 'component' && el.name === 'RSVP Form' ? 'none' : 'auto',
+      }}>
+        <ElementWrapper 
+          element={el} 
+          experienceSettings={experienceSettingsFromApp} 
+          scrollY={scrollY} 
+          windowHeight={windowHeight} 
+          TOTAL_PAGES={TOTAL_PAGES} 
+          layoutSettingsFromPreview={elementControls}
+          overallFontFamily={overallFontFamily}
+        >
+          {componentToRender}
+        </ElementWrapper>
+      </ParallaxLayer>
+    );
+  };
+
   return (
     <>
       <animated.div style={{
@@ -345,7 +426,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         {notification.text}
       </animated.div>
       <FontGrabber fonts={googleFontsToLoad} />
-      <div style={{ width: '100%', height: '100vh', background: selectedColorScheme.background }}>
+      <div style={{ width: '100%', height: '100vh', background: background }}>
         <Parallax
           ref={parallaxRef}
           pages={TOTAL_PAGES}
@@ -370,47 +451,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             <ShiftingBackgroundColors scrollY={scrollY} TOTAL_PAGES={TOTAL_PAGES} windowHeight={windowHeight} selectedColorScheme={selectedColorScheme} />
           </ParallaxLayer>
 
-          {renderableElements.map((element) => {
-            let contentToRender;
-            switch (element.type) {
-              case 'text': contentToRender = <h2>{element.content}</h2>; break;
-              case 'photo': contentToRender = <img src={element.content} alt={element.name || 'Wedding photo'} style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }} />; break;
-              case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
-              case 'component':
-                if (element.name === 'RSVP Form') contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} /></div>;
-                else if (element.name === 'Scrapbook') contentToRender = <InteractiveScrapbook weddingData={weddingDataFromApp} config={element.content} scrollY={scrollY} onImageClick={handleImageClick} focusedImageGlobal={focusedImage} imageReturningToScrapbookGlobal={imageReturningToScrapbook} lastPutDownIndexGlobal={lastPutDownIndex} scrapbookImageRefs={scrapbookImageRefs} onDisplayedImagesUpdate={handleDisplayedImagesUpdate} windowWidth={windowWidth} windowHeight={windowHeight} layoutControlsFromProp={scrapbookLayoutControls} />;
-                else return null;
-                break;
-              default: return null;
-            }
-
-            return (
-              <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
-                  ...centerStyle, 
-                  zIndex: 
-                    element.type === 'background-image'
-                      ? -5
-                      : element.type === 'component' && element.name === 'Scrapbook'
-                      ? 100
-                      : element.type === 'component' && element.name === 'RSVP Form'
-                      ? 150
-                      : (elementsFromBlueprint.length - (element.id || 0) + 1),
-                  pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
-              }}>
-                <ElementWrapper 
-                  element={element} 
-                  experienceSettings={experienceSettingsFromApp} 
-                  scrollY={scrollY} 
-                  windowHeight={windowHeight} 
-                  TOTAL_PAGES={TOTAL_PAGES} 
-                  layoutSettingsFromPreview={elementControls}
-                  overallFontFamily={overallFontFamily}
-                >
-                  {contentToRender}
-                </ElementWrapper>
-              </ParallaxLayer>
-            );
-          }).filter(Boolean)}
+          {renderableElements.map(renderElement).filter(Boolean)}
 
           {/* Render the HUD content if it exists */}
           {hudContent && (

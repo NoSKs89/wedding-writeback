@@ -9,12 +9,15 @@ import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
+import { RsvpControlWrapper, ScrapbookControlWrapper } from './ComponentControlWrappers';
 
 import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
+import { rsvpFormControlsSchema } from '../RSVPForm';
+import { scrapbookLayoutControlsSchema } from './InteractiveScrapbook';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import '../../App.css';
 
@@ -131,6 +134,27 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const loadLayoutSettingsFromDB = useLevaStore(state => state.loadSettingsFromDB);
   const controlValues = useLevaStore(state => state.controlValues);
 
+  const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
+
+  // --- MEMOIZED DERIVED DATA ---
+  const { elements: elementsFromBlueprint = [], markers: markersFromBlueprint = [] } = experienceSettingsFromApp || {};
+  const TOTAL_PAGES = useMemo(() => (experienceSettingsFromApp?.timelineLength > 0 && windowHeight > 0 ? Math.max(1.1, experienceSettingsFromApp.timelineLength / windowHeight) : 3), [experienceSettingsFromApp?.timelineLength, windowHeight]);
+
+  const renderableElements: ElementDefinition[] = useMemo(() => {
+    if (!elementsFromBlueprint.length || !markersFromBlueprint.length) return [];
+    const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
+    return elementsFromBlueprint.map((element): ElementDefinition | null => {
+      if (!element || !element.id || element.type === 'empty') return null;
+      const startMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'start');
+      const endMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'end');
+      if (!startMarker || !endMarker) return null;
+      const pageOffset = startMarker.position * pageMultiplier;
+      const endPageOffset = endMarker.position * pageMultiplier;
+      const actualEndPage = Math.max(pageOffset + 0.1, endPageOffset);
+      return { ...element, key: `ge-el-${element.id}`, sticky: { start: pageOffset, end: actualEndPage }, pageOffset };
+    }).filter((el): el is ElementDefinition => el !== null);
+  }, [elementsFromBlueprint, markersFromBlueprint, TOTAL_PAGES]);
+
   // --- OVERALL CONTROLS ---
   const [overallControls, setOverallControls] = useControls(() => ({
     'Overall Controls (Guest)': folder({
@@ -140,7 +164,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
         previewingLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
         saveToLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Save to Layout Slot' },
-    }, { collapsed: true, render: () => isSetupMode })
+    }, { collapsed: true, render: () => isSetupMode }),
   }), [isSetupMode, defaultLayoutSlotToLoad]);
   
   const {
@@ -154,7 +178,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- LOCAL COMPONENT STATE ---
   const [scrollY, setScrollY] = useState(0);
-  const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
   const parallaxRef = useRef<IParallax>(null);
 
@@ -199,25 +222,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [previewingLayoutSlot, setOverallControls]);
 
   useEffect(() => { setCurrentSavingToSlot(saveToLayoutSlot); }, [saveToLayoutSlot]);
-
-  // --- MEMOIZED DERIVED DATA ---
-  const { elements: elementsFromBlueprint = [], markers: markersFromBlueprint = [] } = experienceSettingsFromApp || {};
-  const TOTAL_PAGES = useMemo(() => (experienceSettingsFromApp?.timelineLength > 0 && windowHeight > 0 ? Math.max(1.1, experienceSettingsFromApp.timelineLength / windowHeight) : 3), [experienceSettingsFromApp?.timelineLength, windowHeight]);
-
-  const renderableElements: ElementDefinition[] = useMemo(() => {
-    if (!elementsFromBlueprint.length || !markersFromBlueprint.length) return [];
-    const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
-    return elementsFromBlueprint.map((element): ElementDefinition | null => {
-      if (!element || !element.id || element.type === 'empty') return null;
-      const startMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'start');
-      const endMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'end');
-      if (!startMarker || !endMarker) return null;
-      const pageOffset = startMarker.position * pageMultiplier;
-      const endPageOffset = endMarker.position * pageMultiplier;
-      const actualEndPage = Math.max(pageOffset + 0.1, endPageOffset);
-      return { ...element, key: `ge-el-${element.id}`, sticky: { start: pageOffset, end: actualEndPage }, pageOffset };
-    }).filter((el): el is ElementDefinition => el !== null);
-  }, [elementsFromBlueprint, markersFromBlueprint, TOTAL_PAGES]);
 
   const googleFontsToLoad = useMemo<FontObject[]>(() => {
     const fonts = new Set<string>();
@@ -383,10 +387,16 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return null; 
   }
 
+  const hasRsvp = renderableElements.some(el => el.type === 'component' && el.name === 'RSVP Form');
+  const hasScrapbook = renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook');
+
   // --- MAIN RENDER ---
   return (
     <>
       <FontGrabber fonts={googleFontsToLoad} />
+
+      {isSetupMode && hasRsvp && <RsvpControlWrapper />}
+      {isSetupMode && hasScrapbook && <ScrapbookControlWrapper />}
 
       {isSetupMode && (
         <div style={saveButtonContainerStyle || { position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
@@ -428,7 +438,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
                 case 'component':
                   if (element.name === 'RSVP Form') {
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} styleControlsFromProp={controlValues} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     contentToRender = <InteractiveScrapbook 
                       weddingData={weddingDataFromApp} 
@@ -442,7 +452,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       onDisplayedImagesUpdate={handleDisplayedImagesUpdate} 
                       windowWidth={windowWidth} 
                       windowHeight={windowHeight} 
-                      layoutControlsFromProp={null}
+                      layoutControlsFromProp={controlValues}
                     />;
                   } else { return null; }
                   break;

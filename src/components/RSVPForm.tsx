@@ -1,6 +1,6 @@
-import React, { useState, useEffect, FormEvent, ChangeEvent, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { useState, useEffect, FormEvent, ChangeEvent, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import axios from 'axios';
-import { useControls, useStoreContext, folder } from 'leva'; // Import Leva's native hooks
+import { useControls, folder } from 'leva';
 import { useSetupMode } from '../contexts/SetupModeContext';
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes';
 import { googleFontNames, systemFontStack, fontFamilyOptions } from '../config/fontConfig';
@@ -43,6 +43,8 @@ interface WeddingData {
 interface RSVPFormProps {
   weddingData: WeddingData;
   backendUrl: string;
+  elementName?: string;
+  styleControlsFromProp?: any;
 }
 
 // Type for the selectedMeals state
@@ -62,55 +64,65 @@ const determineInitialFont = (themeFont?: string) => {
 const initialTextFontFamily = determineInitialFont(initialDefaultTheme?.fontFamily);
 const initialButtonFontFamily = determineInitialFont(initialDefaultTheme?.fontFamily);
 
-const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl }, ref) => {
+export const rsvpFormControlsSchema = {
+  formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
+  formTextFontFamily: { value: initialTextFontFamily, options: fontFamilyOptions, label: 'Text Font' },
+  buttonTextFontFamily: { value: initialButtonFontFamily, options: fontFamilyOptions, label: 'Button Font' },
+  formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
+  formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
+  formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
+  formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
+  formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
+  formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
+  stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'},
+  cantMakeItButtonEmoji: { value: '😥', label: "Can't Make It Emoji"},
+  canMakeItButtonEmoji: { value: '😄', label: "Can Make It Emoji"},
+};
+
+const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl, elementName = 'RSVP Form', styleControlsFromProp = {} }, ref) => {
   const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
   
-  // --- Leva Controls Integration ---
-  // 1. Get the global store instance from the context provided in App.js
-  const store = useStoreContext();
-
-  // --- Dummy values to allow compilation ---
-  const currentAttendance = 'Attending';
-  const rsvpButtonLabel = 'RSVP';
-  const rsvpButtonColor = '#007bff';
-  const rsvpThankYouMessage = 'Thank you for your RSVP!';
-  const sendReminder = false;
-  const formThemeName = 'Classic Elegance';
-  const formTextFontFamily = 'Arial';
-  const buttonTextFontFamily = 'Arial';
-  const formBackgroundOpacity = 1;
-  const formBorderColor = '#cccccc';
-  const formBorderWidth = 1;
-  const cantMakeItButtonEmoji = '😥';
-  const canMakeItButtonEmoji = '😄';
-  const formWidth = 500;
-  const formHeight = 460;
-  const formPadding = 30;
-  const stackThreshold = 400;
-  // --- End of dummy values ---
+  // ADDED: Create a default set of values from the schema
+  const defaultStyleValues = useMemo(() => Object.entries(rsvpFormControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
+    acc[key] = val.value;
+    return acc;
+  }, {}), []);
+  
+  // ADDED: The component will now get its values from props, merged with defaults.
+  const {
+    formThemeName,
+    formTextFontFamily,
+    buttonTextFontFamily,
+    formBackgroundOpacity,
+    formBorderColor,
+    formBorderWidth,
+    cantMakeItButtonEmoji,
+    canMakeItButtonEmoji,
+    formWidth,
+    formHeight,
+    formPadding,
+    stackThreshold
+  } = useMemo(() => ({
+    ...defaultStyleValues,
+    ...styleControlsFromProp,
+  }), [defaultStyleValues, styleControlsFromProp]);
 
   const internalFormRef = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => internalFormRef.current as HTMLDivElement);
 
-  // Robust theme selection
-  let themeToUse = formThemes.find(t => t.name === formThemeName) || getThemeByName(defaultThemeName) || formThemes[0];
-  if (!themeToUse) { // Double check in case getThemeByName also fails
-      themeToUse = formThemes[0] || { 
-        name: 'EmergencyFallback', 
-        backgroundColor: '#ffffff', 
-        textColor: '#000000', 
-        fontFamily: fontFamilyOptions[0],
-        borderColor: '#cccccc',
-        buttonBackgroundColor: '#007bff',
-        buttonTextColor: '#ffffff'
-      };
-  }
-  const selectedTheme: FormTheme = themeToUse;
-
-  // Calculate responsive padding
-  const responsivePaddingBase = Math.min(formWidth * 0.05, formHeight * 0.05);
-  const actualPadding = Math.min(responsivePaddingBase, formPadding);
+  const selectedTheme: FormTheme = useMemo(() => {
+    const theme = formThemes.find(t => t.name === formThemeName) || getThemeByName(defaultThemeName);
+    return theme || formThemes[0] || { 
+      name: 'EmergencyFallback', 
+      backgroundColor: '#ffffff', 
+      textColor: '#000000', 
+      fontFamily: fontFamilyOptions[0],
+      borderColor: '#cccccc',
+      buttonBackgroundColor: '#007bff',
+      buttonTextColor: '#ffffff'
+    };
+  }, [formThemeName]);
 
   // Form state
   const [firstName, setFirstName] = useState<string>('');
@@ -286,14 +298,14 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     }
   };
 
-  // Styles
+  // Styles using values from Leva controls
   const formStyle: React.CSSProperties = {
     background: hexToRgba(selectedTheme.backgroundColor || '#ffffff', formBackgroundOpacity),
     color: selectedTheme.textColor || '#000000',
     fontFamily: formTextFontFamily,
     border: `${formBorderWidth}px solid ${formBorderColor}`,
     borderRadius: '8px',
-    padding: `${actualPadding}px`,
+    padding: `${formPadding}px`,
     width: `${formWidth}px`,
     height: `${formHeight}px`,
     maxWidth: '90vw',
@@ -309,8 +321,8 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const contentContainerStyle: React.CSSProperties = {
     flexGrow: 1,
     overflowY: 'auto',
-    paddingRight: '15px', // For scrollbar spacing
-    marginRight: '-15px', // To hide the scrollbar visually
+    paddingRight: '15px',
+    marginRight: '-15px',
   };
 
   const inputStyle: React.CSSProperties = {

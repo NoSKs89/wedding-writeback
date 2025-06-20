@@ -18,7 +18,7 @@ function mulberry32(a: number) {
 }
 
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
-const scrapbookLayoutControlsSchema = {
+export const scrapbookLayoutControlsSchema = {
   centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
   centerYOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center Y Offset (%)' },
   spreadRadiusFactor: { value: 0.35, min: 0.1, max: 5, step: 0.01, label: 'Spread Radius Factor' },
@@ -41,7 +41,7 @@ const scrapbookLayoutControlsSchema = {
 };
 
 // --- Helper: Generate Initial Style for a Scrapbook Image ---
-const generateInitialScrapbookStyle = (index: any, totalImages: any, windowDims: any, layoutValues: any) => {
+const generateInitialScrapbookStyle = (index: any, totalImages: any, windowDims: any, layoutValues: any): React.CSSProperties => {
   const {
     centerXOffset, centerYOffset, spreadRadiusFactor,
     baseRotationRange, baseSizeMin, baseSizeMax,
@@ -124,6 +124,18 @@ const calculateScrollDependentValues = (displayIndex: any, scrollY: any, layoutV
   };
 };
 
+interface DisplayedImageData {
+  src: string;
+  originalIndex: number;
+  displayIndex: number;  
+  altText: string;
+  id: string; 
+  initialStyle: React.CSSProperties;
+  parallaxXDirection: number;
+  parallaxYDirection: number;
+  itemScrollSensitivity: number;
+  itemDynamicRotationRange: number;
+}
 
 interface InteractiveScrapbookProps {
   weddingData: any;
@@ -162,25 +174,14 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
   const [loadedImageCount, setLoadedImageCount] = useState(0);
   const [containerHeight, setContainerHeight] = useState<number | null>(null);
 
-
-  const layoutValuesFromLeva = useControls(
-    'Scrapbook Layout (Guest)',
-    scrapbookLayoutControlsSchema,
-    { collapsed: true, render: () => isSetupMode }
-  );
-
   const defaultLayoutValues = useMemo(() => Object.entries(scrapbookLayoutControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
     acc[key] = val.value;
     return acc;
   }, {}), []);
-
+  
   const layoutValues = useMemo(() => {
-    if (isSetupMode) {
-      return layoutValuesFromLeva;
-    }
-    // In preview mode, use props merged with defaults
     return { ...defaultLayoutValues, ...(layoutControlsFromProp || {}) };
-  }, [isSetupMode, layoutValuesFromLeva, layoutControlsFromProp, defaultLayoutValues]);
+  }, [layoutControlsFromProp, defaultLayoutValues]);
 
   const { 
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
@@ -210,7 +211,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
 
     const numImagesToDisplay = Math.min(maxImages, resolvedImageSrcs.length);
     let imagesToProcess = [];
-    const allImagesWithOriginalIndex = resolvedImageSrcs.map((imgInfo, index) => ({ ...imgInfo, originalIndex: index }));
+    const allImagesWithOriginalIndex = resolvedImageSrcs.map((imgInfo: any, index: any) => ({ ...imgInfo, originalIndex: index }));
 
     if (resolvedImageSrcs.length <= numImagesToDisplay) {
       imagesToProcess = allImagesWithOriginalIndex;
@@ -225,7 +226,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
 
     // This map now produces data that is STABLE with respect to scrollY.
     // It contains base styles and parameters for dynamic calculation.
-    return imagesToProcess.map((imageInfo, displayIndex) => {
+    return imagesToProcess.map((imageInfo: any, displayIndex: any) => {
       const { src, originalIndex, alt, id } = imageInfo;
       const style = generateInitialScrapbookStyle(displayIndex, imagesToProcess.length, windowDims, layoutValues);
       
@@ -304,7 +305,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
       }} 
       style={{ position: 'relative', width: '100%', minHeight: containerHeight ? `${containerHeight}px` : '100vh' }}
     >
-      {displayedImagesAndTheirData.map((itemData, displayIndex) => {
+      {displayedImagesAndTheirData.map((itemData: DisplayedImageData, displayIndex: number) => {
         if (!itemData || !itemData.initialStyle) {
           console.warn("Skipping render for scrapbook image due to missing data:", itemData);
           return null;

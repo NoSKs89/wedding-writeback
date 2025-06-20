@@ -8,11 +8,16 @@ export interface SpringConfigPreset {
 
 export interface WeddingColorScheme {
   name: string;
-  primary: string;
-  secondary: string;
-  accent: string;
-  text: string;
-  background: string;
+  colors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    text: string;
+    background: string;
+    textOnPrimary?: string; // Optional for themes where it's not needed
+    textOnSecondary?: string;
+    textOnAccent?: string;
+  };
 }
 
 // Easing functions
@@ -59,14 +64,38 @@ export const springConfigPresets: { [key: string]: SpringConfigPreset } = {
 };
 
 export const weddingColorSchemes: WeddingColorScheme[] = [
-    { name: "Classic Elegance", primary: '#FDFDFD', secondary: '#B08D57', accent: '#D8BFD8', text: '#36454F', background: '#F5F5F5' },
-    { name: "Romantic Blush", primary: '#FADADD', secondary: '#F4C2C2', accent: '#C0C0C0', text: '#5A5A5A', background: '#FFF0F5' },
-    { name: "Rustic Charm", primary: '#DEB887', secondary: '#8FBC8F', accent: '#A0522D', text: '#4A4A4A', background: '#FAF0E6' },
-    { name: "Ocean Breeze", primary: '#ADD8E6', secondary: '#B0E0E6', accent: '#F0E68C', text: '#2F4F4F', background: '#F0FFFF' },
-    { name: "Enchanted Forest", primary: '#228B22', secondary: '#556B2F', accent: '#DAA520', text: '#F8F8FF', background: '#F5F5DC' },
-    { name: "Modern Minimalist", primary: '#FFFFFF', secondary: '#E0E0E0', accent: '#333333', text: '#212121', background: '#F9F9F9' },
-    { name: "Vintage Glamour", primary: '#E6E6FA', secondary: '#778899', accent: '#FFD700', text: '#483D8B', background: '#FFF5EE' },
-    { name: "Sunset Glow", primary: '#FF7F50', secondary: '#FFDAB9', accent: '#FFA07A', text: '#8B4513', background: '#FFF8DC' }
+    { 
+      name: "Classic Elegance", 
+      colors: { primary: '#FDFDFD', secondary: '#B08D57', accent: '#D8BFD8', text: '#36454F', background: '#F5F5F5' }
+    },
+    { 
+      name: "Romantic Blush", 
+      colors: { primary: '#FADADD', secondary: '#F4C2C2', accent: '#C0C0C0', text: '#5A5A5A', background: '#FFF0F5' }
+    },
+    { 
+      name: "Rustic Charm", 
+      colors: { primary: '#DEB887', secondary: '#8FBC8F', accent: '#A0522D', text: '#4A4A4A', background: '#FAF0E6' }
+    },
+    { 
+      name: "Ocean Breeze", 
+      colors: { primary: '#ADD8E6', secondary: '#B0E0E6', accent: '#F0E68C', text: '#2F4F4F', background: '#F0FFFF' }
+    },
+    { 
+      name: "Enchanted Forest", 
+      colors: { primary: '#228B22', secondary: '#556B2F', accent: '#DAA520', text: '#F8F8FF', background: '#F5F5DC' }
+    },
+    { 
+      name: "Modern Minimalist", 
+      colors: { primary: '#FFFFFF', secondary: '#E0E0E0', accent: '#333333', text: '#212121', background: '#F9F9F9' }
+    },
+    { 
+      name: "Vintage Glamour", 
+      colors: { primary: '#E6E6FA', secondary: '#778899', accent: '#FFD700', text: '#483D8B', background: '#FFF5EE' }
+    },
+    { 
+      name: "Sunset Glow", 
+      colors: { primary: '#FF7F50', secondary: '#FFDAB9', accent: '#FFA07A', text: '#8B4513', background: '#FFF8DC' }
+    }
 ];
 
 export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boolean) => ({
