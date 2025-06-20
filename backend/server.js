@@ -371,6 +371,155 @@ exports.handler = async (event, context) => {
           return createResponse(200, { message: 'Experience settings saved.', data: wedding.experienceSettings }, requestOrigin);
       }
       
+      // POST /api/rsvp
+      if (httpMethod === "POST" && routePath === "/api/rsvp") {
+          console.log('[ROUTE /api/rsvp] Received RSVP submission:', body);
+          const { weddingId, firstName, lastName, email, attending, guestCount, message, mealChoices } = body;
+          
+          if (!weddingId || !firstName || !lastName || typeof attending !== 'boolean') {
+              return createResponse(400, { message: 'Missing required RSVP fields.' }, requestOrigin);
+          }
+          
+          const wedding = await WeddingData.findOne({ customId: weddingId });
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found for this RSVP.' }, requestOrigin);
+          }
+
+          // --- Duplicate RSVP Check ---
+          if (email) {
+            const normalizedEmail = email.toLowerCase();
+            const isDuplicate = wedding.rsvps && wedding.rsvps.some(rsvp => 
+                rsvp.firstName.toLowerCase() === firstName.toLowerCase() &&
+                rsvp.lastName.toLowerCase() === lastName.toLowerCase() &&
+                rsvp.email && rsvp.email.toLowerCase() === normalizedEmail
+            );
+
+            if (isDuplicate) {
+                console.log(`[ROUTE /api/rsvp] Duplicate RSVP detected for ${firstName} ${lastName} with email ${email}`);
+                return createResponse(409, { message: `An RSVP for ${firstName} ${lastName} with this email has already been submitted.` }, requestOrigin);
+            }
+          }
+          // --- End Duplicate Check ---
+
+          const newRsvp = {
+            rsvpId: uuidv4(),
+            firstName,
+            lastName,
+            email: email || null, // Ensure email is saved
+            attending,
+            guestCount: attending ? guestCount : 0,
+            message,
+            mealChoices: attending ? mealChoices : {},
+            submittedAt: new Date(),
+            isModified: false,
+            lastModifiedAt: new Date(),
+          };
+
+          // Using $push to add the new RSVP to the array
+          const updateResult = await WeddingData.updateOne(
+              { customId: weddingId },
+              { 
+                  $push: { 
+                      rsvps: newRsvp,
+                      rsvpHistory: {
+                          event: 'RSVP Submitted',
+                          details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})`
+                      }
+                  } 
+              }
+          );
+
+          if (updateResult.modifiedCount === 0) {
+              // This could happen if the document was not found, but we already checked for that.
+              // More likely, there was an issue with the update operation itself.
+              console.error(`[ROUTE /api/rsvp] Failed to add RSVP for weddingId: ${weddingId}`);
+              return createResponse(500, { message: "An internal error occurred while saving your RSVP." }, requestOrigin);
+          }
+
+          console.log(`[ROUTE /api/rsvp] Successfully added RSVP for ${firstName} ${lastName} to wedding ${weddingId}.`);
+          
+          // Optionally send an email notification after successful submission
+          // (Consider moving this to a separate, non-blocking process if it becomes slow)
+          if (RSVP_TO_EMAIL && RSVP_FROM_EMAIL) {
+            try {
+              const emailParams = {
+                Destination: { ToAddresses: [RSVP_TO_EMAIL] },
+                Message: {
+                  Body: {
+                    Text: {
+                      Charset: "UTF-8",
+                      Data: `New RSVP for ${wedding.eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
+                    },
+                    Html: {
+                      Charset: "UTF-8",
+                      Data: `<h3>New RSVP for ${wedding.eventName}</h3>
+                             <p><strong>Name:</strong> ${firstName} ${lastName}</p>
+                             <p><strong>Email:</strong> ${email || 'Not provided'}</p>
+                             <p><strong>Attending:</strong> ${attending ? 'Yes' : 'No'}</p>
+                             <p><strong>Guests:</strong> ${guestCount}</p>
+                             <p><strong>Message:</strong> ${message || 'None'}</p>
+                             <p><strong>Meal Choices:</strong></p>
+                             <pre>${JSON.stringify(mealChoices, null, 2)}</pre>`
+                    }
+                  },
+                  Subject: {
+                    Charset: "UTF-8",
+                    Data: `New RSVP from ${firstName} ${lastName} for ${wedding.eventName}`
+                  }
+                },
+                Source: RSVP_FROM_EMAIL,
+              };
+              await sesClient.send(new SendEmailCommand(emailParams));
+              console.log(`[ROUTE /api/rsvp] Email notification sent successfully to ${RSVP_TO_EMAIL}.`);
+            } catch (emailError) {
+              console.error("[ROUTE /api/rsvp] Error sending email notification:", emailError);
+              // Do not fail the whole request if email fails, just log it.
+            }
+          }
+
+          return createResponse(201, newRsvp, requestOrigin);
+      }
+
+      // DELETE /api/weddings/:customId/rsvps/:rsvpId
+      const deleteRsvpMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/rsvps\/([a-zA-Z0-9_-]+)$/);
+      if (httpMethod === 'DELETE' && deleteRsvpMatch) {
+          const customId = deleteRsvpMatch[1];
+          const rsvpIdToDelete = deleteRsvpMatch[2];
+
+          console.log(`[DELETE /rsvps] Attempting to delete RSVP ${rsvpIdToDelete} from wedding ${customId}`);
+
+          const wedding = await WeddingData.findOne({ customId: customId });
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          const rsvpToDelete = wedding.rsvps.find(r => r.rsvpId === rsvpIdToDelete);
+          if (!rsvpToDelete) {
+              return createResponse(404, { message: 'RSVP not found.' }, requestOrigin);
+          }
+
+          const updateResult = await WeddingData.updateOne(
+              { customId: customId },
+              {
+                  $pull: { rsvps: { rsvpId: rsvpIdToDelete } },
+                  $push: {
+                      rsvpHistory: {
+                          event: 'RSVP Deleted',
+                          details: `${rsvpToDelete.firstName} ${rsvpToDelete.lastName}`
+                      }
+                  }
+              }
+          );
+
+          if (updateResult.modifiedCount === 0) {
+              return createResponse(500, { message: 'Failed to delete RSVP.' }, requestOrigin);
+          }
+          
+          const updatedWedding = await WeddingData.findOne({ customId: customId });
+
+          return createResponse(200, { message: 'RSVP deleted successfully.', wedding: updatedWedding }, requestOrigin);
+      }
+
       // POST /api/s3/presigned-url
       const presignedUrlMatch = routePath.match(/^\/api\/s3\/presigned-url$/);
       if (httpMethod === "POST" && presignedUrlMatch) {
@@ -623,40 +772,6 @@ exports.handler = async (event, context) => {
         return createResponse(201, { message: 'Image uploaded successfully.', image: newImage }, requestOrigin);
       }
 
-      // POST /api/rsvp/:customId
-      const rsvpMatch = routePath.match(/^\/api\/rsvp\/([a-zA-Z0-9_-]+)$/);
-      if (httpMethod === "POST" && rsvpMatch) {
-          const customId = rsvpMatch[1];
-          const rsvpPayload = body;
-          const weddingDetails = await WeddingData.findOne({ customId });
-          if (!weddingDetails) return createResponse(404, { message: `Wedding ID '${customId}' not found for RSVP.` }, requestOrigin);
-
-          const newRsvp = new Rsvp({ ...rsvpPayload, weddingId: customId });
-          const savedRsvp = await newRsvp.save();
-          
-          if (RSVP_TO_EMAIL && RSVP_FROM_EMAIL) {
-              let mealInfo = 'N/A';
-              if (rsvpPayload.attending && rsvpPayload.mealChoices) {
-                if (typeof rsvpPayload.mealChoices === 'string') mealInfo = rsvpPayload.mealChoices;
-                else if (typeof rsvpPayload.mealChoices === 'object') {
-                  mealInfo = Object.entries(rsvpPayload.mealChoices).map(([m, q]) => `${m}: ${q}`).join(', ');
-                }
-              }
-              const emailSubject = `New RSVP: ${rsvpPayload.firstName} ${rsvpPayload.lastName} for ${weddingDetails.eventName || customId}`;
-              const emailBody = `<h1>RSVP Received</h1><p>Name: ${rsvpPayload.firstName} ${rsvpPayload.lastName}</p><p>Attending: ${rsvpPayload.attending ? 'Yes' : 'No'}</p>${rsvpPayload.attending ? `<p>Guests: ${rsvpPayload.guestCount}</p>` : ''}
-              ${rsvpPayload.attending && weddingDetails.isPlated ? `<p>Meal Choices: ${mealInfo}</p>` : ''}<p>Message: ${rsvpPayload.message || 'N/A'}</p><p>ID: ${savedRsvp._id}</p>`;
-              try {
-                  await sesClient.send(new SendEmailCommand({
-                      Destination: { ToAddresses: [RSVP_TO_EMAIL] },
-                      Message: { Body: { Html: { Charset: "UTF-8", Data: emailBody }, Text: { Charset: "UTF-8", Data: emailBody.replace(/<[^>]+>/g, '') } }, Subject: { Charset: "UTF-8", Data: emailSubject } },
-                      Source: RSVP_FROM_EMAIL,
-                  }));
-                  console.log('RSVP email sent.');
-              } catch (emailError) { console.error('RSVP email send failed:', emailError); }
-          }
-          return createResponse(201, savedRsvp, requestOrigin);
-      }
-
       // POST /api/weddings/:customId/verify-setup-password
       const verifyPasswordMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/verify-setup-password$/);
       if (httpMethod === "POST" && verifyPasswordMatch) {
@@ -708,6 +823,34 @@ exports.handler = async (event, context) => {
           await wedding.save();
 
           return createResponse(200, { success: true, message: 'Password changed successfully.' }, requestOrigin);
+      }
+
+      // PUT /api/weddings/:customId/rsvp-settings
+      const rsvpSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/rsvp-settings$/);
+      if (httpMethod === 'PUT' && rsvpSettingsMatch) {
+          const customId = rsvpSettingsMatch[1];
+          const { isPlated, platedOptions } = body;
+
+          console.log(`[PUT /rsvp-settings] Updating RSVP settings for ${customId}`);
+
+          if (typeof isPlated !== 'boolean') {
+              return createResponse(400, { message: 'isPlated must be a boolean.' }, requestOrigin);
+          }
+          if (!Array.isArray(platedOptions)) {
+            return createResponse(400, { message: 'platedOptions must be an array.' }, requestOrigin);
+          }
+
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { $set: { isPlated, platedOptions } },
+              { new: true, runValidators: true }
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { message: 'RSVP settings updated successfully.', wedding: updatedWedding }, requestOrigin);
       }
 
       // Fallback for unhandled API routes

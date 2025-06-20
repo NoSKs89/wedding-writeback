@@ -11,8 +11,11 @@ interface MobileNavModalProps {
 const navLinks = [
   { label: 'How To', path: '/setup/how-to' },
   { label: 'Experience Setup', path: '/setup/experience' },
-  { label: 'Image Management', path: '/setup/images' },
+  { label: 'RSVP Setup', path: '/setup/rsvp' },
+  { label: 'Scrapbook Images', path: '/setup/images' },
+  { label: 'Guest Share Gallery', path: '/setup/share-gallery' },
   { label: 'Advanced Layout Setup', path: '/setup/layout' },
+  { label: 'Mobile Layout Editor', path: '/setup/layoutmobile' },
   { label: 'Account Settings', path: '/setup/account' },
 ];
 

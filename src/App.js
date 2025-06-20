@@ -27,6 +27,7 @@ import MobileLayoutPreview from './components/SetupPage/MobileLayoutPreview'; //
 import useWeddingData from './hooks/useWeddingData'; // Import the new hook
 import ShareGallerySetupPage from './components/ShareGallery/ShareGallerySetupPage'; // ADDED
 import ShareGalleryGuestPage from './components/ShareGallery/ShareGalleryGuestPage'; // ADDED
+import RsvpSetupPage from './components/SetupPage/RsvpSetupPage'; // ADDED
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
 // const useLocalBackend = true; 
@@ -203,6 +204,7 @@ const MainAppContent = () => {
         <Route path="/:weddingId/setup" element={<SetupLayout />}>
           <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
+          <Route path="rsvp" element={<RsvpSetupPage />} />
           <Route path="share-gallery" element={<ShareGallerySetupPage />} />
           <Route path="layout" element={<Navigate to="../experience" replace />} />
           <Route path="layoutmobile" element={<MobileLayoutEditor />} />

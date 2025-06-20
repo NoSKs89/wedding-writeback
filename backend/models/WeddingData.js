@@ -32,6 +32,12 @@ const EventAddressSchema = new mongoose.Schema({
   mapsLink: String
 });
 
+const RsvpHistorySchema = new mongoose.Schema({
+  event: String, // e.g., 'RSVP Submitted', 'RSVP Deleted'
+  timestamp: { type: Date, default: Date.now },
+  details: String // e.g., 'John Doe (Attending)', 'Jane Smith'
+});
+
 const WeddingDataSchema = new mongoose.Schema({
   customId: { type: String, required: true, unique: true, index: true },
   ownerUserId: String,
@@ -70,6 +76,7 @@ const WeddingDataSchema = new mongoose.Schema({
   experienceSettings: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId
+  rsvpHistory: [RsvpHistorySchema],
   email: { type: String },
   accountStatus: { type: String, default: 'free' },
   setupPassword: {

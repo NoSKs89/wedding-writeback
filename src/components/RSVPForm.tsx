@@ -115,6 +115,8 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   // Form state
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
+  const [emailError, setEmailError] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [guestCount, setGuestCount] = useState<number>(1);
   const [selectedMeals, setSelectedMeals] = useState<SelectedMeals>({});
@@ -143,20 +145,52 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const handleAttendanceChoice = (attendingValue: boolean) => {
     setFormError('');
+    setSubmissionStatus('idle'); // Reset status on new choice
+
     if (!firstName || !lastName) {
       setFormError('Please enter your first and last name before making a choice.');
       return;
     }
-    setIsAttending(attendingValue);
 
-    if (!attendingValue) {
-      handleSubmit(null as unknown as FormEvent<HTMLFormElement>, false);
+    if (attendingValue) {
+      if (isPlated) {
+        // Plated meal flow: proceed to the second page for meal/guest details.
+        setIsAttending(true);
+      } else {
+        // Buffet flow: all info is on the first page, so submit directly.
+        handleSubmit(null, true);
+      }
+    } else {
+      // Not attending: submit directly.
+      handleSubmit(null, false);
     }
   };
 
   const handleGoBack = () => {
     setIsAttending(null);
     setFormError('');
+    setSubmissionStatus('idle'); // Also reset status when going back
+  };
+
+  const validateEmail = (emailInput: string): boolean => {
+    if (!emailInput) {
+      setEmailError('');
+      return true;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(emailInput)) {
+      setEmailError('');
+      return true;
+    } else {
+      setEmailError('Please enter a valid email address.');
+      return false;
+    }
+  };
+
+  const handleEmailChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    validateEmail(newEmail);
   };
 
   const handleGuestCountChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -201,6 +235,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       return;
     }
 
+    if (email && !validateEmail(email)) {
+      setFormError('Please correct the email address before submitting.');
+      return;
+    }
+
     let rsvpPayload: any;
 
     if (currentAttendance) {
@@ -232,6 +271,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         weddingId: weddingId,
         firstName,
         lastName,
+        email,
         attending: currentAttendance,
         guestCount: currentAttendance ? guestCount : 0,
         message,
@@ -361,7 +401,26 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
             <form>
               <input type="text" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
               <input type="text" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
-              <textarea placeholder="Leave a message for the couple (optional)" value={message} onChange={(e) => setMessage(e.target.value)} style={{...inputStyle, height: '80px', resize: 'vertical'}} />
+
+              {/* Fields for BUFFET style, shown on page 1 */}
+              {!isPlated && (
+                <>
+                  <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>How many guests in your party?</label>
+                  <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
+                  
+                  <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>Email (Optional)</label>
+                  <input 
+                    type="email" 
+                    placeholder="Email (Optional)" 
+                    value={email} 
+                    onChange={handleEmailChange} 
+                    style={{...inputStyle, borderColor: emailError ? 'red' : (selectedTheme.borderColor || '#ccc')}} 
+                  />
+                  {emailError && <p style={{ color: 'red', fontSize: '0.8em', marginTop: '-10px', marginBottom: '10px' }}>{emailError}</p>}
+                </>
+              )}
+
+              <textarea placeholder="Leave a message for the couple (optional)" value={message} onChange={(e) => setMessage(e.target.value)} style={{...inputStyle, height: '80px', resize: 'vertical', marginTop: '10px'}} />
             </form>
             {formError && <p style={{ color: 'red', textAlign: 'center' }}>{formError}</p>}
             <div style={choiceContainerStyle}>
@@ -372,8 +431,20 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         ) : (
           <form onSubmit={handleSubmit}>
             <h3 style={{ textAlign: 'center', marginTop: 0 }}>We're so happy you can make it!</h3>
+            
+            {/* Fields for PLATED style, shown on page 2 */}
             <label>How many guests in your party?</label>
             <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
+            
+            <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>Email (Optional)</label>
+            <input 
+              type="email" 
+              placeholder="Email (Optional)" 
+              value={email} 
+              onChange={handleEmailChange} 
+              style={{...inputStyle, borderColor: emailError ? 'red' : (selectedTheme.borderColor || '#ccc')}} 
+            />
+            {emailError && <p style={{ color: 'red', fontSize: '0.8em', marginTop: '-10px', marginBottom: '10px' }}>{emailError}</p>}
 
             {isPlated && platedOptions && platedOptions.length > 0 && (
               <div>

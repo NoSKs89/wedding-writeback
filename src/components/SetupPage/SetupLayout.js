@@ -141,6 +141,7 @@ const SetupLayout = () => {
                 <>
                   <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
+                  <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
                   
                   <div className={styles.dropdown}>
                     <button className={styles.navButton}>Image Management</button>
