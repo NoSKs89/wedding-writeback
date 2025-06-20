@@ -94,7 +94,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     return schemaWithValues;
   }, [element, fontToUse, getInitialValues]);
 
-  const levaValues = useControls(folderName, controlsSchema, { render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
+  const levaValues = useControls(folderName, controlsSchema, { collapsed: true, render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
   
   const values = layoutSettingsFromPreview ? layoutSettingsFromPreview[folderName] || {} : levaValues;
 

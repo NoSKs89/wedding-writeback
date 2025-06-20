@@ -438,7 +438,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
                 case 'component':
                   if (element.name === 'RSVP Form') {
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} styleControlsFromProp={controlValues} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} styleControlsFromProp={controlValues['RSVP Form Style']} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     contentToRender = <InteractiveScrapbook 
                       weddingData={weddingDataFromApp} 
@@ -452,7 +452,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       onDisplayedImagesUpdate={handleDisplayedImagesUpdate} 
                       windowWidth={windowWidth} 
                       windowHeight={windowHeight} 
-                      layoutControlsFromProp={controlValues}
+                      layoutControlsFromProp={controlValues['Scrapbook Layout (Guest)']}
                     />;
                   } else { return null; }
                   break;
