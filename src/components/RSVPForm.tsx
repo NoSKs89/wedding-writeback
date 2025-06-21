@@ -419,105 +419,121 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     margin: '0 5px 5px 0',
   };
   
-  if (submissionStatus === 'submitted') {
-    return (
-      <div style={formStyle} ref={internalFormRef}>
+  const renderContent = () => {
+    if (submissionStatus === 'submitted') {
+      return (
         <div style={successMessageStyle}>
-          <h3>Thank You, {firstName}!</h3>
-          {finalResponse?.attending ? (
-            <p>Your RSVP for {finalResponse.guestCount} has been received. We can't wait to see you!</p>
-          ) : (
-            <p>We've received your RSVP. We'll miss you!</p>
-          )}
+          <h3>Thank You!</h3>
+          <p>{isAttending ? "We can't wait to celebrate with you!" : "Your response has been recorded."}</p>
         </div>
-      </div>
-    );
-  } else if (isAttending === false) {
-    return (
-      <div style={{ textAlign: 'center' }}>
-        <h2 style={h2Style}>We're sorry to hear you can't make it.</h2>
-        <p style={{fontFamily: formTextFontFamily, color: selectedTheme.textColor}}>Your response has been recorded. Thank you!</p>
-      </div>
-    );
-  } else if (submissionStatus === 'error') {
-    return (
-      <div style={formStyle} ref={internalFormRef}>
+      );
+    } else if (submissionStatus === 'error') {
+      return (
         <div style={successMessageStyle}>
           <h3>Error Submitting RSVP</h3>
           <p>{formError}</p>
+          <button onClick={handleGoBack} style={{...buttonStyle, marginTop: '1rem' }}>Try Again</button>
         </div>
-      </div>
-    );
-  }
+      );
+    }
+
+    if (isAttending === null) {
+      // The initial form view
+      return (
+        <form onSubmit={(e) => handleSubmit(e, true)}>
+          <h2 style={{...h2Style, textAlign: 'center', marginBottom: '1.5rem'}}>Will you be joining us?</h2>
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First Name" required style={{ ...inputStyle, width: '50%' }} />
+            <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last Name" required style={{ ...inputStyle, width: '50%' }} />
+          </div>
+          <input type="email" value={email} onChange={handleEmailChange} placeholder="Email (Optional)" style={{ ...inputStyle, marginBottom: '1rem' }} />
+          {emailError && <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>{emailError}</p>}
+
+          {!isPlated && (
+            <>
+              <div style={{marginTop: '1.5rem'}}>
+                <h2 style={{...h2Style, marginBottom: '0rem', textAlign: 'center'}}>How many guests in your party?</h2>
+                <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
+                <div style={{textAlign: 'center'}}>
+                  <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
+                </div>
+              </div>
+              <div>
+                <h2 style={{...h2Style, marginBottom: '0.5rem', textAlign: 'center'}}>Send a message to the couple!</h2>
+                <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Your message here..." style={{...inputStyle, height: '80px', marginBottom: '1.5rem'}} />
+              </div>
+            </>
+          )}
+          
+          <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '1.5rem', gap: '1rem' }}>
+            <button type="button" onClick={() => handleSubmit(null, false)} style={{...buttonStyle, ...cantMakeItButtonStyle}}>
+              <span role="img" aria-label="sad face">{cantMakeItButtonEmoji}</span> Can't Make It
+            </button>
+            <button type={isPlated ? 'button' : 'submit'} onClick={isPlated ? () => handleAttendanceChoice(true) : undefined} style={{...buttonStyle, ...canMakeItButtonStyle}}>
+              <span role="img" aria-label="happy face">{canMakeItButtonEmoji}</span> Will Attend
+            </button>
+          </div>
+          {formError && <p style={{ color: 'red', textAlign: 'center', marginTop: '1rem' }}>{formError}</p>}
+        </form>
+      );
+    }
+
+    if (isAttending === true) {
+      // The second page of the form, for plated meals
+      return (
+        <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
+          <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
+          <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
+          <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
+
+          {isPlated && platedOptions.length > 0 && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{...h3Style, marginBottom: '1rem'}}>Please select your meal choice(s):</h3>
+              {guestCount === 1 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+                  {platedOptions.map(meal => (
+                    <label key={meal.name} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <input type="radio" name="singleMeal" value={meal.name} checked={singleSelectedMeal === meal.name} onChange={() => handleSingleMealChange(meal.name)} style={{ marginRight: '10px' }} />
+                      {meal.name}
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {platedOptions.map(meal => (
+                    <div key={meal.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label htmlFor={`meal-${meal.name}`}>{meal.name}</label>
+                      <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, e.target.value)} style={{...inputStyle, width: '60px', textAlign: 'center'}} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <h2 style={{...h2Style, marginBottom: '0.5rem'}}>Send a message to the couple!</h2>
+          <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Your message here..." style={{...inputStyle, height: '80px', marginBottom: '1.5rem'}} />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+            <button type="button" onClick={handleGoBack} style={{...buttonStyle, backgroundColor: '#757575'}}>Back</button>
+            <button type="submit" style={buttonStyle} disabled={submissionStatus === 'submitting'}>
+              {submissionStatus === 'submitting' ? 'Submitting...' : 'Submit RSVP'}
+            </button>
+          </div>
+          {formError && <p style={{ color: 'red', textAlign: 'center', marginTop: '1rem' }}>{formError}</p>}
+        </form>
+      );
+    }
+
+    // This case should ideally not be reached if submissionStatus handles the final states.
+    // It's a fallback.
+    return <div>Thank you for your response.</div>;
+  };
 
   return (
-    <div style={formStyle} ref={internalFormRef}>
+    <div ref={internalFormRef} style={formStyle}>
       <div style={contentContainerStyle}>
-        {isAttending === null ? (
-          <div>
-            <h3 style={{ textAlign: 'center', marginTop: 0 }}>Will you be joining us?</h3>
-            <form>
-              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First Name" required style={{ ...inputStyle, width: '50%' }} />
-                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last Name" required style={{ ...inputStyle, width: '50%' }} />
-              </div>
-              <input type="email" value={email} onChange={handleEmailChange} placeholder="Email (Optional)" style={{ ...inputStyle, marginBottom: '1rem' }} />
-              {emailError && <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>{emailError}</p>}
-              
-              <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '1.5rem', gap: '1rem' }}>
-                <button type="button" onClick={() => handleAttendanceChoice(false)} style={{...buttonStyle, ...cantMakeItButtonStyle}}>
-                  <span role="img" aria-label="sad face">{cantMakeItButtonEmoji}</span> Can't Make It
-                </button>
-                <button type="button" onClick={() => handleAttendanceChoice(true)} style={{...buttonStyle, ...canMakeItButtonStyle}}>
-                  <span role="img" aria-label="happy face">{canMakeItButtonEmoji}</span> Will Attend
-                </button>
-              </div>
-            </form>
-            {formError && <p style={{ color: 'red', textAlign: 'center' }}>{formError}</p>}
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
-            <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
-            <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
-            <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
-
-            {isPlated && platedOptions.length > 0 && (
-              <div style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{...h3Style, marginBottom: '1rem'}}>Please select your meal choice(s):</h3>
-                {guestCount === 1 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
-                    {platedOptions.map(meal => (
-                      <label key={meal.name} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                        <input type="radio" name="singleMeal" value={meal.name} checked={singleSelectedMeal === meal.name} onChange={() => handleSingleMealChange(meal.name)} style={{ marginRight: '10px' }} />
-                        {meal.name}
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {platedOptions.map(meal => (
-                      <div key={meal.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <label htmlFor={`meal-${meal.name}`}>{meal.name}</label>
-                        <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, e.target.value)} style={{...inputStyle, width: '60px', textAlign: 'center'}} />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-            
-            <h2 style={{...h2Style, marginBottom: '0.5rem'}}>Send a message to the couple!</h2>
-            <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Your message here..." style={{...inputStyle, height: '80px', marginBottom: '1.5rem'}} />
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
-              <button type="button" onClick={handleGoBack} style={{...buttonStyle, backgroundColor: '#757575'}}>Back</button>
-              <button type="submit" style={buttonStyle} disabled={submissionStatus === 'submitting'}>
-                {submissionStatus === 'submitting' ? 'Submitting...' : 'Submit RSVP'}
-              </button>
-            </div>
-            
-          </form>
-        )}
+        {renderContent()}
       </div>
     </div>
   );
