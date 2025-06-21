@@ -19,6 +19,7 @@ function mulberry32(a: number) {
 
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
 export const scrapbookLayoutControlsSchema = {
+  showCaptions: { value: true, label: 'Show Captions' },
   centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
   centerYOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center Y Offset (%)' },
   spreadRadiusFactor: { value: 0.35, min: 0.1, max: 5, step: 0.01, label: 'Spread Radius Factor' },
@@ -335,9 +336,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
             parallaxTranslateX={scrollDependent.parallaxTranslateX}
             parallaxTranslateY={scrollDependent.parallaxTranslateY}
             parallaxScale={scrollDependent.parallaxScale}
-            onClick={() => {
-              onImageClick(itemData);
-            }}
+            onClick={onImageClick}
           />
         );
       })}

@@ -82,6 +82,33 @@ export const formThemes: FormTheme[] = [
     buttonBackgroundColor: '#795548',
     buttonTextColor: '#FFFFFF',
   },
+  {
+    name: 'Crimson Velvet',
+    backgroundColor: '#6A2E3D', // Deep Maroon
+    textColor: '#DCD3C9',       // Light Beige
+    fontFamily: 'Georgia, serif',
+    borderColor: '#9E2A2B',     // Crimson Red
+    buttonBackgroundColor: '#9E2A2B',
+    buttonTextColor: '#DCD3C9',
+  },
+  {
+    name: 'Dusty Mauve',
+    backgroundColor: '#A295A3', // Dusty Lavender
+    textColor: '#2E232F',       // Dark Eggplant
+    fontFamily: 'Verdana, sans-serif',
+    borderColor: '#6A2E3D',     // Deep Maroon
+    buttonBackgroundColor: '#2E232F',
+    buttonTextColor: '#DCD3C9',
+  },
+  {
+    name: 'Elegant Onyx',
+    backgroundColor: '#DCD3C9', // Light Beige
+    textColor: '#2E232F',       // Dark Eggplant
+    fontFamily: 'Palatino Linotype, Book Antiqua, Palatino, serif',
+    borderColor: '#A295A3',     // Dusty Lavender
+    buttonBackgroundColor: '#2E232F',
+    buttonTextColor: '#DCD3C9',
+  },
 ];
 
 export const defaultThemeName = 'Light';

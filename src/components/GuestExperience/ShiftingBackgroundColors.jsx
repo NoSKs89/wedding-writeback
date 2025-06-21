@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { animated } from '@react-spring/web'; // Removed useSpring as it's not directly used for this simpler version
 // import { useTrackedControls } from '../../hooks/useTrackedControls';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import { useControls } from 'leva';
+import { useLevaStore } from '../../stores/levaStore';
 
 const dynamicGradientControlsSchema = {
   gradientMode: {
@@ -33,12 +34,32 @@ const dynamicGradientControlsSchema = {
 
 const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selectedColorScheme }) => {
   const { isSetupMode } = useSetupMode();
+  const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
+  const getInitialValues = useLevaStore(state => state.controlValues['Dynamic Background Gradient']);
+
+  const controlsSchemaWithValues = useMemo(() => {
+    const schema = dynamicGradientControlsSchema;
+    const initialValues = getInitialValues || {};
+    return Object.keys(schema).reduce((acc, key) => {
+      const a = schema;
+      const b = initialValues;
+      acc[key] = { ...a[key], value: b[key] ?? a[key].value };
+      return acc;
+    }, {});
+  }, [getInitialValues]);
 
   const controlValues = useControls(
     'Dynamic Background Gradient',
-    dynamicGradientControlsSchema,
-    { collapsed: true, render: () => isSetupMode }
+    controlsSchemaWithValues,
+    { collapsed: true, render: () => isSetupMode },
+    [controlsSchemaWithValues]
   );
+
+  useEffect(() => {
+    if (isSetupMode) {
+      updateControlValuesInStore('Dynamic Background Gradient', controlValues);
+    }
+  }, [controlValues, isSetupMode, updateControlValuesInStore]);
 
   const {
     gradientMode,
