@@ -68,6 +68,9 @@ export const rsvpFormControlsSchema = {
   formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
   formTextFontFamily: { value: initialTextFontFamily, options: fontFamilyOptions, label: 'Text Font' },
   buttonTextFontFamily: { value: initialButtonFontFamily, options: fontFamilyOptions, label: 'Button Font' },
+  useThemeButtonColors: { value: true, label: 'Use Theme Button Colors' },
+  cantMakeItColor: { value: '#D32F2F', label: "Can't Make It Color", render: (get: (path: string) => any) => !get('RSVP Form Style.useThemeButtonColors') },
+  canMakeItColor: { value: '#4CAF50', label: 'Will Attend Color', render: (get: (path: string) => any) => !get('RSVP Form Style.useThemeButtonColors') },
   formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
   formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
   formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
@@ -94,6 +97,9 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     formThemeName,
     formTextFontFamily,
     buttonTextFontFamily,
+    useThemeButtonColors,
+    cantMakeItColor,
+    canMakeItColor,
     formBackgroundOpacity,
     formBorderColor,
     formBorderWidth,
@@ -124,6 +130,16 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     };
   }, [formThemeName]);
 
+  const cantMakeItButtonStyle = {
+    backgroundColor: useThemeButtonColors ? selectedTheme.buttonBackgroundColor : cantMakeItColor,
+    color: useThemeButtonColors ? selectedTheme.buttonTextColor : '#ffffff',
+  };
+
+  const canMakeItButtonStyle = {
+    backgroundColor: useThemeButtonColors ? selectedTheme.buttonBackgroundColor : canMakeItColor,
+    color: useThemeButtonColors ? selectedTheme.buttonTextColor : '#ffffff',
+  };
+
   // Form state
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
@@ -134,10 +150,24 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const [selectedMeals, setSelectedMeals] = useState<SelectedMeals>({});
   const [singleSelectedMeal, setSingleSelectedMeal] = useState<string>('');
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
-  const [formError, setFormError] = useState<string>('');
+  const [formError, setFormError] = useState<string | null>(null);
   const [isAttending, setIsAttending] = useState<boolean | null>(null);
-  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [finalResponse, setFinalResponse] = useState<any>(null);
+
+  const h2Style: React.CSSProperties = {
+    fontSize: '1.2rem',
+    fontWeight: 500,
+    color: selectedTheme.textColor,
+    fontFamily: formTextFontFamily,
+  };
+
+  const h3Style: React.CSSProperties = {
+    fontSize: '1rem',
+    fontWeight: 500,
+    color: selectedTheme.textColor,
+    fontFamily: formTextFontFamily,
+  };
 
   useEffect(() => {
     if (isAttending === null || !isAttending) {
@@ -156,7 +186,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   }, [guestCount, isAttending, isPlated]);
 
   const handleAttendanceChoice = (attendingValue: boolean) => {
-    setFormError('');
+    setFormError(null);
     setSubmissionStatus('idle'); // Reset status on new choice
 
     if (!firstName || !lastName) {
@@ -180,7 +210,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const handleGoBack = () => {
     setIsAttending(null);
-    setFormError('');
+    setFormError(null);
     setSubmissionStatus('idle'); // Also reset status when going back
   };
 
@@ -208,12 +238,12 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const handleGuestCountChange = (e: ChangeEvent<HTMLInputElement>) => {
     const count = parseInt(e.target.value, 10);
     setGuestCount(count >= 1 ? count : 1);
-    setFormError('');
+    setFormError(null);
   };
 
   const handleSingleMealChange = (mealName: string) => {
     setSingleSelectedMeal(mealName);
-    setFormError('');
+    setFormError(null);
   };
 
   const handleMultipleMealQuantityChange = (mealName: string, quantityStr: string) => {
@@ -227,7 +257,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       return;
     }
     setSelectedMeals(prev => ({ ...prev, [mealName]: newQuantity }));
-    setFormError('');
+    setFormError(null);
   };
 
   const getTotalSelectedMealQuantity = (): number => {
@@ -238,7 +268,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement> | null, explicitAttendingStatus?: boolean) => {
     if (event) event.preventDefault();
-    setFormError('');
+    setFormError(null);
 
     const currentAttendance = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
 
@@ -291,7 +321,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       };
       const response = await axios.post(backendUrl, fullPayload);
       setFinalResponse(response.data);
-      setSubmissionStatus('success');
+      setSubmissionStatus('submitted');
     } catch (error) {
       setFormError('There was an error submitting your RSVP. Please try again.');
       setSubmissionStatus('error');
@@ -389,7 +419,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     margin: '0 5px 5px 0',
   };
   
-  if (submissionStatus === 'success') {
+  if (submissionStatus === 'submitted') {
     return (
       <div style={formStyle} ref={internalFormRef}>
         <div style={successMessageStyle}>
@@ -402,6 +432,22 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         </div>
       </div>
     );
+  } else if (isAttending === false) {
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <h2 style={h2Style}>We're sorry to hear you can't make it.</h2>
+        <p style={{fontFamily: formTextFontFamily, color: selectedTheme.textColor}}>Your response has been recorded. Thank you!</p>
+      </div>
+    );
+  } else if (submissionStatus === 'error') {
+    return (
+      <div style={formStyle} ref={internalFormRef}>
+        <div style={successMessageStyle}>
+          <h3>Error Submitting RSVP</h3>
+          <p>{formError}</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -411,105 +457,65 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
           <div>
             <h3 style={{ textAlign: 'center', marginTop: 0 }}>Will you be joining us?</h3>
             <form>
-              <input type="text" placeholder="First Name" value={firstName} onChange={(e) => setFirstName(e.target.value)} style={inputStyle} />
-              <input type="text" placeholder="Last Name" value={lastName} onChange={(e) => setLastName(e.target.value)} style={inputStyle} />
-
-              {/* Fields for BUFFET style, shown on page 1 */}
-              {!isPlated && (
-                <>
-                  <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>How many guests in your party?</label>
-                  <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
-                  
-                  <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>Email (Optional)</label>
-                  <input 
-                    type="email" 
-                    placeholder="Email (Optional)" 
-                    value={email} 
-                    onChange={handleEmailChange} 
-                    style={{...inputStyle, borderColor: emailError ? 'red' : (selectedTheme.borderColor || '#ccc')}} 
-                  />
-                  {emailError && <p style={{ color: 'red', fontSize: '0.8em', marginTop: '-10px', marginBottom: '10px' }}>{emailError}</p>}
-                </>
-              )}
-
-              <textarea placeholder="Leave a message for the couple (optional)" value={message} onChange={(e) => setMessage(e.target.value)} style={{...inputStyle, height: '80px', resize: 'vertical', marginTop: '10px'}} />
+              <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First Name" required style={{ ...inputStyle, width: '50%' }} />
+                <input type="text" value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last Name" required style={{ ...inputStyle, width: '50%' }} />
+              </div>
+              <input type="email" value={email} onChange={handleEmailChange} placeholder="Email (Optional)" style={{ ...inputStyle, marginBottom: '1rem' }} />
+              {emailError && <p style={{ color: 'red', fontSize: '0.8rem', marginTop: '-0.5rem', marginBottom: '1rem' }}>{emailError}</p>}
+              
+              <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '1.5rem', gap: '1rem' }}>
+                <button type="button" onClick={() => handleAttendanceChoice(false)} style={{...buttonStyle, ...cantMakeItButtonStyle}}>
+                  <span role="img" aria-label="sad face">{cantMakeItButtonEmoji}</span> Can't Make It
+                </button>
+                <button type="button" onClick={() => handleAttendanceChoice(true)} style={{...buttonStyle, ...canMakeItButtonStyle}}>
+                  <span role="img" aria-label="happy face">{canMakeItButtonEmoji}</span> Will Attend
+                </button>
+              </div>
             </form>
             {formError && <p style={{ color: 'red', textAlign: 'center' }}>{formError}</p>}
-            <div style={choiceContainerStyle}>
-              <button style={buttonStyle} onClick={() => handleAttendanceChoice(false)}>{cantMakeItButtonEmoji} Can't Make It</button>
-              <button style={buttonStyle} onClick={() => handleAttendanceChoice(true)}>{canMakeItButtonEmoji} Will Attend</button>
-            </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit}>
-            <h3 style={{ textAlign: 'center', marginTop: 0 }}>We're so happy you can make it!</h3>
-            
-            {/* Fields for PLATED style, shown on page 2 */}
-            <label>
-              How many guests in your party?
-              <span style={{ fontSize: '0.8em', fontWeight: 'normal', marginLeft: '4px' }}>
-                (including you)
-              </span>
-            </label>
-            <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={inputStyle} />
-            
-            <label style={{display: 'block', marginBottom: '5px', marginTop: '15px'}}>Email (Optional)</label>
-            <input 
-              type="email" 
-              placeholder="Email (Optional)" 
-              value={email} 
-              onChange={handleEmailChange} 
-              style={{...inputStyle, borderColor: emailError ? 'red' : (selectedTheme.borderColor || '#ccc')}} 
-            />
-            {emailError && <p style={{ color: 'red', fontSize: '0.8em', marginTop: '-10px', marginBottom: '10px' }}>{emailError}</p>}
+          <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
+            <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
+            <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
+            <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
 
-            {isPlated && platedOptions && platedOptions.length > 0 && (
-              <div>
-                <h4 style={{ marginTop: '20px' }}>Meal Selection</h4>
-                {guestCount > 1 ? (
-                  <div>
-                    <p>Please select meals for your party of {guestCount}.</p>
+            {isPlated && platedOptions.length > 0 && (
+              <div style={{ marginBottom: '1.5rem' }}>
+                <h3 style={{...h3Style, marginBottom: '1rem'}}>Please select your meal choice(s):</h3>
+                {guestCount === 1 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
                     {platedOptions.map(meal => (
-                      <div key={meal.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '10px 0' }}>
-                        <div>
-                          <strong>{meal.name}</strong>
-                          {meal.description && <p style={{ fontSize: '0.85em', margin: '2px 0 0' }}>{meal.description}</p>}
-                          {meal.dietaryTags?.map(tag => <span key={tag} style={dietaryTagStyle}>{tag}</span>)}
-                        </div>
-                        <input
-                          type="number"
-                          min="0"
-                          max={guestCount}
-                          value={selectedMeals[meal.name] || ''}
-                          onChange={(e) => handleMultipleMealQuantityChange(meal.name, e.target.value)}
-                          style={{ ...inputStyle, width: '60px', marginBottom: 0 }}
-                        />
-                      </div>
+                      <label key={meal.name} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                        <input type="radio" name="singleMeal" value={meal.name} checked={singleSelectedMeal === meal.name} onChange={() => handleSingleMealChange(meal.name)} style={{ marginRight: '10px' }} />
+                        {meal.name}
+                      </label>
                     ))}
-                    <p style={{fontSize: '0.8rem', textAlign: 'right', marginTop: '5px'}}>Total selected: {getTotalSelectedMealQuantity()} / {guestCount}</p>
                   </div>
                 ) : (
-                  platedOptions.map(meal => (
-                    <div
-                      key={meal.name}
-                      onClick={() => handleSingleMealChange(meal.name)}
-                      style={{ ...mealOptionStyle, background: singleSelectedMeal === meal.name ? '#e0f7fa' : 'transparent' }}
-                    >
-                      <strong>{meal.name}</strong>
-                      {meal.description && <p style={{ fontSize: '0.85em', margin: '2px 0 0' }}>{meal.description}</p>}
-                      {meal.dietaryTags?.map(tag => <span key={tag} style={dietaryTagStyle}>{tag}</span>)}
-                    </div>
-                  ))
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {platedOptions.map(meal => (
+                      <div key={meal.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <label htmlFor={`meal-${meal.name}`}>{meal.name}</label>
+                        <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, e.target.value)} style={{...inputStyle, width: '60px', textAlign: 'center'}} />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
-            {formError && <p style={{ color: 'red', textAlign: 'center', marginTop: '15px' }}>{formError}</p>}
-            <div style={{...choiceContainerStyle, flexDirection: 'column', gap: '10px'}}>
+            
+            <h2 style={{...h2Style, marginBottom: '0.5rem'}}>Send a message to the couple!</h2>
+            <textarea value={message} onChange={e => setMessage(e.target.value)} placeholder="Your message here..." style={{...inputStyle, height: '80px', marginBottom: '1.5rem'}} />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <button type="button" onClick={handleGoBack} style={{...buttonStyle, backgroundColor: '#757575'}}>Back</button>
               <button type="submit" style={buttonStyle} disabled={submissionStatus === 'submitting'}>
                 {submissionStatus === 'submitting' ? 'Submitting...' : 'Submit RSVP'}
               </button>
-              <button type="button" onClick={handleGoBack} style={backButtonStyle}>Go Back</button>
             </div>
+            
           </form>
         )}
       </div>
