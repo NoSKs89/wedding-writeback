@@ -205,7 +205,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
 
   const handleTextSubmit = () => {
     if (textContent.trim()) {
-      onUpdate({ type: 'text', content: textContent, name: `Text: ${textContent.substring(0,15)}...` });
+      onUpdate({ type: 'text', content: textContent, name: 'Text' });
     }
   };
 

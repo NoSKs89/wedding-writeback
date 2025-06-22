@@ -49,6 +49,8 @@ interface ControlValues {
   circleFinalRadius: number;
   bgImageInitialScale: number;
   bgImageFinalScale: number;
+  paddingLeft: number;
+  paddingRight: number;
 }
 
 export interface ElementWrapperProps {
@@ -75,7 +77,10 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const { isSetupMode } = useSetupMode();
   const currentChildRef = useRef<HTMLElement>(null);
   
-  const folderName = useMemo(() => `element_${element.id}_${element.name ? element.name.replace(/\s+/g, '_') : element.type.replace(/\s+/g, '_')}`, [element.id, element.name, element.type]);
+  const folderName = useMemo(() => {
+    const namePart = element.type === 'text' ? 'Text' : (element.name || element.type);
+    return `element_${element.id}_${namePart.replace(/\s+/g, '_')}`;
+  }, [element.id, element.name, element.type]);
   
   const getInitialValues = useLevaStore(state => state.controlValues[folderName]);
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
@@ -94,9 +99,26 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     return schemaWithValues;
   }, [element, fontToUse, getInitialValues]);
 
-  const levaValues = useControls(folderName, controlsSchema, { collapsed: true, render: () => isSetupMode && !layoutSettingsFromPreview }, [controlsSchema]);
+  // --- Dynamic Label for Leva Folder ---
+  const dynamicLabel = useMemo(() => {
+    if (element.type === 'text' && typeof element.content === 'string' && element.content.trim()) {
+      const preview = element.content.trim().substring(0, 10);
+      return `Preview: "${preview}..."`;
+    }
+    return `Element ${element.id}: ${element.name || element.type}`;
+  }, [element.id, element.name, element.type, element.content]);
+
+  const levaValues = useControls(
+    folderName,
+    {
+      ' ': { value: dynamicLabel, disabled: true, label: ' ' },
+      ...controlsSchema,
+    },
+    { collapsed: true, render: () => isSetupMode && !layoutSettingsFromPreview },
+    [controlsSchema, dynamicLabel]
+  );
   
-  const values = layoutSettingsFromPreview ? layoutSettingsFromPreview[folderName] || {} : levaValues;
+  const values = layoutSettingsFromPreview ? (layoutSettingsFromPreview[folderName] || {}) : levaValues;
 
   useEffect(() => {
     if (!layoutSettingsFromPreview) {
@@ -142,7 +164,9 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     textShadowXEnd = 2,
     textShadowYEnd = 2,
     textShadowBlurEnd = 3,
-    textShadowColor = 'rgba(0,0,0,0.5)'
+    textShadowColor = 'rgba(0,0,0,0.5)',
+    paddingLeft = 0,
+    paddingRight = 0
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -251,11 +275,21 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   
   const elementStyle: React.CSSProperties = {
     opacity: finalOpacity,
-    transform: `translateX(${landingXPosition}px) translateY(${finalCalculatedYTransform}px) scale(${element.type === 'background-image' ? scaleForBgImage : currentScale})`,
-    width: element.type === 'background-image' ? '100%' : 'auto',
+    transform: `translate(${landingXPosition}px, ${finalCalculatedYTransform}px) scale(${element.type === 'background-image' ? scaleForBgImage : currentScale})`,
+    width: element.type === 'background-image' ? '100%' : 'fit-content',
     height: element.type === 'background-image' ? '100%' : 'auto',
+    color: textColor,
+    fontFamily: fontFamily,
+    fontSize: `${currentFontSize}px`,
+    lineHeight: lineHeight,
+    letterSpacing: `${letterSpacingToApply}px`,
+    textShadow: textShadowToApply,
+    paddingLeft: `${paddingLeft}px`,
+    paddingRight: `${paddingRight}px`,
     position: 'relative',
     clipPath: clipPathToApply,
+    willChange: 'transform, opacity',
+    boxSizing: 'border-box'
   };
 
   const childWithRef = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement, { ref: currentChildRef }) : children;

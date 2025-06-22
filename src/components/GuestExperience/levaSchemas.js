@@ -85,6 +85,8 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
             fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
             lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
+            paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
+            paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
             spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
             yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
             yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },

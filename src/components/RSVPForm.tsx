@@ -235,9 +235,9 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     validateEmail(newEmail);
   };
 
-  const handleGuestCountChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const count = parseInt(e.target.value, 10);
-    setGuestCount(count >= 1 ? count : 1);
+  const handleGuestCountChange = (newCount: number) => {
+    const count = Math.max(1, newCount);
+    setGuestCount(count);
     setFormError(null);
   };
 
@@ -246,17 +246,21 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     setFormError(null);
   };
 
-  const handleMultipleMealQuantityChange = (mealName: string, quantityStr: string) => {
-    const newQuantity = Math.max(0, parseInt(quantityStr, 10) || 0);
+  const handleMultipleMealQuantityChange = (mealName: string, newQuantity: number) => {
     const otherMealsTotal = Object.entries(selectedMeals).reduce((sum, [key, qty]) => {
       return key === mealName ? sum : sum + (qty || 0);
     }, 0);
 
-    if (otherMealsTotal + newQuantity > guestCount) {
+    const validatedQuantity = Math.max(0, newQuantity);
+
+    if (otherMealsTotal + validatedQuantity > guestCount) {
       setFormError(`Exceeded Food For Guest Count of ${guestCount}. You have ${guestCount - otherMealsTotal} selections remaining.`);
+      // Allow setting quantity up to the remaining limit
+      const maxAllowed = guestCount - otherMealsTotal;
+      setSelectedMeals(prev => ({ ...prev, [mealName]: maxAllowed }));
       return;
     }
-    setSelectedMeals(prev => ({ ...prev, [mealName]: newQuantity }));
+    setSelectedMeals(prev => ({ ...prev, [mealName]: validatedQuantity }));
     setFormError(null);
   };
 
@@ -419,6 +423,39 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     margin: '0 5px 5px 0',
   };
   
+  const stepperStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '0.5rem',
+  };
+
+  const stepperButtonStyle: React.CSSProperties = {
+    padding: '0.5rem',
+    width: '40px',
+    height: '40px',
+    border: `1px solid ${selectedTheme.borderColor || '#ccc'}`,
+    borderRadius: '50%',
+    background: 'transparent',
+    color: selectedTheme.textColor,
+    fontSize: '1.2rem',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  };
+
+  const stepperInputStyle: React.CSSProperties = {
+    ...inputStyle,
+    width: '60px',
+    textAlign: 'center',
+    marginBottom: '0',
+    // Remove spinner arrows for browsers that might still show them
+    MozAppearance: 'textfield',
+    WebkitAppearance: 'none',
+    appearance: 'none',
+  };
+
   const renderContent = () => {
     if (submissionStatus === 'submitted') {
       return (
@@ -454,8 +491,10 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
               <div style={{marginTop: '1.5rem'}}>
                 <h2 style={{...h2Style, marginBottom: '0rem', textAlign: 'center'}}>How many guests in your party?</h2>
                 <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
-                <div style={{textAlign: 'center'}}>
-                  <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
+                <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
+                  <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+                  <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                  <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
                 </div>
               </div>
               <div>
@@ -484,7 +523,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
           <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
           <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
-          <input type="number" value={guestCount} onChange={handleGuestCountChange} min="1" style={{...inputStyle, marginBottom: '1.5rem', textAlign: 'center', width: '80px'}} />
+          <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
+            <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+            <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+            <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
+          </div>
 
           {isPlated && platedOptions.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
@@ -503,7 +546,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
                   {platedOptions.map(meal => (
                     <div key={meal.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <label htmlFor={`meal-${meal.name}`}>{meal.name}</label>
-                      <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, e.target.value)} style={{...inputStyle, width: '60px', textAlign: 'center'}} />
+                      <div style={stepperStyle}>
+                        <button type="button" onClick={() => handleMultipleMealQuantityChange(meal.name, (selectedMeals[meal.name] || 0) - 1)} style={{...stepperButtonStyle, height: '35px', width: '35px', fontSize: '1rem'}}>-</button>
+                        <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, parseInt(e.target.value, 10))} style={{...stepperInputStyle, width: '50px'}} />
+                        <button type="button" onClick={() => handleMultipleMealQuantityChange(meal.name, (selectedMeals[meal.name] || 0) + 1)} style={{...stepperButtonStyle, height: '35px', width: '35px', fontSize: '1rem'}}>+</button>
+                      </div>
                     </div>
                   ))}
                 </div>
