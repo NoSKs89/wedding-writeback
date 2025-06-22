@@ -1,5 +1,8 @@
 import React, { useState, useCallback, ChangeEvent, useEffect } from 'react';
 import { ElementConfig } from './ExperienceSetupPage'; // Import the interface
+import axios from 'axios';
+import { getApiBaseUrl } from '../../config/apiConfig';
+import { useParams } from 'react-router-dom';
 // No need to import RSVPForm or ScrapbookBackground here if not rendering them directly
 // import RSVPForm from '../../RSVPForm';
 // import ScrapbookBackground from '../../ScrapbookBackground.js';
@@ -29,9 +32,12 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   endPositionPercent,
   onMarkerPositionChangeFromInput
 }) => {
+  const { weddingId } = useParams<{ weddingId: string }>();
   const [textContent, setTextContent] = useState<string>(element.type === 'text' && typeof element.content === 'string' ? element.content : '');
   const [selectedFile, setSelectedFile] = useState<File | null>(element.type === 'photo' && element.content instanceof File ? element.content : null);
   const [filePreview, setFilePreview] = useState<string | null>(element.type === 'photo' && typeof element.content === 'string' ? element.content : null);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [maxScrapbookImages, setMaxScrapbookImages] = useState<number | string>(
     (element.type === 'component' && element.name === 'Scrapbook' && typeof element.content === 'object' && element.content && 'maxImages' in element.content)
       ? (element.content as { maxImages: number }).maxImages
@@ -67,6 +73,9 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       if (typeof element.content === 'string') {
         setFilePreview(element.content); // Set if content is a string URL
         setSelectedFile(null); // Clear any selected file if content is a URL string
+        if (element.content.startsWith('http')) {
+          setUploadStatus('idle'); // If it's a URL, the upload is done.
+        }
       } else if (element.content instanceof File) {
         // If content is a File object (e.g., newly selected for upload but not yet a URL)
         // This case is mostly handled by handlePhotoUpload directly setting selectedFile and filePreview.
@@ -78,6 +87,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       // If type is not photo/background-image, ensure preview is cleared
       setFilePreview(null);
       setSelectedFile(null);
+      setUploadStatus('idle');
     }
   }, [element.type, element.content]);
 
@@ -101,12 +111,61 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     }
   };
 
+  const handleFileUpload = async (file: File) => {
+    if (!weddingId) {
+      setUploadError('Wedding ID is missing.');
+      setUploadStatus('error');
+      return;
+    }
+
+    setUploadStatus('uploading');
+    setUploadError(null);
+
+    // Determine the correct imageType based on the element's configuration
+    let imageTypeForUpload = 'scrapbook'; // Default
+    if (element.type === 'photo') {
+      imageTypeForUpload = 'introCouple';
+    } else if (element.type === 'background-image') {
+      imageTypeForUpload = 'introBackground';
+    }
+
+    try {
+      const apiBase = getApiBaseUrl();
+      const presignedUrlResponse = await axios.post(`${apiBase}/s3/presigned-url`, {
+        fileName: file.name,
+        fileType: file.type,
+        weddingId: weddingId,
+        imageType: imageTypeForUpload 
+      });
+
+      const { presignedUrl, publicUrl } = presignedUrlResponse.data;
+
+      const fileBuffer = await file.arrayBuffer();
+
+      await axios.put(presignedUrl, fileBuffer, {
+        headers: { 'Content-Type': file.type }
+      });
+
+      // After successful upload, update the element with the public S3 URL
+      onUpdate({ content: publicUrl, name: file.name });
+      setUploadStatus('success');
+
+    } catch (error: any) {
+      console.error('Error during image upload:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Unknown upload error.';
+      setUploadError(errorMessage);
+      setUploadStatus('error');
+    }
+  };
+
   const handleTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const newTypeValue = e.target.value;
     setTextContent('');
     setSelectedFile(null);
     setFilePreview(null);
     setMaxScrapbookImages(''); // Reset max images input
+    setUploadStatus('idle');
+    setUploadError(null);
 
     if (newTypeValue === 'empty') {
         onRemove();
@@ -131,12 +190,16 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
+      
+      // Show local preview immediately
       const reader = new FileReader();
       reader.onloadend = () => {
         setFilePreview(reader.result as string);
-        onUpdate({ type: element.type as 'photo' | 'background-image', content: reader.result as string, name: file.name });
       };
       reader.readAsDataURL(file);
+
+      // Start the actual upload process
+      handleFileUpload(file);
     }
   };
 
@@ -332,10 +395,13 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
                   maxWidth: '150px' 
                 }}
               />
+              {uploadStatus === 'uploading' && <p style={{fontSize: '0.8em', color: '#007bff'}}>Uploading...</p>}
+              {uploadStatus === 'success' && element.content && <p style={{fontSize: '0.8em', color: 'green'}}>Saved!</p>}
+              {uploadStatus === 'error' && <p style={{fontSize: '0.8em', color: 'red'}}>Error: {uploadError}</p>}
               {element.name && !filePreview && element.content && 
                 <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
               }
-               {filePreview && element.name && 
+               {filePreview && element.name && uploadStatus !== 'uploading' &&
                 <p style={{fontSize: '0.8em', color: '#555', margin: '0'}}>File: {element.name}</p>
               }
             </div>

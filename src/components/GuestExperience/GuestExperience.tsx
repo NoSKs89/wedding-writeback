@@ -457,7 +457,13 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>
           
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>
-            <ShiftingBackgroundColors scrollY={scrollY} TOTAL_PAGES={TOTAL_PAGES} windowHeight={windowHeight} selectedColorScheme={selectedColorScheme} />
+            <ShiftingBackgroundColors 
+              scrollY={scrollY} 
+              TOTAL_PAGES={TOTAL_PAGES} 
+              windowHeight={windowHeight} 
+              selectedColorScheme={selectedColorScheme}
+              gradientControls={controlValues['Dynamic Background Gradient']}
+            />
           </ParallaxLayer>
 
           {renderableElements

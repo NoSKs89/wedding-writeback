@@ -229,6 +229,13 @@ const googleFontsToLoad = [
   { name: 'Oswald', weights: ['400', '700'] },
   { name: 'Raleway', weights: ['400', '700'] },
   { name: 'Merriweather', weights: ['400', '700'] },
+  { name: 'Alex Brush', weights: ['400'] },
+  { name: 'Allura', weights: ['400'] },
+  { name: 'Cookie', weights: ['400'] },
+  { name: 'Kaushan Script', weights: ['400'] },
+  { name: 'Pacifico', weights: ['400'] },
+  { name: 'Rouge Script', weights: ['400'] },
+  { name: 'Tangerine', weights: ['400'] },
 ];
 
 function App() {

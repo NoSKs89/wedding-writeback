@@ -140,7 +140,9 @@ interface DisplayedImageData {
 
 interface InteractiveScrapbookProps {
   weddingData: any;
-  config: any;
+  config: {
+    content?: string | { maxImages?: number };
+  } | null;
   scrollY: number;
   onImageClick: (details: any) => void;
   focusedImageGlobal: any;

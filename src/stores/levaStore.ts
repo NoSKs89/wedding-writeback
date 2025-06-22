@@ -65,7 +65,10 @@ export const useLevaStore = create<LevaStoreState>()(
 
     updateControlValues: (folderName, newValues) => {
       set(state => {
-        state.controlValues[folderName] = newValues;
+        state.controlValues = {
+          ...state.controlValues,
+          [folderName]: newValues
+        };
       });
     },
 

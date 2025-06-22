@@ -32,7 +32,7 @@ const dynamicGradientControlsSchema = {
   }
 };
 
-const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selectedColorScheme }) => {
+const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selectedColorScheme, gradientControls: gradientControlsFromProp = null }) => {
   const { isSetupMode } = useSetupMode();
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
   const getInitialValues = useLevaStore(state => state.controlValues['Dynamic Background Gradient']);
@@ -48,18 +48,23 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
     }, {});
   }, [getInitialValues]);
 
-  const controlValues = useControls(
+  const levaValues = useControls(
     'Dynamic Background Gradient',
     controlsSchemaWithValues,
     { collapsed: true, render: () => isSetupMode },
     [controlsSchemaWithValues]
   );
 
+  // Use controls from props if available (for preview), otherwise use live Leva values (for editor)
+  const controlValues = gradientControlsFromProp || levaValues;
+
   useEffect(() => {
-    if (isSetupMode) {
+    // Only update the store if we are in setup mode and not using props
+    // This prevents the preview page from trying to write back to the store
+    if (isSetupMode && !gradientControlsFromProp) {
       updateControlValuesInStore('Dynamic Background Gradient', controlValues);
     }
-  }, [controlValues, isSetupMode, updateControlValuesInStore]);
+  }, [controlValues, isSetupMode, updateControlValuesInStore, gradientControlsFromProp]);
 
   const {
     gradientMode,
@@ -81,7 +86,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
   if (selectedColorScheme && gradientMode !== 'Override') {
     switch (gradientMode) {
       case 'Scheme: Primary & Secondary':
-        actualStartColor = selectedColorScheme.primary || gradientColorStart;
+        actualStartColor = selectedColorScheme.colors.primary || gradientColorStart;
         actualEndColor = selectedColorScheme.secondary || gradientColorStop;
         break;
       case 'Scheme: Primary & Accent':
@@ -103,27 +108,27 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
     }
   }
 
-  const currentAngle = gradientAngleOffset + scrollY * gradientScrollFactor;
+  const currentAngle = (gradientAngleOffset || 0) + scrollY * (gradientScrollFactor || 0);
 
   let currentOpacity = startOpacity;
   const parallaxScrollHeight = TOTAL_PAGES > 1 ? (TOTAL_PAGES - 1) * windowHeight : 0;
 
   const currentScrollYPercent = parallaxScrollHeight > 0 ? Math.min(scrollY / parallaxScrollHeight, 1) : 0;
 
-  if (currentScrollYPercent <= startFadeYPercent) {
+  if (currentScrollYPercent <= (startFadeYPercent || 0)) {
     currentOpacity = startOpacity;
-  } else if (currentScrollYPercent >= endFadeYPercent) {
+  } else if (currentScrollYPercent >= (endFadeYPercent || 1)) {
     currentOpacity = maxGradientOpacity;
   } else {
-    const fadeDurationPercent = endFadeYPercent - startFadeYPercent;
+    const fadeDurationPercent = (endFadeYPercent || 1) - (startFadeYPercent || 0);
     if (fadeDurationPercent <= 0) {
       currentOpacity = maxGradientOpacity;
     } else {
-      const progressInFade = (currentScrollYPercent - startFadeYPercent) / fadeDurationPercent;
-      currentOpacity = startOpacity + (maxGradientOpacity - startOpacity) * progressInFade;
+      const progressInFade = (currentScrollYPercent - (startFadeYPercent || 0)) / fadeDurationPercent;
+      currentOpacity = (startOpacity || 0) + ((maxGradientOpacity || 1) - (startOpacity || 0)) * progressInFade;
     }
   }
-  currentOpacity = Math.max(0, Math.min(1, currentOpacity));
+  currentOpacity = Math.max(0, Math.min(1, currentOpacity || 0));
 
   const scrollPercentage = useMemo(() => {
     if (TOTAL_PAGES <= 1 || windowHeight <= 0) return 0;

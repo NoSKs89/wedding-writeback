@@ -190,6 +190,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     'Overall Controls (Guest)': overallControls,
     'RSVP Form Style': rsvpStyleControlsFromSettings,
     'Scrapbook Layout (Guest)': scrapbookLayoutControlsFromSettings,
+    'Dynamic Background Gradient': dynamicGradientControlsFromSettings,
     ...elementControls
   } = layoutSettingsFromPreview || {};
 
@@ -450,7 +451,13 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               height: '100%',
             }}
           >
-            <ShiftingBackgroundColors scrollY={scrollY} TOTAL_PAGES={TOTAL_PAGES} windowHeight={windowHeight} selectedColorScheme={selectedColorScheme} />
+            <ShiftingBackgroundColors 
+              scrollY={scrollY} 
+              TOTAL_PAGES={TOTAL_PAGES} 
+              windowHeight={windowHeight} 
+              selectedColorScheme={selectedColorScheme}
+              gradientControls={dynamicGradientControlsFromSettings}
+            />
           </ParallaxLayer>
 
           {renderableElements.map(renderElement).filter(Boolean)}

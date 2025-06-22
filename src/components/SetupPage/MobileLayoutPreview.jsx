@@ -65,12 +65,15 @@ const MobileLayoutPreview = () => {
         try {
             const response = await axios.get(apiUrl);
             if (response.data.settings && Object.keys(response.data.settings).length > 0) {
-                setLiveLayoutSettings(response.data.settings);
+                // Only update state if the new settings are actually different.
+                if (JSON.stringify(response.data.settings) !== JSON.stringify(liveLayoutSettings)) {
+                    setLiveLayoutSettings(response.data.settings);
+                }
             }
         } catch (err) {
             console.error("Failed to load mobile preview.", err);
         }
-    }, [weddingId]);
+    }, [weddingId, liveLayoutSettings]);
     
     // Effect for polling data
     useEffect(() => {
