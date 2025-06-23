@@ -416,6 +416,13 @@ exports.handler = async (event, context) => {
           };
 
           // Using $push to add the new RSVP to the array
+          console.log(`[ROUTE /api/rsvp] Attempting to update wedding ${weddingId} with new RSVP:`, {
+            rsvpId: newRsvp.rsvpId,
+            firstName: newRsvp.firstName,
+            lastName: newRsvp.lastName,
+            attending: newRsvp.attending
+          });
+          
           const updateResult = await WeddingData.updateOne(
               { customId: weddingId },
               { 
@@ -429,10 +436,18 @@ exports.handler = async (event, context) => {
               }
           );
 
+          console.log(`[ROUTE /api/rsvp] Update result:`, {
+            matchedCount: updateResult.matchedCount,
+            modifiedCount: updateResult.modifiedCount,
+            upsertedCount: updateResult.upsertedCount,
+            acknowledged: updateResult.acknowledged
+          });
+
           if (updateResult.modifiedCount === 0) {
               // This could happen if the document was not found, but we already checked for that.
               // More likely, there was an issue with the update operation itself.
               console.error(`[ROUTE /api/rsvp] Failed to add RSVP for weddingId: ${weddingId}`);
+              console.error(`[ROUTE /api/rsvp] Update result details:`, updateResult);
               return createResponse(500, { message: "An internal error occurred while saving your RSVP." }, requestOrigin);
           }
 
@@ -441,18 +456,20 @@ exports.handler = async (event, context) => {
           // Optionally send an email notification after successful submission
           // (Consider moving this to a separate, non-blocking process if it becomes slow)
           if (RSVP_TO_EMAIL && RSVP_FROM_EMAIL) {
+            console.log(`[ROUTE /api/rsvp] Attempting to send email notification to ${RSVP_TO_EMAIL} from ${RSVP_FROM_EMAIL}`);
             try {
+              const eventName = wedding.eventName || 'Wedding Event'; // Add fallback
               const emailParams = {
                 Destination: { ToAddresses: [RSVP_TO_EMAIL] },
                 Message: {
                   Body: {
                     Text: {
                       Charset: "UTF-8",
-                      Data: `New RSVP for ${wedding.eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
+                      Data: `New RSVP for ${eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
                     },
                     Html: {
                       Charset: "UTF-8",
-                      Data: `<h3>New RSVP for ${wedding.eventName}</h3>
+                      Data: `<h3>New RSVP for ${eventName}</h3>
                              <p><strong>Name:</strong> ${firstName} ${lastName}</p>
                              <p><strong>Email:</strong> ${email || 'Not provided'}</p>
                              <p><strong>Attending:</strong> ${attending ? 'Yes' : 'No'}</p>
@@ -464,7 +481,7 @@ exports.handler = async (event, context) => {
                   },
                   Subject: {
                     Charset: "UTF-8",
-                    Data: `New RSVP from ${firstName} ${lastName} for ${wedding.eventName}`
+                    Data: `New RSVP from ${firstName} ${lastName} for ${eventName}`
                   }
                 },
                 Source: RSVP_FROM_EMAIL,
@@ -473,8 +490,17 @@ exports.handler = async (event, context) => {
               console.log(`[ROUTE /api/rsvp] Email notification sent successfully to ${RSVP_TO_EMAIL}.`);
             } catch (emailError) {
               console.error("[ROUTE /api/rsvp] Error sending email notification:", emailError);
+              console.error("[ROUTE /api/rsvp] Email error details:", {
+                errorMessage: emailError.message,
+                errorCode: emailError.Code,
+                errorType: emailError.name,
+                rsvpToEmail: RSVP_TO_EMAIL,
+                rsvpFromEmail: RSVP_FROM_EMAIL
+              });
               // Do not fail the whole request if email fails, just log it.
             }
+          } else {
+            console.log(`[ROUTE /api/rsvp] Email notification skipped - RSVP_TO_EMAIL: ${RSVP_TO_EMAIL}, RSVP_FROM_EMAIL: ${RSVP_FROM_EMAIL}`);
           }
 
           return createResponse(201, newRsvp, requestOrigin);

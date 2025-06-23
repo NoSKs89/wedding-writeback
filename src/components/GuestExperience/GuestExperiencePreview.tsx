@@ -345,7 +345,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     }
   }, []);
 
-  const renderElement = (el: ElementDefinition) => {
+  const renderElement = (el: ElementDefinition, index: number) => {
     let componentToRender;
     switch (el.type) {
       case 'text': componentToRender = <h2>{el.content}</h2>; break;
@@ -393,7 +393,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 100
               : el.type === 'component' && el.name === 'RSVP Form'
               ? 150
-              : (elementsFromBlueprint.length - (el.id || 0) + 1),
+              : (renderableElements.length - index) + 10,
           pointerEvents: el.type === 'component' && el.name === 'RSVP Form' ? 'none' : 'auto',
       }}>
         <ElementWrapper 
@@ -460,7 +460,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             />
           </ParallaxLayer>
 
-          {renderableElements.map(renderElement).filter(Boolean)}
+          {renderableElements.map((el, index) => renderElement(el, index)).filter(Boolean)}
 
           {/* Render the HUD content if it exists */}
           {hudContent && (

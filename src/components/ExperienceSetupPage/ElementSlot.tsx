@@ -20,6 +20,9 @@ interface ElementSlotProps {
   startPositionPercent?: number; // New prop, percentage 0-1
   endPositionPercent?: number; // New prop, percentage 0-1
   onMarkerPositionChangeFromInput: (elementId: number, type: 'start' | 'end', newPosition: number) => void; // New prop
+  onReorder: (elementId: number, direction: 'up' | 'down') => void;
+  isFirst: boolean;
+  isLast: boolean;
 }
 
 const ElementSlot: React.FC<ElementSlotProps> = ({
@@ -30,7 +33,10 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   onFocus,
   startPositionPercent,
   endPositionPercent,
-  onMarkerPositionChangeFromInput
+  onMarkerPositionChangeFromInput,
+  onReorder,
+  isFirst,
+  isLast,
 }) => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [textContent, setTextContent] = useState<string>(element.type === 'text' && typeof element.content === 'string' ? element.content : '');
@@ -350,9 +356,29 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       <div> {/* Content wrapper div for flex layout */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
           <h5 style={{ margin: 0, fontSize: '1.1em' }}>Element Slot {element.id}</h5>
-          {element.type !== 'empty' && (
-            <button onClick={(e) => { e.stopPropagation(); handleRemoveContent(); }} style={{marginLeft: 'auto', color: 'red', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem'}}>Clear</button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            {element.type !== 'empty' && (
+              <>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onReorder(element.id, 'up'); }}
+                  disabled={isFirst}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 5px', opacity: isFirst ? 0.3 : 1 }}
+                  title="Move element up"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onReorder(element.id, 'down'); }}
+                  disabled={isLast}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 5px', opacity: isLast ? 0.3 : 1 }}
+                  title="Move element down"
+                >
+                  ▼
+                </button>
+                <button onClick={(e) => { e.stopPropagation(); handleRemoveContent(); }} style={{marginLeft: '10px', color: 'red', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.8rem'}}>Clear</button>
+              </>
+            )}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
           <label style={{fontSize: '0.9rem'}}>Type:</label>

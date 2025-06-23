@@ -524,6 +524,23 @@ const ExperienceSetupPage: React.FC = () => {
     handleUpdateMarkerPosition(markerIdToUpdate, newPositionPercent);
   }, [handleUpdateMarkerPosition]);
 
+  const handleReorderElement = useCallback((elementId: number, direction: 'up' | 'down') => {
+    setElements(prevElements => {
+      const elementIndex = prevElements.findIndex(el => el.id === elementId);
+      if (elementIndex === -1) return prevElements;
+
+      const newElements = [...prevElements];
+      const targetIndex = direction === 'up' ? elementIndex - 1 : elementIndex + 1;
+
+      if (targetIndex >= 0 && targetIndex < newElements.length) {
+        // Simple swap
+        [newElements[elementIndex], newElements[targetIndex]] = [newElements[targetIndex], newElements[elementIndex]];
+      }
+      
+      return newElements;
+    });
+  }, []);
+
   // --- Z-index Visualization ---
   // Lower index in `elements` array means higher z-index.
   // We can depict this via brightness/opacity of the element slots.
@@ -778,7 +795,7 @@ const ExperienceSetupPage: React.FC = () => {
                 alignItems: 'flex-start',
               })
             }}>
-              {elements.map((el) => {
+              {elements.map((el, index) => {
                 const isFocused = el.id === focusedElementId;
                 const startMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'start');
                 const endMarker = activeMarkers.find(m => m.elementId === el.id && m.type === 'end');
@@ -803,6 +820,9 @@ const ExperienceSetupPage: React.FC = () => {
                       startPositionPercent={startMarker?.position}
                       endPositionPercent={endMarker?.position}
                       onMarkerPositionChangeFromInput={handleMarkerPositionChangeFromInput}
+                      onReorder={handleReorderElement}
+                      isFirst={index === 0}
+                      isLast={index === elements.length - 1}
                     />
                   </div>
                 );

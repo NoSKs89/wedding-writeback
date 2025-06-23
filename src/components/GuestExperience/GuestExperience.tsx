@@ -19,6 +19,7 @@ import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefiniti
 import { rsvpFormControlsSchema } from '../RSVPForm';
 import { scrapbookLayoutControlsSchema } from './InteractiveScrapbook';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
+import { getApiBaseUrl } from '../../config/apiConfig';
 import '../../App.css';
 
 
@@ -418,6 +419,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return null; 
   }
 
+  // Add rsvpEndpoint to weddingDataFromApp if it doesn't exist
+  const weddingDataWithEndpoint = {
+    ...weddingDataFromApp,
+    rsvpEndpoint: weddingDataFromApp.rsvpEndpoint || `${getApiBaseUrl()}/rsvp`
+  };
+
   const hasRsvp = renderableElements.some(el => el.type === 'component' && el.name === 'RSVP Form');
   const hasScrapbook = renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook');
 
@@ -462,12 +469,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               TOTAL_PAGES={TOTAL_PAGES} 
               windowHeight={windowHeight} 
               selectedColorScheme={selectedColorScheme}
-              gradientControls={controlValues['Dynamic Background Gradient']}
+              gradientControls={controlValues['Dynamic Background Gradient'] || null}
             />
           </ParallaxLayer>
 
           {renderableElements
-            .map((element) => {
+            .map((element, index) => {
               let contentToRender;
               switch (element.type) {
                 case 'text': contentToRender = <h2>{element.content}</h2>; break;
@@ -475,10 +482,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
                 case 'component':
                   if (element.name === 'RSVP Form') {
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataFromApp} backendUrl={weddingDataFromApp.rsvpEndpoint} styleControlsFromProp={controlValues['RSVP Form Style']} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues['RSVP Form Style']} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     contentToRender = <InteractiveScrapbook 
-                      weddingData={weddingDataFromApp} 
+                      weddingData={weddingDataWithEndpoint} 
                       config={element.content} 
                       scrollY={scrollY} 
                       onImageClick={handleImageClick} 
@@ -506,7 +513,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 100 
                       : element.type === 'component' && element.name === 'RSVP Form'
                       ? 150
-                      : (elementsFromBlueprint.length - (element.id || 0) + 1),
+                      : (renderableElements.length - index) + 10,
                   pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
                 }}>
                   <ElementWrapper 

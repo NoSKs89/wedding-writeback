@@ -83,7 +83,7 @@ export const transformWeddingData = (sourceData) => {
     scrapbookImageFileNames: Array.isArray(sourceData.scrapbookImages)
       ? sourceData.scrapbookImages.map(img => img && img.fileName ? img.fileName : null).filter(name => name !== null)
       : [],
-    rsvpEndpoint: `${getApiBaseUrl()}/rsvp/${sourceData.customId}`,
+    rsvpEndpoint: `${getApiBaseUrl()}/rsvp`,
     isPlated: sourceData.isPlated,
     platedOptions: sourceData.platedOptions || [],
     eventAddress: sourceData.eventAddress,

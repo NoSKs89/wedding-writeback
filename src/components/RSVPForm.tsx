@@ -31,7 +31,8 @@ interface MealOption {
 
 // Interface for the weddingData prop
 interface WeddingData {
-  id: string | number;
+  id?: string | number;
+  customId?: string;
   isPlated?: boolean;
   platedOptions?: MealOption[];
   brideName?: string;
@@ -83,7 +84,7 @@ export const rsvpFormControlsSchema = {
 };
 
 const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl, elementName = 'RSVP Form', styleControlsFromProp = {} }, ref) => {
-  const { id: weddingId, isPlated = false, platedOptions = [] } = weddingData;
+  const { customId: weddingId, isPlated = false, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
   
   // ADDED: Create a default set of values from the schema
@@ -154,6 +155,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const [isAttending, setIsAttending] = useState<boolean | null>(null);
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [finalResponse, setFinalResponse] = useState<any>(null);
+  const [isClosed, setIsClosed] = useState(false);
 
   const h2Style: React.CSSProperties = {
     fontSize: '1.2rem',
@@ -271,85 +273,87 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement> | null, explicitAttendingStatus?: boolean) => {
-    if (event) event.preventDefault();
+    if (event) {
+      event.preventDefault();
+    }
+
+    if (submissionStatus === 'submitting') return;
+    setSubmissionStatus('submitting');
     setFormError(null);
 
-    const currentAttendance = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
-
-    if (!firstName || !lastName) {
-      setFormError('Please enter your first and last name.');
-      return;
-    }
-
+    // Determine attending status from explicit parameter or component state
+    const attending = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
+    
+    // Validate email if provided
     if (email && !validateEmail(email)) {
-      setFormError('Please correct the email address before submitting.');
+      setFormError("Please correct the email address before submitting.");
+      setSubmissionStatus('error');
       return;
     }
 
-    let rsvpPayload: any;
-
-    if (currentAttendance) {
-      if (guestCount < 1) {
-        setFormError('Guest count must be at least 1 if you are attending.');
+    // Validate meal selections if attending plated dinner
+    if (attending && isPlated && guestCount > 1) {
+      if (getTotalSelectedMealQuantity() !== guestCount) {
+        setFormError(`Please select meals for all ${guestCount} guests.`);
+        setSubmissionStatus('error');
         return;
       }
-      if (isPlated && platedOptions && platedOptions.length > 0) {
-        if (guestCount > 1) {
-          const totalSelected = getTotalSelectedMealQuantity();
-          if (totalSelected !== guestCount) {
-            setFormError(`Please select a meal for all ${guestCount} guests.`);
-            return;
-          }
-          rsvpPayload = { mealChoices: selectedMeals };
-        } else {
-          if (!singleSelectedMeal) {
-            setFormError('Please select your meal choice.');
-            return;
-          }
-          rsvpPayload = { mealChoices: { [singleSelectedMeal]: 1 } };
-        }
+    } else if (attending && isPlated && guestCount === 1) {
+      if (!singleSelectedMeal) {
+        setFormError("Please select your meal.");
+        setSubmissionStatus('error');
+        return;
       }
     }
 
-    setSubmissionStatus('submitting');
+    let mealDetails: any = null;
+    if (attending && isPlated) {
+      if (guestCount > 1) {
+        mealDetails = selectedMeals;
+      } else {
+        mealDetails = { [singleSelectedMeal]: 1 };
+      }
+    }
+
+    const payload = {
+      weddingId,
+      firstName,
+      lastName,
+      email,
+      attending: attending,
+      guestCount: attending ? guestCount : 0,
+      message: attending ? message : `Sorry to miss it! - ${message}`,
+      mealChoices: mealDetails,
+      isPlated,
+      platedOptions,
+    };
+
     try {
-      const fullPayload = {
-        weddingId: weddingId,
-        firstName,
-        lastName,
-        email,
-        attending: currentAttendance,
-        guestCount: currentAttendance ? guestCount : 0,
-        message,
-        ...rsvpPayload
-      };
-      const response = await axios.post(backendUrl, fullPayload);
+      const response = await axios.post(backendUrl, payload);
       setFinalResponse(response.data);
       setSubmissionStatus('submitted');
-    } catch (error) {
-      setFormError('There was an error submitting your RSVP. Please try again.');
+    } catch (err: any) {
+      console.error("Error submitting RSVP:", err);
+      const errorMessage = err.response?.data?.message || 'There was an error submitting your RSVP. Please try again.';
+      setFormError(errorMessage);
       setSubmissionStatus('error');
     }
   };
 
   // Styles using values from Leva controls
-  const formStyle: React.CSSProperties = {
-    background: hexToRgba(selectedTheme.backgroundColor || '#ffffff', formBackgroundOpacity),
-    color: selectedTheme.textColor || '#000000',
-    fontFamily: formTextFontFamily,
+  const formContainerStyle: React.CSSProperties = {
+    backgroundColor: hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity),
+    color: selectedTheme.textColor,
     border: `${formBorderWidth}px solid ${formBorderColor}`,
-    borderRadius: '8px',
     padding: `${formPadding}px`,
-    width: `${formWidth}px`,
-    height: `${formHeight}px`,
-    maxWidth: '90vw',
-    maxHeight: '90vh',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     boxSizing: 'border-box',
-    display: 'flex',
-    flexDirection: 'column',
-    boxShadow: '0 4px 15px rgba(0,0,0,0.2)',
-    overflow: 'hidden',
-    transition: 'all 0.3s ease',
+    width: `${formWidth}px`,
+    maxWidth: '100%',
+    fontFamily: formTextFontFamily,
+    transition: 'height 0.4s ease-in-out',
+    height: (submissionStatus === 'submitted' || submissionStatus === 'error') ? 'auto' : `${formHeight}px`,
   };
 
   const contentContainerStyle: React.CSSProperties = {
@@ -458,18 +462,32 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const renderContent = () => {
     if (submissionStatus === 'submitted') {
+      const attendingMessage = finalResponse.isAttending ? "We're so excited to celebrate with you!" : "You'll be missed!";
       return (
-        <div style={successMessageStyle}>
-          <h3>Thank You!</h3>
-          <p>{isAttending ? "We can't wait to celebrate with you!" : "Your response has been recorded."}</p>
+        <div style={{ textAlign: 'center', position: 'relative' }}>
+          <button 
+            onClick={() => setIsClosed(true)}
+            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: selectedTheme.textColor }}
+          >
+            &times;
+          </button>
+          <h2 style={{...h2Style}}>Thank You, {finalResponse.firstName}!</h2>
+          <p style={{color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>{attendingMessage}</p>
+          {/* Optional: Show summary of what was submitted */}
         </div>
       );
     } else if (submissionStatus === 'error') {
       return (
-        <div style={successMessageStyle}>
-          <h3>Error Submitting RSVP</h3>
-          <p>{formError}</p>
-          <button onClick={handleGoBack} style={{...buttonStyle, marginTop: '1rem' }}>Try Again</button>
+        <div style={{ textAlign: 'center', position: 'relative' }}>
+           <button 
+            onClick={() => setIsClosed(true)}
+            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: selectedTheme.textColor }}
+          >
+            &times;
+          </button>
+          <h2 style={{...h2Style}}>Error Submitting RSVP</h2>
+          <p style={{ color: 'red' }}>{formError}</p>
+          <button onClick={() => setSubmissionStatus('idle')} style={{...buttonStyle, marginTop: '1rem'}}>Try Again</button>
         </div>
       );
     }
@@ -577,8 +595,12 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     return <div>Thank you for your response.</div>;
   };
 
+  if (isClosed) {
+    return null; // Hide the entire component if closed
+  }
+  
   return (
-    <div ref={internalFormRef} style={formStyle}>
+    <div ref={internalFormRef} style={formContainerStyle}>
       <div style={contentContainerStyle}>
         {renderContent()}
       </div>
