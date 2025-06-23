@@ -389,8 +389,8 @@ exports.handler = async (event, context) => {
           if (email) {
             const normalizedEmail = email.toLowerCase();
             const isDuplicate = wedding.rsvps && wedding.rsvps.some(rsvp => 
-                rsvp.firstName.toLowerCase() === firstName.toLowerCase() &&
-                rsvp.lastName.toLowerCase() === lastName.toLowerCase() &&
+                rsvp.firstName && rsvp.firstName.toLowerCase() === firstName.toLowerCase() &&
+                rsvp.lastName && rsvp.lastName.toLowerCase() === lastName.toLowerCase() &&
                 rsvp.email && rsvp.email.toLowerCase() === normalizedEmail
             );
 
@@ -975,16 +975,3 @@ exports.handler = async (event, context) => {
     return createResponse(404, { message: `The requested resource for ${httpMethod} ${routePath} was not found or method not allowed.` }, requestOrigin);
   }
 };
-
-// Note: Removed Item model routes as they were not in the more complex parts of the original server.js
-// If needed, they can be added back following the pattern above.
-// Example:
-// if (httpMethod === "GET" && path === "/api/items") {
-//   const items = await Item.find();
-//   return createResponse(200, items, requestOrigin);
-// }
-// if (httpMethod === "POST" && path === "/api/items") {
-//   const newItem = new Item({ name: body.name });
-//   const item = await newItem.save();
-//   return createResponse(201, item, requestOrigin);
-// } 

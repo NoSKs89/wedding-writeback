@@ -462,7 +462,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const renderContent = () => {
     if (submissionStatus === 'submitted') {
-      const attendingMessage = finalResponse.isAttending ? "We're so excited to celebrate with you!" : "You'll be missed!";
+      const attendingMessage = finalResponse.attending ? "We can't wait to celebrate with you! 🎉" : "You'll be missed!";
       return (
         <div style={{ textAlign: 'center', position: 'relative' }}>
           <button 
