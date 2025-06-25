@@ -9,15 +9,12 @@ import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
-import { RsvpControlWrapper, ScrapbookControlWrapper } from './ComponentControlWrappers';
-
+import { ScrapbookControlWrapper } from './ComponentControlWrappers';
 import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
-import { rsvpFormControlsSchema } from '../RSVPForm';
-import { scrapbookLayoutControlsSchema } from './InteractiveScrapbook';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import '../../App.css';
@@ -242,7 +239,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
-  const showCaptions = controlValues['Scrapbook Layout (Guest)']?.showCaptions ?? true;
+
 
   const centerStyle: CSSProperties = useMemo(() => ({ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', width: '100%' }), []);
 
@@ -373,45 +370,16 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
 
   const handleImageClick = useCallback((details: any) => {
-    const { imageSrc, altText, initialStyle, currentBoundingClientRect: rect, imageElement, index } = details;
-    
+    const { imageSrc, initialStyle, currentBoundingClientRect: rect, imageElement, index } = details;
     let naturalDims = imageNaturalDimensions.find(dim => dim.src === imageSrc);
-    if (!naturalDims?.width) {
-      if (imageElement?.naturalWidth > 0) {
-        naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc };
-      } else {
-        return; 
-      }
-    }
-    
+    if (!naturalDims?.width) { if (imageElement?.naturalWidth > 0) naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc }; else return; }
     const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === index);
     if (!itemData) return;
-
     const baseRot = parseRotationFromStyle(initialStyle.transform);
     const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0);
-
-    const clickedDetails: FocusedImageState = {
-      ...itemData,
-      src: imageSrc,
-      altText,
-      initialTopPx: rect.top,
-      initialLeftPx: rect.left,
-      initialWidthPx: rect.width,
-      initialHeightPx: rect.height,
-      initialRotateDeg: baseRot + dynamicRot,
-      naturalWidth: naturalDims.width,
-      naturalHeight: naturalDims.height,
-      currentIndex: index,
-      initialStyle: initialStyle,
-    };
-    
-    if (focusedImage) {
-      setImageReturningToScrapbook(focusedImage);
-      setPendingImageToFocus(clickedDetails);
-      setFocusedImage(null);
-    } else {
-      setFocusedImage(clickedDetails);
-    }
+    const clickedDetails: FocusedImageState = { ...itemData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: index };
+    if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedDetails); setFocusedImage(null); }
+    else { setFocusedImage(clickedDetails); }
   }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollY, focusedImage]);
 
   // --- LOADING GUARD ---
@@ -433,7 +401,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     <>
       <FontGrabber fonts={googleFontsToLoad} />
 
-      {isSetupMode && hasRsvp && <RsvpControlWrapper />}
       {isSetupMode && hasScrapbook && <ScrapbookControlWrapper />}
 
       {isSetupMode && (
@@ -469,7 +436,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               TOTAL_PAGES={TOTAL_PAGES} 
               windowHeight={windowHeight} 
               selectedColorScheme={selectedColorScheme}
-              gradientControls={controlValues['Dynamic Background Gradient'] || null}
             />
           </ParallaxLayer>
 
@@ -485,7 +451,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues['RSVP Form Style']} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     contentToRender = <InteractiveScrapbook 
-                      weddingData={weddingDataWithEndpoint} 
+                      weddingData={weddingDataFromApp} 
                       config={element.content} 
                       scrollY={scrollY} 
                       onImageClick={handleImageClick} 
@@ -513,7 +479,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 100 
                       : element.type === 'component' && element.name === 'RSVP Form'
                       ? 150
-                      : (renderableElements.length - index) + 10,
+                      : (elementsFromBlueprint.length - (element.id || 0) + 1),
                   pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
                 }}>
                   <ElementWrapper 
@@ -543,12 +509,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                   <>
                     <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
                     <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
-                    {showCaptions && (
-                      <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
-                        <p style={{ margin: 0 }}>{focusedImage.altText}</p>
-                        {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
-                      </animated.div>
-                    )}
+                    <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
+                      <p style={{ margin: 0 }}>{focusedImage.altText}</p>
+                      {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
+                    </animated.div>
                   </>
                 )}
               </div>
