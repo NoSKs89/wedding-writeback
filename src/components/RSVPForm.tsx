@@ -322,7 +322,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       email,
       attending: attending,
       guestCount: attending ? guestCount : 0,
-      message: attending ? message : `Sorry to miss it! - ${message}`,
+      message: message,
       mealChoices: mealDetails,
       isPlated,
       platedOptions,

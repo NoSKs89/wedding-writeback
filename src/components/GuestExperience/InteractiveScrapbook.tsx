@@ -314,7 +314,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
           return null;
         }
 
-        const isEffectivelyHidden = focusedImageGlobal !== null && focusedImageGlobal.displayIndex !== displayIndex;
+        const isEffectivelyHidden = focusedImageGlobal !== null && focusedImageGlobal.displayIndex === displayIndex;
 
         const scrollDependent = calculateScrollDependentValues(displayIndex, scrollY, layoutValues, itemData);
 

@@ -239,6 +239,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
+  const showCaptions = controlValues['Scrapbook Layout (Guest)']?.showCaptions ?? true;
+
 
 
   const centerStyle: CSSProperties = useMemo(() => ({ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', width: '100%' }), []);
@@ -413,11 +415,68 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         </div>
       )}
       {showSaveConfirm && (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'white', padding: '20px', borderRadius: '8px', zIndex: 10002, textAlign: 'center' }}>
-          <p>Overwrite Layout Slot {currentSavingToSlot}?</p>
-          <button onClick={confirmSave} style={{ padding: '8px 15px', margin: '0 10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '5px' }}>Yes, Save</button>
-          <button onClick={cancelSave} style={{ padding: '8px 15px', margin: '0 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '5px' }}>Cancel</button>
-        </div>
+        <>
+          {/* Modal backdrop */}
+          <div 
+            style={{ 
+              position: 'fixed', 
+              top: 0, 
+              left: 0, 
+              right: 0, 
+              bottom: 0, 
+              backgroundColor: 'rgba(0, 0, 0, 0.5)', 
+              zIndex: 999998,
+              pointerEvents: 'auto'
+            }} 
+            onClick={cancelSave}
+          />
+          {/* Modal content */}
+          <div style={{ 
+            position: 'fixed', 
+            top: '50%', 
+            left: '50%', 
+            transform: 'translate(-50%, -50%)', 
+            background: 'white', 
+            padding: '20px', 
+            borderRadius: '8px', 
+            zIndex: 999999, 
+            textAlign: 'center', 
+            boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+            pointerEvents: 'auto'
+          }}>
+            <p>Overwrite Layout Slot {currentSavingToSlot}?</p>
+            <button 
+              onClick={confirmSave} 
+              style={{ 
+                padding: '8px 15px', 
+                margin: '0 10px', 
+                background: '#28a745', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '5px',
+                cursor: 'pointer',
+                pointerEvents: 'auto'
+              }}
+            >
+              Yes, Save
+            </button>
+            <button 
+              onClick={cancelSave} 
+              style={{ 
+                padding: '8px 15px', 
+                margin: '0 10px', 
+                background: '#dc3545', 
+                color: 'white', 
+                border: 'none', 
+                borderRadius: '5px',
+                cursor: 'pointer',
+                pointerEvents: 'auto'
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
 
       {isSetupMode && showGlobalHUDEnabledGuest && (
@@ -509,10 +568,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                   <>
                     <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
                     <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
-                    <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
-                      <p style={{ margin: 0 }}>{focusedImage.altText}</p>
-                      {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
-                    </animated.div>
+                    {showCaptions && (
+                      <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
+                        <p style={{ margin: 0 }}>{focusedImage.altText}</p>
+                        {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
+                      </animated.div>
+                    )}
                   </>
                 )}
               </div>

@@ -147,8 +147,13 @@ const RsvpSetupPage = () => {
     const totalResponses = attendingCount + decliningCount;
     
     let buttonBackgroundStyle = {};
+    let attendingPercentage = 0;
+    let decliningPercentage = 0;
+    
     if (totalResponses > 0) {
-        const decliningPercentage = (decliningCount / totalResponses) * 100;
+        attendingPercentage = Math.round((attendingCount / totalResponses) * 100);
+        decliningPercentage = Math.round((decliningCount / totalResponses) * 100);
+        
         // Gradient: starts red, immediately switches to green at the percentage break.
         buttonBackgroundStyle = {
             background: `linear-gradient(to right, #dc3545 ${decliningPercentage}%, #28a745 ${decliningPercentage}%)`
@@ -161,9 +166,49 @@ const RsvpSetupPage = () => {
                 className={styles.viewSubmissionsButton}
                 onClick={() => setIsModalOpen(true)}
                 disabled={isSaving || rsvpCount === 0}
-                style={buttonBackgroundStyle}
+                style={{
+                    ...buttonBackgroundStyle,
+                    position: 'relative',
+                    overflow: 'hidden'
+                }}
             >
-                View Submissions ({rsvpCount})
+                <span style={{ position: 'relative', zIndex: 2 }}>
+                    View Submissions ({rsvpCount})
+                </span>
+                {totalResponses > 0 && (
+                    <>
+                        {decliningPercentage > 0 && (
+                            <span style={{
+                                position: 'absolute',
+                                left: '10px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                fontSize: '0.85em',
+                                fontStyle: 'italic',
+                                color: 'rgba(255, 255, 255, 0.9)',
+                                zIndex: 1,
+                                pointerEvents: 'none'
+                            }}>
+                                {decliningPercentage}%
+                            </span>
+                        )}
+                        {attendingPercentage > 0 && (
+                            <span style={{
+                                position: 'absolute',
+                                right: '10px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                fontSize: '0.85em',
+                                fontStyle: 'italic',
+                                color: 'rgba(255, 255, 255, 0.9)',
+                                zIndex: 1,
+                                pointerEvents: 'none'
+                            }}>
+                                {attendingPercentage}%
+                            </span>
+                        )}
+                    </>
+                )}
             </button>
 
             <div className={styles.header}>
