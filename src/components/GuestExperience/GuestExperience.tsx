@@ -9,7 +9,7 @@ import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
-import { ScrapbookControlWrapper } from './ComponentControlWrappers';
+import { ScrapbookControlWrapper, RsvpControlWrapper } from './ComponentControlWrappers';
 import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
@@ -404,6 +404,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       <FontGrabber fonts={googleFontsToLoad} />
 
       {isSetupMode && hasScrapbook && <ScrapbookControlWrapper />}
+      {isSetupMode && hasRsvp && <RsvpControlWrapper />}
 
       {isSetupMode && (
         <div style={saveButtonContainerStyle || { position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
