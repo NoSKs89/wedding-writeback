@@ -1,5 +1,109 @@
 import { fontFamilyOptions, googleFontNames, isGoogleFont } from '../../config/fontConfig';
 
+// Import component schemas - we need to import these dynamically to avoid circular dependencies
+let rsvpFormControlsSchema;
+let scrapbookLayoutControlsSchema;
+
+// Helper to safely import RSVP schema
+const getRsvpFormControlsSchema = () => {
+    if (!rsvpFormControlsSchema) {
+        try {
+            const rsvpModule = require('../RSVPForm');
+            rsvpFormControlsSchema = rsvpModule.rsvpFormControlsSchema;
+        } catch (error) {
+            console.warn('Could not import RSVP Form controls schema:', error);
+            rsvpFormControlsSchema = {};
+        }
+    }
+    return rsvpFormControlsSchema;
+};
+
+// Helper to safely import Scrapbook schema
+const getScrapbookLayoutControlsSchema = () => {
+    if (!scrapbookLayoutControlsSchema) {
+        try {
+            const scrapbookModule = require('./InteractiveScrapbook');
+            scrapbookLayoutControlsSchema = scrapbookModule.scrapbookLayoutControlsSchema;
+        } catch (error) {
+            console.warn('Could not import Scrapbook Layout controls schema:', error);
+            scrapbookLayoutControlsSchema = {};
+        }
+    }
+    return scrapbookLayoutControlsSchema;
+};
+
+// Helper to generate element-specific RSVP controls with correct render paths
+const getElementSpecificRsvpControls = (element) => {
+    const baseSchema = getRsvpFormControlsSchema();
+    const folderName = generateElementFolderName(element);
+    
+    // Update render paths to use the element folder name
+    return Object.entries(baseSchema).reduce((acc, [key, value]) => {
+        if (value.render && typeof value.render === 'function') {
+            // Update the render function to use the element folder name
+            acc[key] = {
+                ...value,
+                render: (get) => {
+                    // For useThemeButtonColors dependency
+                    if (key === 'cantMakeItColor' || key === 'canMakeItColor') {
+                        return !get(`${folderName}.useThemeButtonColors`);
+                    }
+                    return value.render(get);
+                }
+            };
+        } else {
+            acc[key] = value;
+        }
+        return acc;
+    }, {});
+};
+
+// Helper function to generate consistent folder names across components
+export const generateElementFolderName = (element) => {
+    let namePart;
+    
+    // Helper function to sanitize text - removes special chars, keeps only alphanumeric and underscores
+    const sanitizeText = (text) => {
+        return text
+            .replace(/[^a-zA-Z0-9\s]/g, '') // Remove all special characters except spaces
+            .replace(/\s+/g, '_') // Replace spaces with underscores
+            .replace(/_{2,}/g, '_') // Replace multiple underscores with single
+            .replace(/^_|_$/g, ''); // Remove leading/trailing underscores
+    };
+    
+    if (element.type === 'text') {
+        if (typeof element.content === 'string' && element.content.trim()) {
+            // Use sanitized and truncated text content for folder name
+            const cleanContent = sanitizeText(element.content.trim());
+            namePart = cleanContent.substring(0, 12);
+        } else {
+            namePart = 'Text';
+        }
+    } else if (element.type === 'photo' || element.type === 'background-image') {
+        if (element.name) {
+            // Extract filename without extension and sanitize
+            const filename = element.name.split('/').pop() || element.name;
+            const nameWithoutExt = filename.split('.')[0];
+            const sanitizedName = sanitizeText(nameWithoutExt);
+            namePart = sanitizedName.substring(0, 12);
+        } else {
+            namePart = element.type === 'background-image' ? 'BgImg' : 'Photo';
+        }
+    } else if (element.type === 'component') {
+        // For component types, sanitize the name and add underscores between words
+        if (element.name) {
+            const sanitizedName = sanitizeText(element.name);
+            namePart = sanitizedName.substring(0, 12);
+        } else {
+            namePart = 'Component';
+        }
+    } else {
+        namePart = element.name || element.type;
+    }
+    
+    return `element_${element.id}_${element.type}_${namePart}`;
+};
+
 // Easing functions
 const easeInOutQuad = t => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
 const linear = t => t;
@@ -88,7 +192,7 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
             enableParentContainer: { value: false, label: 'Enable Parent Container' },
             containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
-                const folderName = `element_${element.id}_${element.type === 'text' ? 'Text' : (element.name || element.type).replace(/\s+/g, '_')}`;
+                const folderName = generateElementFolderName(element);
                 return get(`${folderName}.enableParentContainer`);
             }},
             spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
@@ -134,6 +238,50 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
             startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
             endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+        };
+    } else if (element.type === 'component') {
+        // Include component-specific controls based on component name
+        let componentSpecificControls = {};
+        
+        if (element.name === 'RSVP Form') {
+            componentSpecificControls = getElementSpecificRsvpControls(element);
+        } else if (element.name === 'Scrapbook') {
+            componentSpecificControls = getScrapbookLayoutControlsSchema();
+        }
+
+        return {
+            ...controlsSchema,
+            ...componentSpecificControls,
+            landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
+            landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+            lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+            textColor: { value: '#333333', label: 'Text Color' },
+            fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+            fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
+            fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
+            fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
+            lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
+            paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
+            paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
+            enableParentContainer: { value: false, label: 'Enable Parent Container' },
+            containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
+                const folderName = generateElementFolderName(element);
+                return get(`${folderName}.enableParentContainer`);
+            }},
+            spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
+            yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
+            yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
+            letterSpacingAtAnimStart: { value: -5, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
+            letterSpacingAtAnimEnd: { value: 0, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim End (px)' },
+            textShadowEffect: { value: false, label: 'Enable Text Shadow' },
+            textShadowCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Text Shadow Curve' },
+            textShadowXStart: { value: 0, step: 1, label: 'Shadow X Start (px)' },
+            textShadowYStart: { value: 0, step: 1, label: 'Shadow Y Start (px)' },
+            textShadowBlurStart: { value: 0, min:0, step: 1, label: 'Shadow Blur Start (px)' },
+            textShadowXEnd: { value: 2, step: 1, label: 'Shadow X End (px)' },
+            textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
+            textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
+            textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
         };
     }
     return controlsSchema;

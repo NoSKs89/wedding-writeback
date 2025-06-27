@@ -25,6 +25,7 @@ import HowToPage from './components/SetupPage/HowToPage'; // Added import for Ho
 import MobileLayoutEditor from './components/SetupPage/MobileLayoutEditor'; // ADDED
 import MobileLayoutPreview from './components/SetupPage/MobileLayoutPreview'; // ADDED
 import DesktopLayoutEditor from './components/SetupPage/DesktopLayoutEditor'; // ADDED
+import PostUtilityPage from './components/SetupPage/PostUtilityPage';
 import useWeddingData from './hooks/useWeddingData'; // Import the new hook
 import ShareGallerySetupPage from './components/ShareGallery/ShareGallerySetupPage'; // ADDED
 import ShareGalleryGuestPage from './components/ShareGallery/ShareGalleryGuestPage'; // ADDED
@@ -207,8 +208,9 @@ const MainAppContent = () => {
           <Route path="images" element={<ImageUploadSetup />} />
           <Route path="rsvp" element={<RsvpSetupPage />} />
           <Route path="share-gallery" element={<ShareGallerySetupPage />} />
-          <Route path="layout" element={<DesktopLayoutEditor />} />
-          <Route path="layoutmobile" element={<MobileLayoutEditor />} />
+                          <Route path="layout" element={<DesktopLayoutEditor />} />
+                <Route path="layoutmobile" element={<MobileLayoutEditor />} />
+                <Route path="post" element={<PostUtilityPage />} />
           <Route path="account" element={<AccountSetupPage />} />
           <Route path="experience" element={<ExperienceSetupPage />} />
           <Route path="how-to" element={<HowToPage />} />

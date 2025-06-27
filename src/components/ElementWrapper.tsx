@@ -3,7 +3,7 @@ import { useControls } from 'leva';
 import { useLevaStore } from '../stores/levaStore';
 import { ElementConfig, ExperienceSettings, TimelineMarker } from '../types';
 import { useSetupMode } from '../contexts/SetupModeContext';
-import { getElementSchema, animationCurves } from './GuestExperience/levaSchemas';
+import { getElementSchema, animationCurves, generateElementFolderName } from './GuestExperience/levaSchemas';
 import { fontFamilyOptions } from '../config/fontConfig';
 
 const linear = (t: number) => t;
@@ -80,9 +80,8 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const currentChildRef = useRef<HTMLElement>(null);
   
   const folderName = useMemo(() => {
-    const namePart = element.type === 'text' ? 'Text' : (element.name || element.type);
-    return `element_${element.id}_${namePart.replace(/\s+/g, '_')}`;
-  }, [element.id, element.name, element.type]);
+    return generateElementFolderName(element);
+  }, [element]);
   
   const getInitialValues = useLevaStore(state => state.controlValues[folderName]);
   const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
@@ -102,22 +101,15 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   }, [element, fontToUse, getInitialValues]);
 
   // --- Dynamic Label for Leva Folder ---
-  const dynamicLabel = useMemo(() => {
-    if (element.type === 'text' && typeof element.content === 'string' && element.content.trim()) {
-      const preview = element.content.trim().substring(0, 10);
-      return `Preview: "${preview}..."`;
-    }
-    return `Element ${element.id}: ${element.name || element.type}`;
-  }, [element.id, element.name, element.type, element.content]);
+  const dynamicFolderTitle = useMemo(() => {
+    return folderName;
+  }, [folderName]);
 
   const levaValues = useControls(
-    folderName,
-    {
-      ' ': { value: dynamicLabel, disabled: true, label: ' ' },
-      ...controlsSchema,
-    },
+    dynamicFolderTitle,
+    controlsSchema,
     { collapsed: true, render: () => isSetupMode && !layoutSettingsFromPreview },
-    [controlsSchema, dynamicLabel]
+    [controlsSchema]
   );
   
   const values = layoutSettingsFromPreview ? (layoutSettingsFromPreview[folderName] || {}) : levaValues;

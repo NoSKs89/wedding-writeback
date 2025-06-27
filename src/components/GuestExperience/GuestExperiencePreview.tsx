@@ -13,6 +13,7 @@ import ElementWrapper from '../ElementWrapper';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
+import { generateElementFolderName } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import '../../App.css';
 
@@ -240,7 +241,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     if (overallFontFamily && isGoogleFont(overallFontFamily)) fonts.add(overallFontFamily.split(',')[0].trim());
     elementsFromBlueprint.forEach(el => {
       if (el.type === 'text') {
-        const folderName = `element_${el.id}_${el.name ? el.name.replace(/\s+/g, '_') : 'text'}`;
+        const folderName = generateElementFolderName(el);
         const textFont = layoutSettingsFromPreview[folderName]?.fontFamily;
         if (textFont && isGoogleFont(textFont)) fonts.add(textFont.split(',')[0].trim());
       }
@@ -266,7 +267,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
-  const showCaptions = scrapbookLayoutControlsFromSettings?.showCaptions ?? true;
+  // Get the scrapbook element to determine its folder name
+  const scrapbookElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
+  const scrapbookFolderName = useMemo(() => scrapbookElement ? generateElementFolderName(scrapbookElement) : null, [scrapbookElement]);
+  const showCaptions = scrapbookFolderName ? (elementControls[scrapbookFolderName]?.showCaptions ?? true) : true;
 
   const centerStyle: CSSProperties = useMemo(() => ({ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', width: '100%' }), []);
 
@@ -353,15 +357,17 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       case 'background-image': componentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${el.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
       case 'component':
         if (el.name === 'RSVP Form') {
+          const rsvpFolderName = generateElementFolderName(el);
           componentToRender = (
             <RSVPForm
               weddingData={weddingDataFromApp}
               backendUrl={weddingDataFromApp.rsvpEndpoint}
-              elementName={`element_${el.id}_${el.name ? el.name.replace(/\s+/g, '_') : 'RSVP_Form'}`}
-              styleControlsFromProp={rsvpStyleControlsFromSettings}
+              elementName={rsvpFolderName}
+              styleControlsFromProp={elementControls[rsvpFolderName]}
             />
           );
         } else if (el.name === 'Scrapbook') {
+          const scrapbookElementFolderName = generateElementFolderName(el);
           componentToRender = (
             <InteractiveScrapbook
               weddingData={weddingDataFromApp}
@@ -375,7 +381,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               onDisplayedImagesUpdate={handleDisplayedImagesUpdate}
               windowWidth={windowWidth}
               windowHeight={windowHeight}
-              layoutControlsFromProp={scrapbookLayoutControlsFromSettings}
+              layoutControlsFromProp={elementControls[scrapbookElementFolderName]}
             />
           );
         } else return null;

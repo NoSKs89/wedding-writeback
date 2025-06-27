@@ -1,0 +1,113 @@
+{
+  "slotNumber": 1,
+  "settings": {
+    "Overall Controls (Guest)": {
+      "showHUD": false,
+      "springPreset": "default",
+      "colorScheme": "Classic Elegance",
+      "overallFontFamily": "Arial, sans-serif",
+      "previewingLayoutSlot": 1,
+      "saveToLayoutSlot": 1
+    },
+    "Dynamic Background Gradient": {
+      "gradientMode": "Override",
+      "gradientColorStart": "#9e2a2b",
+      "gradientColorStop": "#2e232f",
+      "gradientAngleOffset": -160,
+      "gradientScrollFactor": 0.34,
+      "maxGradientOpacity": 1,
+      "startOpacity": 0,
+      "startFadeYPercent": 0,
+      "endFadeYPercent": 0.2,
+      "opacityFadeCurve": "linear"
+    },
+    "_COMMENT_TEXT_ELEMENTS": "Text elements use format: element_[id]_text_[preview_text_12_chars]",
+    "element_1_text_Brooke_Chris": {
+      "opacityAtStart": 0,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 1,
+      "opacityAnimationCurve": "quickInSlowOut",
+      "textColor": "#2e232f",
+      "fontFamily": "Allura, cursive",
+      "fontSize": 8
+    },
+    "element_2_text_Stephen_Eric": {
+      "opacityAtStart": 0,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 1,
+      "opacityAnimationCurve": "linear",
+      "textColor": "#9e2a2b",
+      "fontFamily": "Alex Brush, cursive",
+      "fontSize": 13
+    },
+    "_COMMENT_PHOTO_ELEMENTS": "Photo elements use format: element_[id]_photo_[filename_12_chars]",
+    "element_4_photo_1E5A0839OPT": {
+      "opacityAtStart": 0.25,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 0,
+      "opacityAnimationCurve": "easeInOutQuad",
+      "startingScale": 0.1,
+      "endingScale": 1.8
+    },
+    "_COMMENT_BACKGROUND_ELEMENTS": "Background images use format: element_[id]_background-image_[filename_12_chars]",
+    "element_5_background-image_1E5A0839OPT": {
+      "opacityAtStart": 1,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 1,
+      "opacityAnimationCurve": "linear",
+      "cropToCircleEffect": true,
+      "bgImageInitialScale": 1,
+      "bgImageFinalScale": 2.75
+    },
+    "_COMMENT_COMPONENT_ELEMENTS": "Component elements use format: element_[id]_component_[Component_Name]",
+    "element_6_component_RSVP_Form": {
+      "opacityAtStart": 1,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 1,
+      "opacityAnimationCurve": "linear",
+      "_COMMENT_RSVP_CONTROLS": "RSVP Form controls are consolidated into this element folder",
+      "formThemeName": "Elegant Onyx",
+      "formTextFontFamily": "Raleway",
+      "buttonTextFontFamily": "Arial, Helvetica, sans-serif",
+      "useThemeButtonColors": true,
+      "cantMakeItColor": "#d32f2f",
+      "canMakeItColor": "#4caf50",
+      "formBackgroundOpacity": 1,
+      "formBorderColor": "#cccccc",
+      "formBorderWidth": 1,
+      "formWidth": 390,
+      "formHeight": 575,
+      "formPadding": 30,
+      "stackThreshold": 400,
+      "cantMakeItButtonEmoji": "😥",
+      "canMakeItButtonEmoji": "🎉"
+    },
+    "element_7_component_Scrapbook": {
+      "opacityAtStart": 0.5,
+      "opacityAtMiddle": 1,
+      "opacityAtEnd": 1,
+      "opacityAnimationCurve": "quickInSlowOut",
+      "_COMMENT_SCRAPBOOK_CONTROLS": "Scrapbook Layout controls are consolidated into this element folder",
+      "showCaptions": false,
+      "centerXOffset": -51,
+      "centerYOffset": 0,
+      "spreadRadiusFactor": 2,
+      "maxImages": 16,
+      "baseRotationRange": 15,
+      "baseSizeMin": 100,
+      "baseSizeMax": 150,
+      "borderWidth": 7,
+      "borderColor": "#ffffff",
+      "shadowOffsetX": 5,
+      "shadowOffsetY": 5,
+      "shadowBlur": 15,
+      "shadowColor": "rgba(0, 0, 0, 0.25)",
+      "baseOpacity": 0.85,
+      "dynamicRotationRange": 25,
+      "scrollSensitivityFactor": 0,
+      "parallaxDepthFactor": 0.088,
+      "itemBaseScale": 1,
+      "movementScrollCap": 3700
+    }
+  }
+} 

@@ -151,8 +151,9 @@ const SetupLayout = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
-                  <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
+                                  <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
+                <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
+                <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
                   <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
                   <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                 </>
