@@ -80,13 +80,17 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
             textColor: { value: '#333333', label: 'Text Color' },
             fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
-            fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
             fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
             fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
             fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
             lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
             paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
             paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
+            enableParentContainer: { value: false, label: 'Enable Parent Container' },
+            containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
+                const folderName = `element_${element.id}_${element.type === 'text' ? 'Text' : (element.name || element.type).replace(/\s+/g, '_')}`;
+                return get(`${folderName}.enableParentContainer`);
+            }},
             spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
             yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
             yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
@@ -101,12 +105,6 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
             textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
             textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
-            cropToCircleEffect: { value: false, label: 'Enable Circle Crop & Shrink' },
-            circleEffectCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Circle Effect Curve' },
-            circleInitialRadius: { value: 150, min: 50, max: 200, step: 1, label: 'Circle Initial Radius (%)' },
-            circleFinalRadius: { value: 0, min: 0, max: 100, step: 1, label: 'Circle Final Radius (%)' },
-            bgImageInitialScale: { value: 1, min: 0.1, max: 3, step: 0.01, label: 'BG Initial Scale' },
-            bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
         };
     } else if (element.type === 'photo' && element.name !== 'background-image') {
         return {

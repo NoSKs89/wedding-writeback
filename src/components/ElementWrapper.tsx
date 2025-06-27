@@ -51,6 +51,8 @@ interface ControlValues {
   bgImageFinalScale: number;
   paddingLeft: number;
   paddingRight: number;
+  enableParentContainer: boolean;
+  containerSize: number;
 }
 
 export interface ElementWrapperProps {
@@ -166,7 +168,9 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     textShadowBlurEnd = 3,
     textShadowColor = 'rgba(0,0,0,0.5)',
     paddingLeft = 0,
-    paddingRight = 0
+    paddingRight = 0,
+    enableParentContainer = false,
+    containerSize = 400
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -305,7 +309,17 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
           lineHeight: lineHeight,
           textShadow: textShadowToApply,
       };
-      return <div style={elementStyle}>{React.cloneElement(childWithRef as React.ReactElement, {style: newStyle})}</div>;
+      
+      // Apply container constraints if enabled
+      const containerStyle: React.CSSProperties = enableParentContainer ? {
+          ...elementStyle,
+          width: `${containerSize}px`,
+          maxWidth: `${containerSize}px`,
+          wordWrap: 'break-word' as const,
+          whiteSpace: 'normal' as const
+      } : elementStyle;
+      
+      return <div style={containerStyle}>{React.cloneElement(childWithRef as React.ReactElement, {style: newStyle})}</div>;
   }
   
   return <div style={elementStyle}>{childWithRef}</div>;
