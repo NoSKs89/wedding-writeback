@@ -80,7 +80,7 @@ const generateInitialScrapbookStyle = (index: any, totalImages: any, windowDims:
     width: `${size}px`,
     height: 'auto',
     top: `${Math.max(0, Math.min(y, windowDims.innerHeight ? windowDims.innerHeight - size : 600 - size))}px`,
-    left: `${Math.max(0, Math.min(x, windowDims.innerWidth ? windowDims.innerWidth - size : 800 - size))}px`,
+    left: `${x}px`,
     transform: `rotate(${angle}deg)`,
     border: `${borderWidth}px solid ${borderColor}`,
     boxShadow: `${shadowOffsetX}px ${shadowOffsetY}px ${shadowBlur}px ${shadowColor}`,
