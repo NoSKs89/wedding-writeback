@@ -524,10 +524,10 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
           
           <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '1.5rem', gap: '1rem' }}>
             <button type="button" onClick={() => handleSubmit(null, false)} style={{...buttonStyle, ...cantMakeItButtonStyle}}>
-              <span role="img" aria-label="sad face">{cantMakeItButtonEmoji}</span> Can't Make It
+              Can't Make It <span role="img" aria-label="sad face">{cantMakeItButtonEmoji}</span>
             </button>
             <button type={isPlated ? 'button' : 'submit'} onClick={isPlated ? () => handleAttendanceChoice(true) : undefined} style={{...buttonStyle, ...canMakeItButtonStyle}}>
-              <span role="img" aria-label="happy face">{canMakeItButtonEmoji}</span> Will Attend
+              Will Attend <span role="img" aria-label="happy face">{canMakeItButtonEmoji}</span>
             </button>
           </div>
           {formError && <p style={{ color: 'red', textAlign: 'center', marginTop: '1rem' }}>{formError}</p>}
