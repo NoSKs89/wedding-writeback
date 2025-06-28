@@ -80,9 +80,9 @@ export const generateElementFolderName = (element) => {
             namePart = 'Text';
         }
     } else if (element.type === 'photo' || element.type === 'background-image') {
-        if (element.name) {
+        if (element.content) {
             // Extract filename without extension and sanitize
-            const filename = element.name.split('/').pop() || element.name;
+            const filename = element.content.split('/').pop() || element.content;
             const nameWithoutExt = filename.split('.')[0];
             const sanitizedName = sanitizeText(nameWithoutExt);
             namePart = sanitizedName.substring(0, 12);
@@ -101,6 +101,7 @@ export const generateElementFolderName = (element) => {
         namePart = element.name || element.type;
     }
     
+    // ALWAYS use the new convention: element_id_type_namePart
     return `element_${element.id}_${element.type}_${namePart}`;
 };
 
@@ -220,12 +221,6 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
             scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
             lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
-            fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
-            fontSize: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size (px)' },
-            fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
-            fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
-            fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
-            lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
         };
     } else if (element.type === 'background-image') {
         return {
@@ -242,46 +237,61 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
     } else if (element.type === 'component') {
         // Include component-specific controls based on component name
         let componentSpecificControls = {};
-        
-        if (element.name === 'RSVP Form') {
-            componentSpecificControls = getElementSpecificRsvpControls(element);
-        } else if (element.name === 'Scrapbook') {
-            componentSpecificControls = getScrapbookLayoutControlsSchema();
-        }
-
-        return {
-            ...controlsSchema,
-            ...componentSpecificControls,
+        let baseComponentControls = {
             landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
             landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
             lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
-            textColor: { value: '#333333', label: 'Text Color' },
-            fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
-            fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
-            fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
-            fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
-            lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
-            paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
-            paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
-            enableParentContainer: { value: false, label: 'Enable Parent Container' },
-            containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
-                const folderName = generateElementFolderName(element);
-                return get(`${folderName}.enableParentContainer`);
-            }},
-            spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
-            yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
-            yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
-            letterSpacingAtAnimStart: { value: -5, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
-            letterSpacingAtAnimEnd: { value: 0, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim End (px)' },
-            textShadowEffect: { value: false, label: 'Enable Text Shadow' },
-            textShadowCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Text Shadow Curve' },
-            textShadowXStart: { value: 0, step: 1, label: 'Shadow X Start (px)' },
-            textShadowYStart: { value: 0, step: 1, label: 'Shadow Y Start (px)' },
-            textShadowBlurStart: { value: 0, min:0, step: 1, label: 'Shadow Blur Start (px)' },
-            textShadowXEnd: { value: 2, step: 1, label: 'Shadow X End (px)' },
-            textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
-            textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
-            textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
+        };
+        
+        if (element.name === 'RSVP Form') {
+            componentSpecificControls = getElementSpecificRsvpControls(element);
+            // RSVP Form needs some basic text controls for form styling
+            return {
+                ...controlsSchema,
+                ...baseComponentControls,
+                ...componentSpecificControls,
+                textColor: { value: '#333333', label: 'Text Color' },
+                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
+                fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
+                fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
+                lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
+                paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
+                paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
+                enableParentContainer: { value: false, label: 'Enable Parent Container' },
+                containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.enableParentContainer`);
+                }},
+                spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
+                yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
+                yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
+                letterSpacingAtAnimStart: { value: -5, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim Start (px)' },
+                letterSpacingAtAnimEnd: { value: 0, min: -100, max: 100, step: 0.1, label: 'L-Spacing @ Anim End (px)' },
+                textShadowEffect: { value: false, label: 'Enable Text Shadow' },
+                textShadowCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Text Shadow Curve' },
+                textShadowXStart: { value: 0, step: 1, label: 'Shadow X Start (px)' },
+                textShadowYStart: { value: 0, step: 1, label: 'Shadow Y Start (px)' },
+                textShadowBlurStart: { value: 0, min:0, step: 1, label: 'Shadow Blur Start (px)' },
+                textShadowXEnd: { value: 2, step: 1, label: 'Shadow X End (px)' },
+                textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
+                textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
+                textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
+            };
+        } else if (element.name === 'Scrapbook') {
+            componentSpecificControls = getScrapbookLayoutControlsSchema();
+            // Scrapbook doesn't need text controls, just its own layout controls
+            return {
+                ...controlsSchema,
+                ...baseComponentControls,
+                ...componentSpecificControls,
+            };
+        }
+
+        // For unknown component types, just return basic controls
+        return {
+            ...controlsSchema,
+            ...baseComponentControls,
         };
     }
     return controlsSchema;

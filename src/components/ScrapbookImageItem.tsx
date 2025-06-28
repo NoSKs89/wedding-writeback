@@ -25,6 +25,8 @@ interface ScrapbookImageItemProps {
   parallaxTranslateY?: number; // New prop for Y parallax movement
   parallaxScale?: number; // New prop for Z parallax movement (scale)
   onLoad?: () => void; // Callback for when the image has loaded
+  // New prop for lazy loading
+  enableLazyLoading?: boolean;
 }
 
 const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItemProps>((props, forwardedRef) => {
@@ -41,9 +43,11 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     parallaxTranslateY = 0, // Destructure with default
     parallaxScale = 1, // Destructure with default (1 for no scaling)
     onLoad,
+    enableLazyLoading = false, // New prop
   } = props;
 
   const [isHovered, setIsHovered] = useState(false);
+  const [shouldLoad, setShouldLoad] = useState(!enableLazyLoading); // Load immediately if lazy loading disabled
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Destructure initial styles, separating transform and opacity
@@ -71,6 +75,29 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     prevIsHiddenForFocusRef.current = isHiddenForFocus;
   }, [isHiddenForFocus]);
 
+  // Intersection Observer for lazy loading
+  useEffect(() => {
+    if (!enableLazyLoading || shouldLoad) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShouldLoad(true);
+          observer.disconnect(); // Stop observing once loaded
+        }
+      },
+      {
+        rootMargin: '50px', // Start loading 50px before entering viewport
+        threshold: 0.1
+      }
+    );
+
+    if (imgRef.current) {
+      observer.observe(imgRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [enableLazyLoading, shouldLoad]);
 
   const imageSpringStyles = useSpring({
     transform: finalTransform,
@@ -149,7 +176,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
   return (
     <animated.img
       ref={setRefs}
-      src={imageSrc}
+      src={shouldLoad ? imageSrc : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMSIgaGVpZ2h0PSIxIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InJnYmEoMCwwLDAsMC4xKSIvPjwvc3ZnPg=='} // Placeholder while loading
       alt={altText}
       style={{
         ...restInitialStyle, // Apply other initial styles (width, height, position)
@@ -167,7 +194,9 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
       }}
       onClick={handleClick}
       className="scrapbook-image-item" // Keep any existing class names
-      onLoad={onLoad}
+      onLoad={() => {
+        if (shouldLoad && onLoad) onLoad();
+      }}
     />
   );
 });

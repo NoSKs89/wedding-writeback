@@ -117,16 +117,13 @@ export const transformWeddingData = (sourceData) => {
 // This component will decide whether to show Intro or Main content for a wedding
 const WeddingPageController = ({ isSetupMode = false }) => {
   const { weddingId } = useParams();
-  const { weddingData, experienceSettings, loading, error } = useWeddingData(weddingId);
+  const { weddingData: rawWeddingData, experienceSettings, loading, error } = useWeddingData(weddingId);
   const isMobile = useIsMobile();
   const { setIsSetupMode } = useSetupMode();
 
   useEffect(() => {
     setIsSetupMode(isSetupMode);
   }, [isSetupMode, setIsSetupMode]);
-
-  // The debounced save logic can be removed from here, 
-  // as the new architecture will handle saving within the editor itself.
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading Experience...</div>;
@@ -136,17 +133,35 @@ const WeddingPageController = ({ isSetupMode = false }) => {
     return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Error loading wedding data: {error}</div>;
   }
 
-  if (!weddingData || !experienceSettings) {
+  if (!rawWeddingData || !experienceSettings) {
     return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>No wedding data found.</div>;
   }
 
-  // Render the GuestExperience directly, passing all required props
-  // The isSetupMode prop from the route will determine if controls are shown
+  // Transform the raw wedding data and populate initialElementLayouts with the correct default slot
+  const transformedWeddingData = transformWeddingData(rawWeddingData);
+  if (!transformedWeddingData) {
+    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Error processing wedding data.</div>;
+  }
+
+  // Determine the default layout slot to load based on experience settings and device type
+  const defaultSlot = isMobile 
+    ? (experienceSettings.defaultLayoutSlotMobile || 1)
+    : (experienceSettings.defaultLayoutSlotDesktop || 1);
+
+  // Load the correct layout data for the default slot
+  const viewType = isMobile ? 'mobile' : 'desktop';
+  const slotData = transformedWeddingData.allLayoutSlots?.[viewType]?.[defaultSlot] || {};
+  
+  // Set the initialElementLayouts to the correct slot data
+  transformedWeddingData.initialElementLayouts = slotData;
+
+  // Render the GuestExperience with properly transformed data
   return (
     <GuestExperience
-      weddingDataFromApp={weddingData}
+      weddingDataFromApp={transformedWeddingData}
       experienceSettingsFromApp={experienceSettings}
       weddingIdFromApp={weddingId}
+      defaultLayoutSlotToLoad={defaultSlot}
       isSetupModeFromProps={isSetupMode}
     />
   );
