@@ -4,6 +4,8 @@ import { useGesture } from '@use-gesture/react';
 import { useControls } from 'leva';
 import { useLevaStore } from '../../stores/levaStore';
 import { useSetupMode } from '../../contexts/SetupModeContext';
+import { useIsMobile } from '../../utils/deviceDetect';
+import { animationCurves } from './levaSchemas';
 import ScrapbookImageItem from '../ScrapbookImageItem';
 // import { useTrackedControls } from '../../hooks/useTrackedControls';
 
@@ -20,6 +22,26 @@ function mulberry32(a: number) {
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
 export const scrapbookLayoutControlsSchema = {
   showCaptions: { value: true, label: 'Show Captions' },
+  showInstructionText: { value: true, label: 'Show Instruction Text' },
+  instructionTextStartOpacity: { 
+    value: 0, 
+    min: 0, 
+    max: 1, 
+    step: 0.01, 
+    label: 'Instruction Start Opacity'
+  },
+  instructionTextEndOpacity: { 
+    value: 1, 
+    min: 0, 
+    max: 1, 
+    step: 0.01, 
+    label: 'Instruction End Opacity'
+  },
+  instructionTextOpacityCurve: { 
+    value: 'linear', 
+    options: ['disabled', ...Object.keys(animationCurves)], 
+    label: 'Instruction Opacity Curve' 
+  },
   centerXOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center X Offset (%)' },
   centerYOffset: { value: 0, min: -100, max: 100, step: 1, label: 'Center Y Offset (%)' },
   spreadRadiusFactor: { value: 0.35, min: 0.1, max: 5, step: 0.01, label: 'Spread Radius Factor' },
@@ -153,6 +175,7 @@ interface InteractiveScrapbookProps {
   windowWidth: number;
   windowHeight: number;
   layoutControlsFromProp: any;
+  TOTAL_PAGES?: number; // Add TOTAL_PAGES for opacity calculations
 }
 
 const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProps>((props, ref) => {
@@ -169,9 +192,11 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
     windowWidth,
     windowHeight,
     layoutControlsFromProp,
+    TOTAL_PAGES = 3,
   } = props;
 
   const { isSetupMode } = useSetupMode();
+  const isMobile = useIsMobile();
   const innerContainerRef = useRef<HTMLDivElement>(null);
   const imageRefs = useRef<(HTMLImageElement | null)[]>([]);
   const [loadedImageCount, setLoadedImageCount] = useState(0);
@@ -187,6 +212,8 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
   }, [layoutControlsFromProp, defaultLayoutValues]);
 
   const { 
+    showCaptions, showInstructionText, instructionTextStartOpacity, instructionTextEndOpacity,
+    instructionTextOpacityCurve,
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
     baseRotationRange, baseSizeMin, baseSizeMax,
     borderWidth, borderColor, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, baseOpacity,
@@ -294,6 +321,32 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
       onDisplayedImagesUpdate(displayedImagesAndTheirData);
     }
   }, [displayedImagesAndTheirData, onDisplayedImagesUpdate]);
+
+  // Calculate instruction text opacity based on scroll position
+  const calculateInstructionOpacity = useMemo(() => {
+    if (!showInstructionText) return 0;
+    
+    // Calculate total scrollable height based on TOTAL_PAGES and windowHeight
+    const totalScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+    
+    // If no scrollable height, return end opacity
+    if (totalScrollableHeight <= 0) return instructionTextEndOpacity;
+    
+    // Calculate scroll progress (0 to 1)
+    const scrollProgress = Math.min(1, Math.max(0, scrollY / totalScrollableHeight));
+    
+    // Apply animation curve if not disabled
+    let easedProgress = scrollProgress;
+    if (instructionTextOpacityCurve && instructionTextOpacityCurve !== 'disabled') {
+      const curveFunction = animationCurves[instructionTextOpacityCurve as keyof typeof animationCurves];
+      if (curveFunction) {
+        easedProgress = curveFunction(scrollProgress);
+      }
+    }
+    
+    // Interpolate between start and end opacity using the eased progress
+    return instructionTextStartOpacity + (instructionTextEndOpacity - instructionTextStartOpacity) * easedProgress;
+  }, [showInstructionText, scrollY, TOTAL_PAGES, windowHeight, instructionTextStartOpacity, instructionTextEndOpacity, instructionTextOpacityCurve]);
   
   // Render logic
   return (
@@ -308,6 +361,37 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
       }} 
       style={{ position: 'relative', width: '100%', minHeight: containerHeight ? `${containerHeight}px` : '100vh' }}
     >
+      {/* Instruction Text */}
+      {showInstructionText && displayedImagesAndTheirData.length > 0 && calculateInstructionOpacity > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 50,
+            textAlign: 'center',
+            color: 'rgba(0, 0, 0, 0.6)',
+            fontSize: isMobile ? '1.2rem' : '1.5rem',
+            fontWeight: '500',
+            textShadow: '1px 1px 2px rgba(255, 255, 255, 0.8)',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            padding: isMobile ? '12px 24px' : '16px 32px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(5px)',
+            opacity: calculateInstructionOpacity,
+            transition: 'opacity 0.3s ease-out',
+            minWidth: isMobile ? '200px' : '280px',
+            maxWidth: isMobile ? '90vw' : '400px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isMobile ? 'Tap' : 'Click'} An Image To View
+        </div>
+      )}
+
       {displayedImagesAndTheirData.map((itemData: DisplayedImageData, displayIndex: number) => {
         if (!itemData || !itemData.initialStyle) {
           console.warn("Skipping render for scrapbook image due to missing data:", itemData);

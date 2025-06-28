@@ -523,6 +523,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       windowWidth={windowWidth} 
                       windowHeight={windowHeight} 
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
+                      TOTAL_PAGES={TOTAL_PAGES}
                     />;
                   } else { return null; }
                   break;
