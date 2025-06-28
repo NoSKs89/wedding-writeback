@@ -21,6 +21,7 @@ function mulberry32(a: number) {
 
 // --- Leva Schema for Scrapbook Layout (Local to this component) ---
 export const scrapbookLayoutControlsSchema = {
+  scrapbookDisabled: { value: false, label: 'Disable Scrapbook (No S3 Costs)' },
   showCaptions: { value: true, label: 'Show Captions' },
   showInstructionText: { value: true, label: 'Show Instruction Text' },
   instructionTextStartOpacity: { 
@@ -212,7 +213,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
   }, [layoutControlsFromProp, defaultLayoutValues]);
 
   const { 
-    showCaptions, showInstructionText, instructionTextStartOpacity, instructionTextEndOpacity,
+    scrapbookDisabled, showCaptions, showInstructionText, instructionTextStartOpacity, instructionTextEndOpacity,
     instructionTextOpacityCurve,
     centerXOffset, centerYOffset, spreadRadiusFactor, maxImages, 
     baseRotationRange, baseSizeMin, baseSizeMax,
@@ -223,6 +224,11 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
 
   // --- Derived State & Memoizations ---
   const resolvedImageSrcs = useMemo(() => {
+    // If scrapbook is disabled, return empty array to prevent S3 calls
+    if (scrapbookDisabled) {
+      return [];
+    }
+
     if (weddingData && weddingData.scrapbookImages && Array.isArray(weddingData.scrapbookImages)) {
       return weddingData.scrapbookImages.map((img: any) => ({
         src: img.s3Url || img.fileName, // Prefer s3Url if available
@@ -232,7 +238,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
       })).filter((img: any) => img.src);
     }
     return [];
-  }, [weddingData]);
+  }, [weddingData, scrapbookDisabled]);
 
   const displayedImagesAndTheirData = useMemo(() => {
     if (!resolvedImageSrcs || resolvedImageSrcs.length === 0 || !windowWidth || !windowHeight) {
@@ -361,6 +367,37 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
       }} 
       style={{ position: 'relative', width: '100%', minHeight: containerHeight ? `${containerHeight}px` : '100vh' }}
     >
+      {/* Scrapbook Disabled Message */}
+      {scrapbookDisabled && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            zIndex: 100,
+            textAlign: 'center',
+            color: 'rgba(150, 150, 150, 0.8)',
+            fontSize: isMobile ? '1.1rem' : '1.3rem',
+            fontWeight: '500',
+            textShadow: '1px 1px 2px rgba(255, 255, 255, 0.8)',
+            pointerEvents: 'none',
+            userSelect: 'none',
+            padding: isMobile ? '16px 24px' : '20px 32px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(5px)',
+            border: '2px dashed rgba(150, 150, 150, 0.3)',
+            maxWidth: isMobile ? '90vw' : '400px',
+          }}
+        >
+          📸 Scrapbook Disabled<br />
+          <span style={{ fontSize: '0.85em', opacity: 0.7 }}>
+            (S3 costs saved)
+          </span>
+        </div>
+      )}
+
       {/* Instruction Text */}
       {showInstructionText && displayedImagesAndTheirData.length > 0 && calculateInstructionOpacity > 0 && (
         <div

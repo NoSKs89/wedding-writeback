@@ -152,8 +152,15 @@ const WeddingPageController = ({ isSetupMode = false }) => {
   const viewType = isMobile ? 'mobile' : 'desktop';
   const slotData = transformedWeddingData.allLayoutSlots?.[viewType]?.[defaultSlot] || {};
   
+  // IMPORTANT: The layout settings in the raw wedding data are stored directly, 
+  // but the levaStore expects them to be wrapped in a 'settings' property
+  // to match what the /layoutSettings/:viewType endpoint returns
+  const formattedSlotData = slotData && Object.keys(slotData).length > 0 
+    ? slotData 
+    : {};
+
   // Set the initialElementLayouts to the correct slot data
-  transformedWeddingData.initialElementLayouts = slotData;
+  transformedWeddingData.initialElementLayouts = formattedSlotData;
 
   // Render the GuestExperience with properly transformed data
   return (

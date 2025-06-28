@@ -99,6 +99,30 @@ const PostUtilityPage = () => {
     setPayloadText(JSON.stringify(examplePayload, null, 2));
   };
 
+  const handleLoadMigrationPayload = async () => {
+    try {
+      const response = await fetch('/migration_payload.json');
+      if (!response.ok) {
+        throw new Error(`Failed to load migration payload: ${response.status}`);
+      }
+      const migrationData = await response.json();
+      
+      // Wrap the settings in the expected format
+      const formattedPayload = {
+        slotNumber: slotNumber,
+        settings: migrationData.settings
+      };
+      
+      setPayloadText(JSON.stringify(formattedPayload, null, 2));
+      setResponseMessage('Migration payload loaded successfully');
+      setResponseError('');
+    } catch (error) {
+      console.error('Error loading migration payload:', error);
+      setResponseError(`Error loading migration payload: ${error.message}`);
+      setResponseMessage('');
+    }
+  };
+
   return (
     <div style={{ 
       padding: '20px', 
@@ -172,6 +196,21 @@ const PostUtilityPage = () => {
               }}
             >
               Load Example
+            </button>
+            <button 
+              type="button" 
+              onClick={handleLoadMigrationPayload}
+              style={{
+                padding: '5px 10px',
+                fontSize: '12px',
+                backgroundColor: '#f0f0f0',
+                border: '1px solid #ccc',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginRight: '10px'
+              }}
+            >
+              Load Migration Payload
             </button>
             <button 
               type="button" 
