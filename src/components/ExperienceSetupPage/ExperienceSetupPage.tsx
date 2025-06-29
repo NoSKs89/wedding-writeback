@@ -768,7 +768,7 @@ const ExperienceSetupPage: React.FC = () => {
             flexGrow: 1, // Allow to grow to fill remaining space if percentages don't sum perfectly
             gap: '10px',
             overflowY: 'auto',
-            maxHeight: 'calc(100vh - 180px)', // Adjusted max height, ensure this value is appropriate
+            maxHeight: 'calc(100vh - 50px)', // Further increased to allow much more height
             // For the container of element slots, we need to make it a column if it contains a header + the items row/column
             flexDirection: 'column', // Parent is column to stack H4 and then the items container
             ...(isMobile ? { 
@@ -779,13 +779,58 @@ const ExperienceSetupPage: React.FC = () => {
           }}>
             <h4 style={{textAlign: 'center', marginBottom: '5px'}}>Experience Elements</h4>
             <hr style={{width: '95%', border: 'none', borderTop: '1px solid #ccc', margin: '0 0 10px 0'}} />
+            
+            {/* Save and Restore Buttons - Moved up here for better visibility */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '15px' }}>
+              <button
+                onClick={handleSaveConfiguration}
+                disabled={isSaving}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.9rem',
+                  color: 'white',
+                  backgroundColor: '#007bff',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  opacity: isSaving ? 0.7 : 1,
+                }}
+              >
+                {isSaving ? 'Saving...' : 'Save Configuration'}
+              </button>
+              <button
+                onClick={handleRestoreDefaults}
+                disabled={isSaving}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.9rem',
+                  color: 'white',
+                  backgroundColor: '#ffc107',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                  opacity: isSaving ? 0.7 : 1,
+                }}
+              >
+                Restore Defaults
+              </button>
+            </div>
+            
+            {/* Save/Load Status Messages */}
+            {(saveSuccessMessage || saveErrorMessage) && (
+              <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+                {saveSuccessMessage && <div style={{color: 'green', fontSize: '0.9rem'}}>{saveSuccessMessage}</div>}
+                {saveErrorMessage && <div style={{color: 'red', fontSize: '0.9rem'}}>{saveErrorMessage}</div>}
+              </div>
+            )}
+            
             {/* This inner div will now handle the row/column layout for the actual slots */}
             <div style={{
               display: 'flex',
               width: '100%', // Take full width of parent column
               gap: '10px',
               overflowY: 'auto', // Keep scroll on this inner container if needed
-              maxHeight: 'calc(100vh - 220px)', // Adjust if header takes up space
+              maxHeight: 'calc(100vh - 90px)', // Further increased to allow much more height
                ...(isMobile ? { // Actual Mobile device: single column
                 flexDirection: 'column',
                 flexWrap: 'nowrap',
@@ -850,85 +895,6 @@ const ExperienceSetupPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Save Button */}
-        <div style={{ marginTop: '30px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px' }}>
-          <div style={{display: 'flex', gap: '15px'}}>
-            <button
-              onClick={handleSaveConfiguration} // Updated onClick
-              disabled={isSaving} // Disable when saving
-              style={{
-                padding: '10px 20px',
-                fontSize: '1rem',
-                color: 'white',
-                backgroundColor: '#007bff',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                opacity: isSaving ? 0.7 : 1,
-              }}
-            >
-              {isSaving ? 'Saving...' : 'Save Configuration'}
-            </button>
-            {/* Restore Defaults Button */}
-            <button
-              onClick={handleRestoreDefaults}
-              disabled={isSaving} // Also disable restore if a save is in progress
-              style={{
-                padding: '10px 20px',
-                fontSize: '1rem',
-                color: 'white',
-                backgroundColor: '#ffc107', /* Warning color */
-                border: 'none',
-                borderRadius: '5px',
-                cursor: isSaving ? 'not-allowed' : 'pointer',
-                opacity: isSaving ? 0.7 : 1,
-              }}
-            >
-              Restore Defaults
-            </button>
-          </div>
-          {/* Save/Load Status Messages */}
-          {saveSuccessMessage && <div style={{color: 'green', marginTop: '10px'}}>{saveSuccessMessage}</div>}
-          {saveErrorMessage && <div style={{color: 'red', marginTop: '10px'}}>{saveErrorMessage}</div>}
-        </div>
-
-        {/* Debug Button to log marker positions */}
-        <div style={{ marginTop: '10px', width: '100%', display: 'flex', justifyContent: 'center' }}>
-          <button
-            onClick={() => {
-              console.log("--- Current Element Positions ---");
-              const elementsData: { [key: number]: { name?: string, start?: number, end?: number, type?: string } } = {};
-              elements.forEach(el => {
-                if (el.type !== 'empty') {
-                  elementsData[el.id] = { name: el.name, type: el.type };
-                }
-              });
-              activeMarkers.forEach(marker => {
-                if (elementsData[marker.elementId]) {
-                  if (marker.type === 'start') {
-                    elementsData[marker.elementId].start = marker.position;
-                  } else if (marker.type === 'end') {
-                    elementsData[marker.elementId].end = marker.position;
-                  }
-                }
-              });
-              Object.entries(elementsData).forEach(([id, data]) => {
-                console.log(
-                  `Element ID: ${id}, Name: ${data.name || 'N/A'}, Type: ${data.type}, Start: ${data.start?.toFixed(3) || 'N/A'}, End: ${data.end?.toFixed(3) || 'N/A'}`
-                );
-              });
-              console.log("---------------------------------");
-            }}
-            style={{
-              padding: '8px 15px', fontSize: '0.9rem', color: 'white',
-              backgroundColor: '#6c757d', border: 'none', borderRadius: '5px',
-              cursor: 'pointer', marginLeft: '10px' 
-            }}
-          >
-            Log Element Positions
-          </button>
         </div>
 
       </div>
