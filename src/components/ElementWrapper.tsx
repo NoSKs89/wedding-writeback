@@ -112,13 +112,31 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     [controlsSchema]
   );
   
-  const values = layoutSettingsFromPreview ? (layoutSettingsFromPreview[folderName] || {}) : levaValues;
+  const values = layoutSettingsFromPreview 
+    ? (layoutSettingsFromPreview[folderName] || {}) 
+    : isSetupMode 
+      ? levaValues 
+      : (getInitialValues || {});
 
   useEffect(() => {
     if (!layoutSettingsFromPreview) {
       updateControlValuesInStore(folderName, values);
     }
   }, [values, folderName, updateControlValuesInStore, layoutSettingsFromPreview]);
+
+  // Debug logging to track what values are being used
+  useEffect(() => {
+    if (element.id === 1) { // Only log for first element to avoid spam
+      console.log(`%c[ElementWrapper] ${folderName} values:`, 'color: purple', {
+        isSetupMode,
+        hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
+        hasGetInitialValues: !!getInitialValues,
+        hasLevaValues: !!levaValues && Object.keys(levaValues).length > 0,
+        valuesKeys: Object.keys(values),
+        sampleValue: values.textColor || values.landingXPosition || 'none'
+      });
+    }
+  }, [values, isSetupMode, folderName, element.id]);
 
   const {
     opacityAtStart = 1,
