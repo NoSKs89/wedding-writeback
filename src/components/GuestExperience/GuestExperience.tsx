@@ -406,7 +406,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
       {isSetupMode && (
         <div style={saveButtonContainerStyle || { position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <button onClick={handleSaveConfiguration} disabled={isSaving || showSaveConfirm} style={{ padding: '10px 15px', fontSize: '0.9rem', color: 'white', backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'), border: 'none', borderRadius: '5px', cursor: 'pointer' }}>
+          <button onClick={handleSaveConfiguration} disabled={isSaving || showSaveConfirm} style={{ padding: '10px 15px', fontSize: '0.9rem', color: 'white', backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'), border: 'none', borderRadius: '5px', cursor: 'pointer', position: 'absolute', left: 0, bottom: 0 }}>
             {isSaving ? 'Saving...' : 'Save Layout'}
           </button>
           {saveSuccessMessage && <div style={{color: 'lime', background: 'rgba(0,0,0,0.7)', padding: '5px', borderRadius: '3px'}}>{saveSuccessMessage}</div>}

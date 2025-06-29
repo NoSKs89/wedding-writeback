@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { Outlet, useParams, useNavigate, useLocation, Link } from 'react-router-dom';
+import { useSpring, animated } from 'react-spring';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig'; // Import the centralized helper
 import { useIsMobile } from '../../utils/deviceDetect'; // ADDED
@@ -82,6 +83,10 @@ const SetupLayout = () => {
   const isMobile = useIsMobile(); // ADDED
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false); // State for mobile nav modal
 
+  // Hover navbar state for mobile layout page
+  const [isNavbarVisible, setIsNavbarVisible] = useState(false);
+  const [hideTimeout, setHideTimeout] = useState(null);
+
   // Store auth per weddingId. In a real app, consider more robust session/token management.
   const [isAuthenticatedForWedding, setIsAuthenticatedForWedding] = useState(() => {
     const storedAuth = sessionStorage.getItem(`setupAuth_${weddingId}`);
@@ -93,6 +98,77 @@ const SetupLayout = () => {
     const storedAuth = sessionStorage.getItem(`setupAuth_${weddingId}`);
     setIsAuthenticatedForWedding(storedAuth === 'true');
   }, [weddingId]);
+
+  // Spring animation for navbar
+  const navbarSpring = useSpring({
+    opacity: isNavbarVisible ? 1 : 0,
+    transform: isNavbarVisible ? 'translateY(0%)' : 'translateY(-100%)',
+    config: { tension: 300, friction: 30 }
+  });
+
+  // Mouse move handler for mobile layout page
+  useEffect(() => {
+    if (!isMobileLayoutPage) return;
+
+    const clearHideTimeout = () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+        setHideTimeout(null);
+      }
+    };
+
+    const scheduleHide = () => {
+      clearHideTimeout();
+      const timeout = setTimeout(() => {
+        setIsNavbarVisible(false);
+        setHideTimeout(null);
+      }, 500); // 0.5 second delay
+      setHideTimeout(timeout);
+    };
+
+    const handleMouseMove = (e) => {
+      const hoverZone = window.innerHeight * 0.0001; // Show navbar when mouse is within 0.01% of viewport height from top
+      const isInTopZone = e.clientY < hoverZone;
+      
+      // Also check if mouse is over the navbar itself (when it's visible)
+      const navbarElement = document.querySelector('.navbar-hover-area');
+      const isOverNavbar = navbarElement && navbarElement.contains(e.target);
+      
+      const shouldShowNavbar = isInTopZone || isOverNavbar;
+      
+      if (shouldShowNavbar) {
+        clearHideTimeout();
+        setIsNavbarVisible(true);
+      } else if (isNavbarVisible && !shouldShowNavbar) {
+        // Only start hide timer if navbar is currently visible and mouse is not in valid zones
+        scheduleHide();
+      }
+    };
+
+    const handleMouseLeave = () => {
+      if (isNavbarVisible) {
+        scheduleHide();
+      }
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseleave', handleMouseLeave);
+      clearHideTimeout();
+    };
+  }, [isMobileLayoutPage, isNavbarVisible, hideTimeout]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hideTimeout) {
+        clearTimeout(hideTimeout);
+      }
+    };
+  }, [hideTimeout]);
 
   const handleAuthentication = () => {
     sessionStorage.setItem(`setupAuth_${weddingId}`, 'true');
@@ -119,48 +195,105 @@ const SetupLayout = () => {
   return (
     <SetupAuthContext.Provider value={authContextValue}>
       <div className="setup-page-layout" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        {!isDesktopLayoutPage && !isMobileLayoutPage && (
-          <header className={styles.header}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <h2 style={{ paddingLeft: '10px' }}>Setup: {weddingId}</h2>
-              {isMobile && (
-                <button 
-                  className={styles.hamburgerButton} 
-                  onClick={() => setIsMobileNavOpen(true)}
-                  aria-label="Open navigation menu"
-                  disabled={isMobileNavOpen}
-                >
-                  <div />
-                  <div />
-                  <div />
-                </button>
-              )}
-            </div>
-            <nav className={styles.nav}>
-              {!isMobile && (
-                <>
-                  <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
-                  <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
-                  <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
-                  
-                  <div className={styles.dropdown}>
-                    <button className={styles.navButton}>Image Management</button>
-                    <div className={styles.dropdownContent}>
-                      <Link to={`/${weddingId}/setup/images`}>Scrapbook Images</Link>
-                      <Link to={`/${weddingId}/setup/share-gallery`}>Guest Share Gallery</Link>
+        {!isDesktopLayoutPage && (
+          isMobileLayoutPage ? (
+            <animated.header 
+              className={`${styles.header} navbar-hover-area`} 
+              style={{
+                ...navbarSpring,
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                zIndex: 1000,
+                backgroundColor: 'white',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                pointerEvents: isNavbarVisible ? 'auto' : 'none'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <h2 style={{ paddingLeft: '10px' }}>Setup: {weddingId}</h2>
+                {isMobile && (
+                  <button 
+                    className={styles.hamburgerButton} 
+                    onClick={() => setIsMobileNavOpen(true)}
+                    aria-label="Open navigation menu"
+                    disabled={isMobileNavOpen}
+                  >
+                    <div />
+                    <div />
+                    <div />
+                  </button>
+                )}
+              </div>
+              <nav className={styles.nav}>
+                {!isMobile && (
+                  <>
+                    <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    
+                    <div className={styles.dropdown}>
+                      <button className={styles.navButton}>Image Management</button>
+                      <div className={styles.dropdownContent}>
+                        <Link to={`/${weddingId}/setup/images`}>Scrapbook Images</Link>
+                        <Link to={`/${weddingId}/setup/share-gallery`}>Guest Share Gallery</Link>
+                      </div>
                     </div>
-                  </div>
 
-                                  <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
-                <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
-                <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
-                  <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
-                  <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
-                </>
-              )}
-              {/* Conditionally render hr OR ensure nav itself has no height when empty on mobile */}
-            </nav>
-          </header>
+                    <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
+                    <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
+                  </>
+                )}
+                {/* Conditionally render hr OR ensure nav itself has no height when empty on mobile */}
+              </nav>
+            </animated.header>
+          ) : (
+            <header className={styles.header}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                <h2 style={{ paddingLeft: '10px' }}>Setup: {weddingId}</h2>
+                {isMobile && (
+                  <button 
+                    className={styles.hamburgerButton} 
+                    onClick={() => setIsMobileNavOpen(true)}
+                    aria-label="Open navigation menu"
+                    disabled={isMobileNavOpen}
+                  >
+                    <div />
+                    <div />
+                    <div />
+                  </button>
+                )}
+              </div>
+              <nav className={styles.nav}>
+                {!isMobile && (
+                  <>
+                    <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    
+                    <div className={styles.dropdown}>
+                      <button className={styles.navButton}>Image Management</button>
+                      <div className={styles.dropdownContent}>
+                        <Link to={`/${weddingId}/setup/images`}>Scrapbook Images</Link>
+                        <Link to={`/${weddingId}/setup/share-gallery`}>Guest Share Gallery</Link>
+                      </div>
+                    </div>
+
+                    <button onClick={() => navigate(`/${weddingId}/setup/layout`)} className={styles.navButton}>Advanced Layout Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
+                    <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
+                  </>
+                )}
+                {/* Conditionally render hr OR ensure nav itself has no height when empty on mobile */}
+              </nav>
+            </header>
+          )
         )}
         {(isDesktopLayoutPage || isMobileLayoutPage) && (
           <div style={{ 

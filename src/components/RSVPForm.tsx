@@ -1,6 +1,7 @@
 import React, { useState, useEffect, FormEvent, ChangeEvent, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { useControls, folder } from 'leva';
+import { useSpring, animated, config } from 'react-spring';
 import { useSetupMode } from '../contexts/SetupModeContext';
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes';
 import { googleFontNames, systemFontStack, fontFamilyOptions } from '../config/fontConfig';
@@ -76,7 +77,8 @@ export const rsvpFormControlsSchema = {
   formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
   formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
   formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
-  formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
+  overwriteFlexWidth: { value: false, label: 'Overwrite Responsive Width' },
+  formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)', render: (get: any) => get('overwriteFlexWidth') },
   overwriteFlexHeight: { value: false, label: 'Overwrite Flex Height' },
   formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)', render: (get: any) => get('overwriteFlexHeight') },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
@@ -108,6 +110,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     formBorderWidth,
     cantMakeItButtonEmoji,
     canMakeItButtonEmoji,
+    overwriteFlexWidth,
     formWidth,
     overwriteFlexHeight,
     formHeight,
@@ -162,6 +165,47 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
   const [finalResponse, setFinalResponse] = useState<any>(null);
   const [isClosed, setIsClosed] = useState(false);
+
+  // Spring animations for responsive form changes
+  const formWidthSpring = useSpring({
+    width: overwriteFlexWidth 
+      ? `${formWidth}px`
+      : bringingKids ? '95%' : '90%', // Slightly wider when bringing kids
+    maxWidth: overwriteFlexWidth 
+      ? '100%'
+      : bringingKids ? '95%' : '90%',
+    marginLeft: overwriteFlexWidth ? '0px' : 'auto',
+    marginRight: overwriteFlexWidth ? '0px' : 'auto',
+    config: config.gentle,
+  });
+
+  // Animation for single stepper (when not bringing kids)
+  const singleStepperSpring = useSpring({
+    opacity: bringingKids ? 0 : 1,
+    transform: bringingKids ? 'translateX(-50px)' : 'translateX(0px)',
+    pointerEvents: bringingKids ? 'none' : 'auto',
+    config: config.gentle,
+  });
+
+  // Animation for double stepper container (when bringing kids)
+  const doubleStepperSpring = useSpring({
+    opacity: bringingKids ? 1 : 0,
+    transform: bringingKids ? 'translateY(0px)' : 'translateY(-20px)',
+    maxHeight: bringingKids ? 200 : 0,
+    marginBottom: bringingKids ? 16 : 0,
+    overflow: 'hidden',
+    pointerEvents: bringingKids ? 'auto' : 'none',
+    config: config.gentle,
+  });
+
+  // Animation for kids info text
+  const kidsInfoSpring = useSpring({
+    opacity: bringingKids ? 1 : 0,
+    maxHeight: bringingKids ? 100 : 0,
+    marginBottom: bringingKids ? 16 : 0,
+    overflow: 'hidden',
+    config: config.gentle,
+  });
 
   const h2Style: React.CSSProperties = {
     fontSize: '1.2rem',
@@ -267,10 +311,13 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     const count = Math.max(0, newCount);
     
     if (count === 0 && bringingKids) {
-      // User set kids count to 0 - switch back to simple mode
-      setBringingKids(false);
-      setGuestCount(adultCount); // Set guest count to current adult count
+      // First set the kids count to 0
       setKidsCount(0);
+      // Then switch back to simple mode with a small delay to let animation complete
+      setTimeout(() => {
+        setBringingKids(false);
+        setGuestCount(adultCount); // Set guest count to current adult count
+      }, 100);
     } else {
       setKidsCount(count);
     }
@@ -401,8 +448,6 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     borderRadius: '8px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
     boxSizing: 'border-box',
-    width: `${formWidth}px`,
-    maxWidth: '100%',
     fontFamily: formTextFontFamily,
     transition: 'height 0.4s ease-in-out',
     ...(overwriteFlexHeight 
@@ -567,54 +612,62 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
             <>
               <div style={{marginTop: '1.5rem'}}>
                 <h2 style={{...h2Style, marginBottom: '0rem', textAlign: 'center'}}>How many guests in your party?</h2>
-                {!bringingKids && (
-                  <>
-                    <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
-                    <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1rem'}}>
-                      <div style={stepperStyle}>
-                        <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
-                        <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-                        <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
-                      </div>
-                      {allowKids && (
-                        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
-                          <input 
-                            type="checkbox" 
-                            checked={bringingKids} 
-                            onChange={handleBringingKidsChange}
-                            style={{marginRight: '0.5rem'}}
-                          />
-                          Bringing Kids?
-                        </label>
-                      )}
-                    </div>
-                  </>
-                )}
-                {bringingKids && (
-                  <>
-                    <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
-                      <div style={{textAlign: 'center'}}>
-                        <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
+                <animated.div style={singleStepperSpring}>
+                  {!bringingKids && (
+                    <>
+                      <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
+                      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1rem'}}>
                         <div style={stepperStyle}>
-                          <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
-                          <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-                          <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+                          <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+                          <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                          <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
+                        </div>
+                        {allowKids && (
+                          <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+                            <input 
+                              type="checkbox" 
+                              checked={bringingKids} 
+                              onChange={handleBringingKidsChange}
+                              style={{marginRight: '0.5rem'}}
+                            />
+                            Bringing Kids?
+                          </label>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </animated.div>
+                <animated.div style={doubleStepperSpring}>
+                  {bringingKids && (
+                    <>
+                      <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
+                        <div style={{textAlign: 'center'}}>
+                          <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
+                          <div style={stepperStyle}>
+                            <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
+                            <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                            <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+                          </div>
+                        </div>
+                        <div style={{textAlign: 'center'}}>
+                          <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
+                          <div style={stepperStyle}>
+                            <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
+                            <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
+                            <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
+                          </div>
                         </div>
                       </div>
-                      <div style={{textAlign: 'center'}}>
-                        <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
-                        <div style={stepperStyle}>
-                          <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
-                          <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
-                          <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
-                        </div>
-                      </div>
-                    </div>
+                    </>
+                  )}
+                </animated.div>
+                <animated.div style={kidsInfoSpring}>
+                  {bringingKids && (
                     <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
                       *Kids under 12 will be served the kids meal of chicken fingers, fries, and fruit; they will kindly not enter the buffet line.
                     </p>
-                  </>
-                )}
+                  )}
+                </animated.div>
               </div>
               <div>
                 <h2 style={{...h2Style, marginBottom: '0.5rem', textAlign: 'center'}}>Send a message to the couple!</h2>
@@ -642,41 +695,49 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       return (
         <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
           <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
-          {!bringingKids && (
-            <>
-              <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
-              <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
-                <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
-                <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-                <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
-              </div>
-            </>
-          )}
-          {bringingKids && (
-            <>
-              <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
-                <div style={{textAlign: 'center'}}>
-                  <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
-                  <div style={stepperStyle}>
-                    <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
-                    <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-                    <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+          <animated.div style={singleStepperSpring}>
+            {!bringingKids && (
+              <>
+                <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
+                <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
+                  <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+                  <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                  <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
+                </div>
+              </>
+            )}
+          </animated.div>
+          <animated.div style={doubleStepperSpring}>
+            {bringingKids && (
+              <>
+                <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
+                  <div style={{textAlign: 'center'}}>
+                    <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
+                    <div style={stepperStyle}>
+                      <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
+                      <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                      <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+                    </div>
+                  </div>
+                  <div style={{textAlign: 'center'}}>
+                    <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
+                    <div style={stepperStyle}>
+                      <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
+                      <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
+                      <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
+                    </div>
                   </div>
                 </div>
-                <div style={{textAlign: 'center'}}>
-                  <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
-                  <div style={stepperStyle}>
-                    <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
-                    <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
-                    <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
-                  </div>
-                </div>
-              </div>
+              </>
+            )}
+          </animated.div>
+          <animated.div style={kidsInfoSpring}>
+            {bringingKids && (
               <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
                 *Kids under 12 will be served the kids meal of chicken fingers, fries, and fruit; they will kindly not enter the buffet line.
               </p>
-            </>
-          )}
+            )}
+          </animated.div>
 
           {isPlated && platedOptions.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
@@ -731,11 +792,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   }
   
   return (
-    <div ref={internalFormRef} style={formContainerStyle}>
+    <animated.div ref={internalFormRef} style={{...formContainerStyle, ...formWidthSpring}}>
       <div style={contentContainerStyle}>
         {renderContent()}
       </div>
-    </div>
+    </animated.div>
   );
 });
 
