@@ -52,6 +52,7 @@ const WeddingDataSchema = new mongoose.Schema({
   scrapbookImageFolder: String, // Was scrapbookImageFolderUrl
   scrapbookImages: [ImageSchema],
   isPlated: Boolean,
+  allowKids: { type: Boolean, default: true },
   platedOptions: [MealOptionSchema],
   eventAddress: EventAddressSchema,
   shareGalleryGuid: { type: String, default: null },

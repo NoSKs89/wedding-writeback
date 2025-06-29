@@ -170,7 +170,14 @@ exports.handler = async (event, context) => {
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           }
-          return createResponse(200, wedding, requestOrigin);
+          
+          // Ensure allowKids field is present with default value if missing
+          const weddingData = wedding.toObject();
+          if (weddingData.allowKids === undefined) {
+              weddingData.allowKids = true; // Default value
+          }
+          
+          return createResponse(200, weddingData, requestOrigin);
       }    
 
       // POST /api/weddings
@@ -374,7 +381,7 @@ exports.handler = async (event, context) => {
       // POST /api/rsvp
       if (httpMethod === "POST" && routePath === "/api/rsvp") {
           console.log('[ROUTE /api/rsvp] Received RSVP submission:', body);
-          const { weddingId, firstName, lastName, email, attending, guestCount, message, mealChoices } = body;
+          const { weddingId, firstName, lastName, email, attending, guestCount, adultCount, kidsCount, bringingKids, message, mealChoices, isPlated, platedOptions } = body;
           
           if (!weddingId || !firstName || !lastName || typeof attending !== 'boolean') {
               return createResponse(400, { message: 'Missing required RSVP fields.' }, requestOrigin);
@@ -408,6 +415,9 @@ exports.handler = async (event, context) => {
             email: email || null, // Ensure email is saved
             attending,
             guestCount: attending ? guestCount : 0,
+            adultCount: attending && bringingKids ? adultCount : (attending ? guestCount : 0),
+            kidsCount: attending && bringingKids ? kidsCount : 0,
+            bringingKids: attending ? bringingKids : false,
             message,
             mealChoices: attending ? mealChoices : {},
             submittedAt: new Date(),
@@ -420,7 +430,11 @@ exports.handler = async (event, context) => {
             rsvpId: newRsvp.rsvpId,
             firstName: newRsvp.firstName,
             lastName: newRsvp.lastName,
-            attending: newRsvp.attending
+            attending: newRsvp.attending,
+            guestCount: newRsvp.guestCount,
+            adultCount: newRsvp.adultCount,
+            kidsCount: newRsvp.kidsCount,
+            bringingKids: newRsvp.bringingKids
           });
           
           const updateResult = await WeddingData.updateOne(
@@ -430,7 +444,7 @@ exports.handler = async (event, context) => {
                       rsvps: newRsvp,
                       rsvpHistory: {
                           event: 'RSVP Submitted',
-                          details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})`
+                          details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})${attending && bringingKids ? ` - ${adultCount} adults, ${kidsCount} kids` : attending ? ` - ${guestCount} guests` : ''}`
                       }
                   } 
               }
@@ -465,7 +479,7 @@ exports.handler = async (event, context) => {
                   Body: {
                     Text: {
                       Charset: "UTF-8",
-                      Data: `New RSVP for ${eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
+                      Data: `New RSVP for ${eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}${bringingKids && attending ? ` (${adultCount} adults, ${kidsCount} kids)` : ''}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
                     },
                     Html: {
                       Charset: "UTF-8",
@@ -473,7 +487,7 @@ exports.handler = async (event, context) => {
                              <p><strong>Name:</strong> ${firstName} ${lastName}</p>
                              <p><strong>Email:</strong> ${email || 'Not provided'}</p>
                              <p><strong>Attending:</strong> ${attending ? 'Yes' : 'No'}</p>
-                             <p><strong>Guests:</strong> ${guestCount}</p>
+                             <p><strong>Guests:</strong> ${guestCount}${bringingKids && attending ? ` (${adultCount} adults, ${kidsCount} kids)` : ''}</p>
                              <p><strong>Message:</strong> ${message || 'None'}</p>
                              <p><strong>Meal Choices:</strong></p>
                              <pre>${JSON.stringify(mealChoices, null, 2)}</pre>`
@@ -855,20 +869,28 @@ exports.handler = async (event, context) => {
       const rsvpSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/rsvp-settings$/);
       if (httpMethod === 'PUT' && rsvpSettingsMatch) {
           const customId = rsvpSettingsMatch[1];
-          const { isPlated, platedOptions } = body;
+          const { isPlated, allowKids, platedOptions } = body;
 
-          console.log(`[PUT /rsvp-settings] Updating RSVP settings for ${customId}`);
+          console.log(`[PUT /rsvp-settings] Updating RSVP settings for ${customId}`, { isPlated, allowKids, platedOptions: platedOptions?.length });
 
           if (typeof isPlated !== 'boolean') {
               return createResponse(400, { message: 'isPlated must be a boolean.' }, requestOrigin);
+          }
+          if (allowKids !== undefined && typeof allowKids !== 'boolean') {
+              return createResponse(400, { message: 'allowKids must be a boolean.' }, requestOrigin);
           }
           if (!Array.isArray(platedOptions)) {
             return createResponse(400, { message: 'platedOptions must be an array.' }, requestOrigin);
           }
 
+          const updateFields = { isPlated, platedOptions };
+          if (allowKids !== undefined) {
+              updateFields.allowKids = allowKids;
+          }
+
           const updatedWedding = await WeddingData.findOneAndUpdate(
               { customId: customId },
-              { $set: { isPlated, platedOptions } },
+              { $set: updateFields },
               { new: true, runValidators: true }
           );
 

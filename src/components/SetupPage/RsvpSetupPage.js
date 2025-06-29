@@ -14,6 +14,7 @@ const RsvpSetupPage = () => {
     const [saveStatus, setSaveStatus] = useState('');
 
     const [isPlated, setIsPlated] = useState(false);
+    const [allowKids, setAllowKids] = useState(true);
     const [platedOptions, setPlatedOptions] = useState([{ name: '', description: '', dietaryTags: '' }]);
 
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,6 +53,7 @@ const RsvpSetupPage = () => {
 
             setWeddingData(data);
             setIsPlated(data.isPlated || false);
+            setAllowKids(data.allowKids !== undefined ? data.allowKids : true);
             setPlatedOptions(
                 data.platedOptions && data.platedOptions.length > 0
                     ? data.platedOptions.map(opt => ({ ...opt, dietaryTags: (opt.dietaryTags || []).join(', ') }))
@@ -92,6 +94,7 @@ const RsvpSetupPage = () => {
         try {
             const settingsToSave = {
                 isPlated,
+                allowKids,
                 platedOptions: isPlated
                     ? platedOptions
                         .filter(opt => opt.name.trim() !== '')
@@ -222,6 +225,31 @@ const RsvpSetupPage = () => {
             </button>
             
             <div className={styles.card}>
+                <h2 className={styles.cardTitle}>Guest Settings</h2>
+                <div className={styles.settingRow}>
+                    <h3 className={styles.settingLabel}>Allow Kids</h3>
+                    <div className={styles.toggleSwitch}>
+                        <button
+                            className={`${styles.toggleButton} ${!allowKids ? styles.active : ''}`}
+                            onClick={() => setAllowKids(false)}
+                        >
+                            No
+                        </button>
+                        <button
+                            className={`${styles.toggleButton} ${allowKids ? styles.active : ''}`}
+                            onClick={() => setAllowKids(true)}
+                        >
+                            Yes
+                        </button>
+                    </div>
+                    <p className={styles.settingDescription}>
+                        When enabled, guests can specify adult and kids counts separately. 
+                        When disabled, only total guest count is shown.
+                    </p>
+                </div>
+            </div>
+
+            <div className={styles.card}>
                 <h2 className={styles.cardTitle}>Meal Type</h2>
                 <div className={styles.toggleSwitch}>
                     <button
@@ -280,6 +308,7 @@ const RsvpSetupPage = () => {
                     history={weddingData.rsvpHistory || []}
                     onClose={() => setIsModalOpen(false)}
                     onDelete={handleDeleteRsvp}
+                    allowKids={allowKids}
                 />
             )}
         </div>

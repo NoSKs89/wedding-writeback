@@ -87,6 +87,7 @@ export const transformWeddingData = (sourceData) => {
       : [],
     rsvpEndpoint: `${getApiBaseUrl()}/rsvp`,
     isPlated: sourceData.isPlated,
+    allowKids: sourceData.allowKids !== undefined ? sourceData.allowKids : true,
     platedOptions: sourceData.platedOptions || [],
     eventAddress: sourceData.eventAddress,
     // Pass through the raw scrapbookImages array as well, as WeddingJourneyWrapperForSetup uses it for resolvedScrapbookImages

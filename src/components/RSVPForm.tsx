@@ -34,6 +34,7 @@ interface WeddingData {
   id?: string | number;
   customId?: string;
   isPlated?: boolean;
+  allowKids?: boolean;
   platedOptions?: MealOption[];
   brideName?: string;
   groomName?: string;
@@ -76,7 +77,8 @@ export const rsvpFormControlsSchema = {
   formBorderColor: { value: initialBorderColorFromTheme, label: 'Border Color' },
   formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
   formWidth: { value: 500, min: 300, max: 1200, step: 10, label: 'Form Width (px)' },
-  formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)' },
+  overwriteFlexHeight: { value: false, label: 'Overwrite Flex Height' },
+  formHeight: { value: 460, min: 400, max: 1000, step: 10, label: 'Form Height (px)', render: (get: any) => get('overwriteFlexHeight') },
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
   stackThreshold: { value: 400, min: 200, max: 600, step: 10, label: 'Stacking Width (px)'},
   cantMakeItButtonEmoji: { value: '😥', label: "Can't Make It Emoji"},
@@ -84,7 +86,7 @@ export const rsvpFormControlsSchema = {
 };
 
 const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl, elementName = 'RSVP Form', styleControlsFromProp = {} }, ref) => {
-  const { customId: weddingId, isPlated = false, platedOptions = [] } = weddingData;
+  const { customId: weddingId, isPlated = false, allowKids = true, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
   
   // ADDED: Create a default set of values from the schema
@@ -107,6 +109,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     cantMakeItButtonEmoji,
     canMakeItButtonEmoji,
     formWidth,
+    overwriteFlexHeight,
     formHeight,
     formPadding,
     stackThreshold
@@ -148,6 +151,9 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const [emailError, setEmailError] = useState<string>('');
   const [message, setMessage] = useState<string>('');
   const [guestCount, setGuestCount] = useState<number>(1);
+  const [bringingKids, setBringingKids] = useState<boolean>(false);
+  const [adultCount, setAdultCount] = useState<number>(1);
+  const [kidsCount, setKidsCount] = useState<number>(0);
   const [selectedMeals, setSelectedMeals] = useState<SelectedMeals>({});
   const [singleSelectedMeal, setSingleSelectedMeal] = useState<string>('');
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
@@ -171,9 +177,17 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     fontFamily: formTextFontFamily,
   };
 
+  // Calculate total guest count when using adult/kids mode
+  const getTotalGuestCount = () => {
+    return bringingKids ? adultCount + kidsCount : guestCount;
+  };
+
   useEffect(() => {
     if (isAttending === null || !isAttending) {
       setGuestCount(1);
+      setAdultCount(1);
+      setKidsCount(0);
+      setBringingKids(false);
       setSelectedMeals({});
       setSingleSelectedMeal('');
       setExpandedMeal(null);
@@ -185,7 +199,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       setSelectedMeals({});
       setSingleSelectedMeal('');
     }
-  }, [guestCount, isAttending, isPlated]);
+  }, [getTotalGuestCount(), isAttending, isPlated]);
 
   const handleAttendanceChoice = (attendingValue: boolean) => {
     setFormError(null);
@@ -243,22 +257,55 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     setFormError(null);
   };
 
+  const handleAdultCountChange = (newCount: number) => {
+    const count = Math.max(1, newCount);
+    setAdultCount(count);
+    setFormError(null);
+  };
+
+  const handleKidsCountChange = (newCount: number) => {
+    const count = Math.max(0, newCount);
+    
+    if (count === 0 && bringingKids) {
+      // User set kids count to 0 - switch back to simple mode
+      setBringingKids(false);
+      setGuestCount(adultCount); // Set guest count to current adult count
+      setKidsCount(0);
+    } else {
+      setKidsCount(count);
+    }
+    
+    setFormError(null);
+  };
+
+  const handleBringingKidsChange = () => {
+    if (!bringingKids) {
+      // User is checking the box - switch to adult/kids mode
+      setBringingKids(true);
+      // Set initial values: current guestCount becomes adultCount, kids start at 1
+      setAdultCount(guestCount);
+      setKidsCount(1);
+    }
+    setFormError(null);
+  };
+
   const handleSingleMealChange = (mealName: string) => {
     setSingleSelectedMeal(mealName);
     setFormError(null);
   };
 
   const handleMultipleMealQuantityChange = (mealName: string, newQuantity: number) => {
+    const totalGuests = getTotalGuestCount();
     const otherMealsTotal = Object.entries(selectedMeals).reduce((sum, [key, qty]) => {
       return key === mealName ? sum : sum + (qty || 0);
     }, 0);
 
     const validatedQuantity = Math.max(0, newQuantity);
 
-    if (otherMealsTotal + validatedQuantity > guestCount) {
-      setFormError(`Exceeded Food For Guest Count of ${guestCount}. You have ${guestCount - otherMealsTotal} selections remaining.`);
+    if (otherMealsTotal + validatedQuantity > totalGuests) {
+      setFormError(`Exceeded Food For Guest Count of ${totalGuests}. You have ${totalGuests - otherMealsTotal} selections remaining.`);
       // Allow setting quantity up to the remaining limit
-      const maxAllowed = guestCount - otherMealsTotal;
+      const maxAllowed = totalGuests - otherMealsTotal;
       setSelectedMeals(prev => ({ ...prev, [mealName]: maxAllowed }));
       return;
     }
@@ -267,8 +314,9 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   };
 
   const getTotalSelectedMealQuantity = (): number => {
-    if (!isPlated || !isAttending || guestCount <= 0) return 0;
-    if (guestCount === 1) return singleSelectedMeal ? 1 : 0;
+    const totalGuests = getTotalGuestCount();
+    if (!isPlated || !isAttending || totalGuests <= 0) return 0;
+    if (totalGuests === 1) return singleSelectedMeal ? 1 : 0;
     return Object.values(selectedMeals).reduce((sum, qty) => sum + (qty || 0), 0);
   };
 
@@ -283,6 +331,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
     // Determine attending status from explicit parameter or component state
     const attending = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
+    const totalGuests = getTotalGuestCount();
     
     // Validate email if provided
     if (email && !validateEmail(email)) {
@@ -292,13 +341,13 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     }
 
     // Validate meal selections if attending plated dinner
-    if (attending && isPlated && guestCount > 1) {
-      if (getTotalSelectedMealQuantity() !== guestCount) {
-        setFormError(`Please select meals for all ${guestCount} guests.`);
+    if (attending && isPlated && totalGuests > 1) {
+      if (getTotalSelectedMealQuantity() !== totalGuests) {
+        setFormError(`Please select meals for all ${totalGuests} guests.`);
         setSubmissionStatus('error');
         return;
       }
-    } else if (attending && isPlated && guestCount === 1) {
+    } else if (attending && isPlated && totalGuests === 1) {
       if (!singleSelectedMeal) {
         setFormError("Please select your meal.");
         setSubmissionStatus('error');
@@ -308,7 +357,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
     let mealDetails: any = null;
     if (attending && isPlated) {
-      if (guestCount > 1) {
+      if (totalGuests > 1) {
         mealDetails = selectedMeals;
       } else {
         mealDetails = { [singleSelectedMeal]: 1 };
@@ -321,7 +370,10 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       lastName,
       email,
       attending: attending,
-      guestCount: attending ? guestCount : 0,
+      guestCount: attending ? totalGuests : 0,
+      adultCount: attending && bringingKids ? adultCount : (attending ? totalGuests : 0),
+      kidsCount: attending && bringingKids ? kidsCount : 0,
+      bringingKids: attending ? bringingKids : false,
       message: message,
       mealChoices: mealDetails,
       isPlated,
@@ -353,7 +405,14 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     maxWidth: '100%',
     fontFamily: formTextFontFamily,
     transition: 'height 0.4s ease-in-out',
-    height: (submissionStatus === 'submitted' || submissionStatus === 'error') ? 'auto' : `${formHeight}px`,
+    ...(overwriteFlexHeight 
+      ? { 
+          height: (submissionStatus === 'submitted' || submissionStatus === 'error') ? 'auto' : `${formHeight}px`
+        }
+      : { 
+          minHeight: 'auto'
+        }
+    ),
   };
 
   const contentContainerStyle: React.CSSProperties = {
@@ -508,12 +567,54 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
             <>
               <div style={{marginTop: '1.5rem'}}>
                 <h2 style={{...h2Style, marginBottom: '0rem', textAlign: 'center'}}>How many guests in your party?</h2>
-                <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
-                <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
-                  <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
-                  <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-                  <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
-                </div>
+                {!bringingKids && (
+                  <>
+                    <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
+                    <div style={{display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginBottom: '1rem'}}>
+                      <div style={stepperStyle}>
+                        <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+                        <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                        <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
+                      </div>
+                      {allowKids && (
+                        <label style={{display: 'flex', alignItems: 'center', cursor: 'pointer', fontSize: '0.9rem', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+                          <input 
+                            type="checkbox" 
+                            checked={bringingKids} 
+                            onChange={handleBringingKidsChange}
+                            style={{marginRight: '0.5rem'}}
+                          />
+                          Bringing Kids?
+                        </label>
+                      )}
+                    </div>
+                  </>
+                )}
+                {bringingKids && (
+                  <>
+                    <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
+                      <div style={{textAlign: 'center'}}>
+                        <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
+                        <div style={stepperStyle}>
+                          <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
+                          <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                          <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+                        </div>
+                      </div>
+                      <div style={{textAlign: 'center'}}>
+                        <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
+                        <div style={stepperStyle}>
+                          <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
+                          <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
+                          <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
+                        </div>
+                      </div>
+                    </div>
+                    <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+                      *Kids under 12 will be served the kids meal of chicken fingers, fries, and fruit; they will kindly not enter the buffet line.
+                    </p>
+                  </>
+                )}
               </div>
               <div>
                 <h2 style={{...h2Style, marginBottom: '0.5rem', textAlign: 'center'}}>Send a message to the couple!</h2>
@@ -537,20 +638,50 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
     if (isAttending === true) {
       // The second page of the form, for plated meals
+      const totalGuests = getTotalGuestCount();
       return (
         <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
           <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
-          <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
-          <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
-            <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
-            <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
-            <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
-          </div>
+          {!bringingKids && (
+            <>
+              <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
+              <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
+                <button type="button" onClick={() => handleGuestCountChange(guestCount - 1)} style={stepperButtonStyle}>-</button>
+                <input type="number" value={guestCount} onChange={e => handleGuestCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                <button type="button" onClick={() => handleGuestCountChange(guestCount + 1)} style={stepperButtonStyle}>+</button>
+              </div>
+            </>
+          )}
+          {bringingKids && (
+            <>
+              <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
+                <div style={{textAlign: 'center'}}>
+                  <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(adults)</p>
+                  <div style={stepperStyle}>
+                    <button type="button" onClick={() => handleAdultCountChange(adultCount - 1)} style={stepperButtonStyle}>-</button>
+                    <input type="number" value={adultCount} onChange={e => handleAdultCountChange(parseInt(e.target.value, 10))} min="1" style={stepperInputStyle} />
+                    <button type="button" onClick={() => handleAdultCountChange(adultCount + 1)} style={stepperButtonStyle}>+</button>
+                  </div>
+                </div>
+                <div style={{textAlign: 'center'}}>
+                  <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.5rem 0'}}>(kids; under 12*)</p>
+                  <div style={stepperStyle}>
+                    <button type="button" onClick={() => handleKidsCountChange(kidsCount - 1)} style={stepperButtonStyle}>-</button>
+                    <input type="number" value={kidsCount} onChange={e => handleKidsCountChange(parseInt(e.target.value, 10))} min="0" style={stepperInputStyle} />
+                    <button type="button" onClick={() => handleKidsCountChange(kidsCount + 1)} style={stepperButtonStyle}>+</button>
+                  </div>
+                </div>
+              </div>
+              <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+                *Kids under 12 will be served the kids meal of chicken fingers, fries, and fruit; they will kindly not enter the buffet line.
+              </p>
+            </>
+          )}
 
           {isPlated && platedOptions.length > 0 && (
             <div style={{ marginBottom: '1.5rem' }}>
               <h3 style={{...h3Style, marginBottom: '1rem'}}>Please select your meal choice(s):</h3>
-              {guestCount === 1 ? (
+              {totalGuests === 1 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
                   {platedOptions.map(meal => (
                     <label key={meal.name} style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
@@ -566,7 +697,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
                       <label htmlFor={`meal-${meal.name}`}>{meal.name}</label>
                       <div style={stepperStyle}>
                         <button type="button" onClick={() => handleMultipleMealQuantityChange(meal.name, (selectedMeals[meal.name] || 0) - 1)} style={{...stepperButtonStyle, height: '35px', width: '35px', fontSize: '1rem'}}>-</button>
-                        <input id={`meal-${meal.name}`} type="number" min="0" max={guestCount} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, parseInt(e.target.value, 10))} style={{...stepperInputStyle, width: '50px'}} />
+                        <input id={`meal-${meal.name}`} type="number" min="0" max={totalGuests} value={selectedMeals[meal.name] || ''} onChange={e => handleMultipleMealQuantityChange(meal.name, parseInt(e.target.value, 10))} style={{...stepperInputStyle, width: '50px'}} />
                         <button type="button" onClick={() => handleMultipleMealQuantityChange(meal.name, (selectedMeals[meal.name] || 0) + 1)} style={{...stepperButtonStyle, height: '35px', width: '35px', fontSize: '1rem'}}>+</button>
                       </div>
                     </div>

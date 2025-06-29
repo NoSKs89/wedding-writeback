@@ -16,7 +16,7 @@ const XIcon = () => (
     </svg>
 );
 
-const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
+const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete, allowKids = true }) => {
     const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
     const formatTimestamp = (dateString) => {
@@ -59,10 +59,53 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
         return 1;
     };
 
+    // Function to get guest count breakdown (adults/kids)
+    const getGuestCountBreakdown = (rsvp) => {
+        if (!rsvp.attending) {
+            return { total: 0, display: '0' };
+        }
+
+        // Check if we have the new adult/kids breakdown and kids are allowed
+        if (allowKids && rsvp.bringingKids && (rsvp.adultCount !== undefined || rsvp.kidsCount !== undefined)) {
+            const adults = rsvp.adultCount || 0;
+            const kids = rsvp.kidsCount || 0;
+            const total = adults + kids;
+            if (kids > 0) {
+                return { total, display: `${adults} adults, ${kids} kids` };
+            } else {
+                return { total, display: `${adults} adults` };
+            }
+        }
+
+        // Fall back to regular guest count
+        const total = getGuestCount(rsvp);
+        if (!allowKids && total > 0) {
+            // When kids are not allowed, show as "X adults"
+            return { total, display: `${total} adults` };
+        }
+        return { total, display: total.toString() };
+    };
+
     // Calculate the total number of guests who are attending.
     const totalAttendingGuests = rsvps
         .filter(rsvp => rsvp.attending)
-        .reduce((sum, rsvp) => sum + getGuestCount(rsvp), 0);
+        .reduce((sum, rsvp) => sum + getGuestCountBreakdown(rsvp).total, 0);
+
+    // Calculate breakdown of total adults and kids
+    const totalAdults = rsvps
+        .filter(rsvp => rsvp.attending)
+        .reduce((sum, rsvp) => {
+            if (rsvp.bringingKids && rsvp.adultCount !== undefined) {
+                return sum + (rsvp.adultCount || 0);
+            } else if (rsvp.attending && !rsvp.bringingKids) {
+                return sum + getGuestCount(rsvp);
+            }
+            return sum;
+        }, 0);
+
+    const totalKids = rsvps
+        .filter(rsvp => rsvp.attending && rsvp.bringingKids)
+        .reduce((sum, rsvp) => sum + (rsvp.kidsCount || 0), 0);
 
     return (
         <>
@@ -82,9 +125,9 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
                                 <th>Name</th>
                                 <th>Attending</th>
                                 <th>
-                                    Guests
+                                    Guest Count
                                     <span style={{ fontSize: '0.8em', fontWeight: 'normal', marginLeft: '4px' }}>
-                                        ({totalAttendingGuests} total)
+                                        ({totalAttendingGuests} total{allowKids && totalKids > 0 ? `: ${totalAdults} adults, ${totalKids} kids` : allowKids ? '' : `: ${totalAttendingGuests} adults`})
                                     </span>
                                 </th>
                                 <th>Email</th>
@@ -97,7 +140,7 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
                         <tbody>
                             {rsvps && rsvps.length > 0 ? (
                                 rsvps.map((rsvp) => {
-                                    const guestCount = getGuestCount(rsvp);
+                                    const guestBreakdown = getGuestCountBreakdown(rsvp);
                                     const guestName = rsvp.firstName ? `${rsvp.firstName} ${rsvp.lastName}` : (rsvp.respondingGuestName || 'N/A');
 
                                     return (
@@ -108,7 +151,7 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete }) => {
                                                     {rsvp.attending ? <CheckIcon /> : <XIcon />}
                                                 </div>
                                             </td>
-                                            <td>{guestCount}</td>
+                                            <td>{guestBreakdown.display}</td>
                                             <td>{rsvp.email || 'N/A'}</td>
                                             <td>{formatMealChoices(rsvp.mealChoices)}</td>
                                             <td className={styles.messageCell}>{rsvp.message || 'N/A'}</td>

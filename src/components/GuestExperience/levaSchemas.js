@@ -48,6 +48,10 @@ const getElementSpecificRsvpControls = (element) => {
                     if (key === 'cantMakeItColor' || key === 'canMakeItColor') {
                         return !get(`${folderName}.useThemeButtonColors`);
                     }
+                    // For formHeight dependency on overwriteFlexHeight
+                    if (key === 'formHeight') {
+                        return get(`${folderName}.overwriteFlexHeight`);
+                    }
                     return value.render(get);
                 }
             };

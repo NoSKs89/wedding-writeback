@@ -6,6 +6,9 @@ const RsvpSchema = new mongoose.Schema({
   lastName: { type: String, required: true },
   attending: { type: Boolean, required: true },
   guestCount: { type: Number, default: 0 },
+  adultCount: { type: Number, default: 0 },
+  kidsCount: { type: Number, default: 0 },
+  bringingKids: { type: Boolean, default: false },
   message: String,
   // mealChoices can be a String (single choice), or an object (multiple choices with quantities)
   // Using Mixed to accommodate both, or you could have separate fields / more complex logic.
