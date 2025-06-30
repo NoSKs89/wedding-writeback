@@ -485,8 +485,34 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         </div>
       )}
 
-      <div style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}>
-        <Parallax ref={parallaxRef} pages={TOTAL_PAGES} style={{ top: '0', left: '0', pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto' }}>
+      <div 
+        className={isMobile ? 'guest-experience-mobile-container' : ''}
+        style={{ 
+          width: '100%', 
+          height: '100vh', 
+          background: '#f0f0f0',
+          // Hide scrollbars on mobile and all devices
+          ...(isMobile ? {
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE and Edge
+          } : {})
+        }}
+      >
+        <Parallax 
+          ref={parallaxRef} 
+          pages={TOTAL_PAGES} 
+          className={isMobile ? 'guest-experience-mobile-parallax' : ''}
+          style={{ 
+            top: '0', 
+            left: '0', 
+            pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
+            // Hide scrollbars for webkit browsers (Chrome, Safari, most mobile browsers)
+            ...(isMobile ? {
+              scrollbarWidth: 'none', // Firefox
+              msOverflowStyle: 'none', // IE and Edge
+            } : {})
+          }}
+        >
           
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>
             <ShiftingBackgroundColors 

@@ -172,6 +172,38 @@ html, body, #root {
   border: '6px solid white';
 }
 
+/* Hide scrollbars for mobile GuestExperience */
+.guest-experience-mobile-container {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  -webkit-overflow-scrolling: touch;
+}
+
+.guest-experience-mobile-container::-webkit-scrollbar {
+  display: none;
+}
+
+.guest-experience-mobile-parallax {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  -webkit-overflow-scrolling: touch;
+}
+
+.guest-experience-mobile-parallax::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide number input spinners completely */
+.no-spinners {
+  -moz-appearance: textfield;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.no-spinners::-webkit-outer-spin-button,
+.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
 /* Styles for ExperienceSetupPage */
 .experience-setup-title {
   /* Add desired styles for the main title, e.g.: */
