@@ -7,6 +7,7 @@ import { useControls, folder } from 'leva';
 import RSVPForm from '../RSVPForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
+import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
 
@@ -385,6 +386,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               TOTAL_PAGES={TOTAL_PAGES}
             />
           );
+        } else if (el.name === 'Bottom Navbar') {
+          // Bottom Navbar will be rendered outside parallax structure, so skip here
+          return null;
         } else return null;
         break;
       default: return null;
@@ -400,6 +404,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 100
               : el.type === 'component' && el.name === 'RSVP Form'
               ? 150
+              : el.type === 'component' && el.name === 'Bottom Navbar'
+              ? 125
               : (renderableElements.length - index) + 10,
           pointerEvents: el.type === 'component' && el.name === 'RSVP Form' ? 'none' : 'auto',
       }}>
@@ -477,6 +483,25 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
           )}
         </Parallax>
       </div>
+
+      {/* Render Bottom Navbar outside parallax structure */}
+      {renderableElements
+        .filter(element => element.type === 'component' && element.name === 'Bottom Navbar')
+        .map(element => {
+          const bottomNavbarFolderName = generateElementFolderName(element);
+          return (
+            <BottomNavbar 
+              key={`bottom-navbar-${element.id}`}
+              scrollY={scrollY}
+              startPosition={element.sticky.start}
+              endPosition={element.sticky.end}
+              windowHeight={windowHeight}
+              TOTAL_PAGES={TOTAL_PAGES}
+              styleControls={elementControls[bottomNavbarFolderName]}
+            />
+          );
+        })
+      }
 
       <>
         <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />

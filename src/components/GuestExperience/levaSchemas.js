@@ -290,6 +290,21 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 ...baseComponentControls,
                 ...componentSpecificControls,
             };
+        } else if (element.name === 'Bottom Navbar') {
+            // Bottom Navbar specific controls
+            return {
+                ...controlsSchema,
+                navbarHeight: { value: '20vh', options: ['10vh', '15vh', '20vh', '25vh', '30vh', '35vh', '40vh'], label: 'Navbar Height' },
+                backgroundColor: { value: '#000000', label: 'Background Color' },
+                startingOpacity: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Starting Opacity' },
+                endingOpacity: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Ending Opacity' },
+                springConfig: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Config' },
+                textContent: { value: 'Bottom Navigation', label: 'Text Content' },
+                textColor: { value: '#ffffff', label: 'Text Color' },
+                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                fontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Font Size (px)' },
+                fontWeight: { value: 'normal', options: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'], label: 'Font Weight' },
+            };
         }
 
         // For unknown component types, just return basic controls

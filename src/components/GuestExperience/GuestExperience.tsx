@@ -7,6 +7,7 @@ import { useDrag } from '@use-gesture/react';
 import RSVPForm from '../RSVPForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
+import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
 import { useLevaStore } from '../../stores/levaStore';
@@ -14,7 +15,7 @@ import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
-import { generateElementFolderName } from './levaSchemas';
+import { generateElementFolderName, getElementSchema } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import { getApiBaseUrl } from '../../config/apiConfig';
 import '../../App.css';
@@ -206,7 +207,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     } else if (weddingIdFromApp) {
       switchPreviewingSlotInStore(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', defaultLayoutSlotToLoad);
     }
-  }, []); // Run only once on initial mount
+  }, [weddingDataFromApp?.initialElementLayouts, weddingIdFromApp, isMobile, defaultLayoutSlotToLoad, loadLayoutSettingsFromDB, switchPreviewingSlotInStore]);
 
   useEffect(() => {
     const currentStoreSlot = useLevaStore.getState().currentPreviewingSlot;
@@ -238,6 +239,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
+
+  // Register Bottom Navbar controls - simplified approach using existing store values
+  const bottomNavbarElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Bottom Navbar'), [renderableElements]);
+  const bottomNavbarFolderName = bottomNavbarElement ? generateElementFolderName(bottomNavbarElement) : null;
 
   // Get the scrapbook element to determine its folder name
   const scrapbookElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
@@ -405,13 +410,48 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       <FontGrabber fonts={googleFontsToLoad} />
 
       {isSetupMode && (
-        <div style={saveButtonContainerStyle || { position: 'fixed', top: '10px', left: '10px', zIndex: 10001, display: 'flex', flexDirection: 'column', gap: '5px' }}>
-          <button onClick={handleSaveConfiguration} disabled={isSaving || showSaveConfirm} style={{ padding: '10px 15px', fontSize: '0.9rem', color: 'white', backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'), border: 'none', borderRadius: '5px', cursor: 'pointer', position: 'absolute', left: 0, bottom: 0 }}>
-            {isSaving ? 'Saving...' : 'Save Layout'}
-          </button>
-          {saveSuccessMessage && <div style={{color: 'lime', background: 'rgba(0,0,0,0.7)', padding: '5px', borderRadius: '3px'}}>{saveSuccessMessage}</div>}
-          {saveErrorMessage && <div style={{color: 'red', background: 'rgba(0,0,0,0.7)', padding: '5px', borderRadius: '3px'}}>{saveErrorMessage}</div>}
-        </div>
+        <>
+          {/* Fixed Save Button */}
+          <div style={saveButtonContainerStyle || { position: 'fixed', top: '8px', left: '8px', zIndex: 10001 }}>
+            <button onClick={handleSaveConfiguration} disabled={isSaving || showSaveConfirm} style={{ padding: '12px 20px', fontSize: '0.9rem', color: 'white', backgroundColor: isSaving ? '#cf5200' : (showSaveConfirm ? '#ffc107' : '#007bff'), border: 'none', borderRadius: '5px', cursor: 'pointer', width: '180px', height: '45px', margin: '0' }}>
+              {isSaving ? 'Saving...' : 'Save Layout'}
+            </button>
+          </div>
+          
+          {/* Success/Error Messages - positioned separately */}
+          {saveSuccessMessage && (
+            <div style={{
+              position: 'fixed', 
+              top: '8px', 
+              left: '196px', 
+              zIndex: 10001,
+              color: 'lime', 
+              background: 'rgba(0,0,0,0.7)', 
+              padding: '12px 15px', 
+              borderRadius: '5px',
+              fontSize: '0.9rem',
+              margin: '0'
+            }}>
+              {saveSuccessMessage}
+            </div>
+          )}
+          {saveErrorMessage && (
+            <div style={{
+              position: 'fixed', 
+              top: '8px', 
+              left: '196px', 
+              zIndex: 10001,
+              color: 'red', 
+              background: 'rgba(0,0,0,0.7)', 
+              padding: '12px 15px', 
+              borderRadius: '5px',
+              fontSize: '0.9rem',
+              margin: '0'
+            }}>
+              {saveErrorMessage}
+            </div>
+          )}
+        </>
       )}
       {showSaveConfirm && (
         <>
@@ -551,6 +591,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
                       TOTAL_PAGES={TOTAL_PAGES}
                     />;
+                  } else if (element.name === 'Bottom Navbar') {
+                    // Bottom Navbar renders outside parallax but we need ElementWrapper for controls
+                    contentToRender = null; // Will render outside parallax
                   } else { return null; }
                   break;
                 default: return null;
@@ -566,6 +609,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 100 
                       : element.type === 'component' && element.name === 'RSVP Form'
                       ? 150
+                      : element.type === 'component' && element.name === 'Bottom Navbar'
+                      ? 125
                       : (elementsFromBlueprint.length - (element.id || 0) + 1),
                   pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
                 }}>
@@ -584,6 +629,32 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             }).filter(Boolean)}
         </Parallax>
       </div>
+
+      {/* Render Bottom Navbar outside parallax structure */}
+      {renderableElements
+        .filter(element => element.type === 'component' && element.name === 'Bottom Navbar')
+        .map(element => {
+          const folderName = generateElementFolderName(element);
+          const bottomNavbarValues = controlValues[folderName] || {};
+          console.log('GuestExperience - Bottom Navbar controls:', {
+            folderName,
+            bottomNavbarValues,
+            allControlValues: controlValues,
+            isSetupMode
+          });
+          return (
+            <BottomNavbar 
+              key={`bottom-navbar-${element.id}`}
+              scrollY={scrollY}
+              startPosition={element.sticky.start}
+              endPosition={element.sticky.end}
+              windowHeight={windowHeight}
+              TOTAL_PAGES={TOTAL_PAGES}
+              styleControls={bottomNavbarValues}
+            />
+          );
+        })
+      }
 
       <>
         <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />

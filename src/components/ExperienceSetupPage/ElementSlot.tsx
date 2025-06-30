@@ -185,6 +185,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
                            : 15; // Default to 15
         setMaxScrapbookImages(currentMax);
         onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
+    } else if (newTypeValue === 'component-bottom-navbar') {
+        onUpdate({ type: 'component', content: 'Bottom Navbar', name: 'Bottom Navbar' });
     } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image') {
         onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image', content: null, name: undefined });
     } else {
@@ -330,6 +332,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     recommendedText = "Recommended: RSVP Form";
   } else if (element.id === 7) {
     recommendedText = "Recommended: Image Scrapbook";
+  } else if (element.id === 8) {
+    recommendedText = "Recommended: Bottom Navbar";
   }
 
   let dropdownValue: string = element.type;
@@ -338,6 +342,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       dropdownValue = 'component-rsvp';
     } else if (element.name === 'Scrapbook') {
       dropdownValue = 'component-scrapbook';
+    } else if (element.name === 'Bottom Navbar') {
+      dropdownValue = 'component-bottom-navbar';
     } else {
       dropdownValue = 'empty';
     }
@@ -389,6 +395,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
               <option value="text">Text</option>
               <option value="component-rsvp">RSVP Form</option>
               <option value="component-scrapbook">Scrapbook</option>
+              <option value="component-bottom-navbar">Bottom Navbar</option>
               <option value="background-image">Background Image</option>
             </select>
           </div>

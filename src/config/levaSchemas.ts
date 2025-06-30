@@ -164,6 +164,54 @@ export const getElementSchema = (element: any, globalFontFamilyFromStore: any) =
             bgImageInitialScale: { value: 1, min: 0.1, max: 3, step: 0.01, label: 'BG Initial Scale' },
             bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
         };
+    } else if (element.type === 'component') {
+        // Include component-specific controls based on component name
+        let baseComponentControls = {
+            landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
+            landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+            lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+        };
+        
+        if (element.name === 'RSVP Form') {
+            // RSVP Form controls would be handled by the component itself
+            return {
+                ...controlsSchema,
+                ...baseComponentControls,
+                textColor: { value: '#333333', label: 'Text Color' },
+                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
+                fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
+                fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
+                lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
+            };
+        } else if (element.name === 'Scrapbook') {
+            // Scrapbook controls would be handled by the component itself
+            return {
+                ...controlsSchema,
+                ...baseComponentControls,
+            };
+        } else if (element.name === 'Bottom Navbar') {
+            // Bottom Navbar specific controls
+            return {
+                ...controlsSchema,
+                navbarHeight: { value: '20vh', options: ['10vh', '15vh', '20vh', '25vh', '30vh', '35vh', '40vh'], label: 'Navbar Height' },
+                backgroundColor: { value: '#000000', label: 'Background Color' },
+                startingOpacity: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Starting Opacity' },
+                endingOpacity: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Ending Opacity' },
+                springConfig: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Config' },
+                textContent: { value: 'Bottom Navigation', label: 'Text Content' },
+                textColor: { value: '#ffffff', label: 'Text Color' },
+                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                fontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Font Size (px)' },
+                fontWeight: { value: 'normal', options: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'], label: 'Font Weight' },
+            };
+        }
+
+        // For unknown component types, just return basic controls
+        return {
+            ...controlsSchema,
+            ...baseComponentControls,
+        };
     }
     return controlsSchema;
 };

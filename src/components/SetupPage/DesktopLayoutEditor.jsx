@@ -39,12 +39,11 @@ const DesktopLayoutEditor = () => {
                 forceMobileView={false} // Desktop view
                 saveButtonContainerStyle={{
                     position: 'fixed',
-                    top: '10px',
-                    left: '10px',
+                    top: '8px',
+                    left: '8px',
                     zIndex: 10001,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '5px'
+                    width: '180px',
+                    height: '45px'
                 }}
             />
             
