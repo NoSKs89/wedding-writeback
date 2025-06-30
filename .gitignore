@@ -4,6 +4,7 @@
 /node_modules
 /.pnp
 .pnp.js
+backend/node_modules
 
 # testing
 /coverage
@@ -28,3 +29,7 @@ yarn-error.log*
 # Environment variables
 .env
 backend/.env
+
+# Backend deployment artifacts
+backend/api.zip
+backend/*.zip
