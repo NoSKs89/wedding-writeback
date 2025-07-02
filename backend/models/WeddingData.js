@@ -75,6 +75,7 @@ const WeddingDataSchema = new mongoose.Schema({
   layoutSettingsDesktopPreview: mongoose.Schema.Types.Mixed,
   layoutSettingsMobilePreview: mongoose.Schema.Types.Mixed,
   experienceSettings: mongoose.Schema.Types.Mixed,
+  navbarSettings: mongoose.Schema.Types.Mixed,
   invitations: [mongoose.Schema.Types.Mixed],
   rsvps: [mongoose.Schema.Types.Mixed], // This might be better as a separate collection linked by weddingId
   rsvpHistory: [RsvpHistorySchema],

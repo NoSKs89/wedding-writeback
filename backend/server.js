@@ -572,6 +572,7 @@ exports.handler = async (event, context) => {
               case 'introCouple': case 'introBackground': s3KeyPrefix = `${weddingId}/main/`; break;
               case 'scrapbook': s3KeyPrefix = `${weddingId}/scrapbook/`; break;
               case 'shareGallery': s3KeyPrefix = `${weddingId}/share-gallery/`; break;
+              case 'navbar': s3KeyPrefix = `${weddingId}/navbar/`; break;
               default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
           const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
@@ -899,6 +900,61 @@ exports.handler = async (event, context) => {
           }
 
           return createResponse(200, { message: 'RSVP settings updated successfully.', wedding: updatedWedding }, requestOrigin);
+      }
+
+      // GET /api/weddings/:customId/navbar-settings
+      const getNavbarSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/navbar-settings$/);
+      if (httpMethod === 'GET' && getNavbarSettingsMatch) {
+          const customId = getNavbarSettingsMatch[1];
+          
+          console.log(`[GET /navbar-settings] Fetching navbar settings for ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId });
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          // Return navbar settings or default structure if not set
+          const navbarSettings = wedding.navbarSettings || {
+              items: [],
+              isEnabled: true
+          };
+
+          return createResponse(200, { success: true, data: navbarSettings }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/navbar-settings
+      const postNavbarSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/navbar-settings$/);
+      if (httpMethod === 'POST' && postNavbarSettingsMatch) {
+          const customId = postNavbarSettingsMatch[1];
+          const navbarSettings = body;
+
+          console.log(`[POST /navbar-settings] Updating navbar settings for ${customId}`, navbarSettings);
+
+          // Basic validation
+          if (!navbarSettings || typeof navbarSettings !== 'object') {
+              return createResponse(400, { message: 'Invalid navbar settings data.' }, requestOrigin);
+          }
+
+          if (!Array.isArray(navbarSettings.items)) {
+              return createResponse(400, { message: 'Navbar items must be an array.' }, requestOrigin);
+          }
+
+          if (typeof navbarSettings.isEnabled !== 'boolean') {
+              return createResponse(400, { message: 'isEnabled must be a boolean.' }, requestOrigin);
+          }
+
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { $set: { navbarSettings: navbarSettings } },
+              { new: true, runValidators: true }
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { success: true, message: 'Navbar settings updated successfully.', data: updatedWedding.navbarSettings }, requestOrigin);
       }
 
       // Fallback for unhandled API routes

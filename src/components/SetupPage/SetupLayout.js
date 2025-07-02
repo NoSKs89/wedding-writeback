@@ -231,7 +231,6 @@ const SetupLayout = () => {
                   <>
                     <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
-                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
                     
                     <div className={styles.dropdown}>
                       <button className={styles.navButton}>Image Management</button>
@@ -245,6 +244,11 @@ const SetupLayout = () => {
                     <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
+                    
+                    <hr style={{margin: '15px 0', width: '100%' }} />
+                    <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px', textAlign: 'center' }}>Components</div>
+                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/navbar`)} className={styles.navButton}>Navbar Setup</button>
                     <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                   </>
                 )}
@@ -273,7 +277,6 @@ const SetupLayout = () => {
                   <>
                     <button onClick={() => navigate(`/${weddingId}/setup/how-to`)} className={styles.navButton}>How To</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/experience`)} className={styles.navButton}>Experience Setup</button>
-                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
                     
                     <div className={styles.dropdown}>
                       <button className={styles.navButton}>Image Management</button>
@@ -287,6 +290,11 @@ const SetupLayout = () => {
                     <button onClick={() => navigate(`/${weddingId}/setup/layoutmobile`)} className={styles.navButton}>Mobile Layout Editor</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/post`)} className={styles.navButton}>POST Utility</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/account`)} className={styles.navButton}>Account Settings</button>
+                    
+                    <hr style={{margin: '15px 0', width: '100%' }} />
+                    <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px', textAlign: 'center' }}>Components</div>
+                    <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/navbar`)} className={styles.navButton}>Navbar Setup</button>
                     <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                   </>
                 )}
