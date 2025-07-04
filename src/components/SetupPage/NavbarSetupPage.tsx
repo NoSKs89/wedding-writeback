@@ -13,6 +13,7 @@ interface NavbarContentItem {
   textColor: string;
   position: number; // Order position on navbar
   showTitleWhenOpened: boolean; // Whether to show title in modal
+  shrinkToFitContent: boolean; // Whether modal should shrink to fit content or use fixed size
 }
 
 // Define the structure for navbar settings
@@ -51,12 +52,13 @@ const NavbarSetupPage: React.FC = () => {
       const apiBase = getApiBaseUrl();
       const response = await axios.get(`${apiBase}/weddings/${weddingId}/navbar-settings`);
       if (response.data && response.data.data) {
-        // Handle backward compatibility for showTitleWhenOpened field
+        // Handle backward compatibility for showTitleWhenOpened and shrinkToFitContent fields
         const settings = {
           ...response.data.data,
           items: response.data.data.items.map((item: any) => ({
             ...item,
             showTitleWhenOpened: item.showTitleWhenOpened ?? true, // Default to true for existing items
+            shrinkToFitContent: item.shrinkToFitContent ?? false, // Default to false (fixed size) for existing items
           })),
         };
         setNavbarSettings(settings);
@@ -73,6 +75,7 @@ const NavbarSetupPage: React.FC = () => {
           textColor: '#ffffff',
           position: 1,
           showTitleWhenOpened: true,
+          shrinkToFitContent: false, // Default to fixed size
         }],
       });
     }
@@ -118,6 +121,7 @@ const NavbarSetupPage: React.FC = () => {
       textColor: '#ffffff',
       position: navbarSettings.items.length + 1,
       showTitleWhenOpened: true,
+      shrinkToFitContent: false, // Default to fixed size
     };
     setNavbarSettings(prev => ({
       ...prev,
@@ -483,6 +487,21 @@ const NavbarSetupPage: React.FC = () => {
                   </label>
                   <div style={{ fontSize: '0.8em', color: '#6c757d', marginLeft: '24px', marginBottom: '10px' }}>
                     When checked, the title will appear at the top of the modal when opened
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={editingItem.shrinkToFitContent ?? false}
+                      onChange={(e) => updateItem({ ...editingItem, shrinkToFitContent: e.target.checked })}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span style={{ fontWeight: 'bold' }}>Shrink Modal to Fit Content</span>
+                  </label>
+                  <div style={{ fontSize: '0.8em', color: '#6c757d', marginLeft: '24px', marginBottom: '10px' }}>
+                    When checked, the modal will shrink to fit the content size. When unchecked, the modal uses a fixed size (better for images)
                   </div>
                 </div>
 

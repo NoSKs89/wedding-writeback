@@ -13,6 +13,7 @@ interface NavbarContentItem {
   textColor: string;
   position: number; // Order position on navbar
   showTitleWhenOpened: boolean; // Whether to show title in modal
+  shrinkToFitContent: boolean; // Whether modal should shrink to fit content or use fixed size
 }
 
 // Define the structure for navbar settings
@@ -451,11 +452,21 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     transitionOpacity: transitionStyle?.opacity
   });
 
-  // Modal dimensions and position (centered) - 90vh height as requested
-  const modalHeight = viewportDimensions.height * 0.9; // 90vh as requested
+  // Modal dimensions and position - responsive to shrinkToFitContent setting
+  let modalHeight: number;
+  let modalTop: number;
+  
+  if (item.shrinkToFitContent) {
+    // Content-fit modal: smaller size for text content
+    modalHeight = Math.min(viewportDimensions.height * 0.6, 400); // Max 60vh or 400px
+    modalTop = (viewportDimensions.height - modalHeight) / 2; // Center vertically
+  } else {
+    // Fixed size modal: 90vh height as before (great for images)
+    modalHeight = viewportDimensions.height * 0.9; // 90vh
+    modalTop = viewportDimensions.height * 0.05; // 5vh from top
+  }
+  
   const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
-  // Position modal with exactly 5vh on top and bottom (90vh modal = 5vh padding on each side)
-  const modalTop = viewportDimensions.height * 0.05; // 5vh from top
   const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 2);
   
   console.log('Modal positioning calculations:', {
@@ -464,7 +475,9 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     modalHeight,
     modalWidth,
     modalTop,
-    modalLeft
+    modalLeft,
+    shrinkToFitContent: item.shrinkToFitContent,
+    hasImage: !!item.imageUrl
   });
 
   const getSpringConfig = (configName: string) => {
@@ -574,7 +587,10 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
           justifyContent: isExpanded ? 'flex-start' : 'center',
           alignItems: 'center',
           cursor: isExpanded ? 'default' : 'pointer',
-          padding: isExpanded ? '8px' : '10px', // Reduced modal padding from 20px to 8px
+          // Responsive padding based on modal type and expansion state
+          padding: isExpanded 
+            ? (item.shrinkToFitContent ? '12px' : '8px') 
+            : '10px',
           overflow: 'hidden',
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           // Apply transition transform if available
@@ -642,12 +658,14 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                 width: '100%',
                 height: '100%',
                 overflow: 'auto',
-                padding: '10px', // Reduced padding from 20px to 10px
+                // Responsive padding based on modal type
+                padding: item.shrinkToFitContent ? '15px' : '10px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center', // Center content vertically within modal
                 alignItems: 'center',
-                gap: '8px', // Reduced gap from 15px to 8px
+                // Responsive gap based on modal type
+                gap: item.shrinkToFitContent ? '12px' : '8px',
                 boxSizing: 'border-box',
               }}
               onClick={(e) => e.stopPropagation()}
@@ -689,8 +707,10 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                       alt="Modal content"
                       style={{
                         width: '95%', // Use 95% of modal width
-                        // Use much more of the available modal height - minimal padding needed
-                        maxHeight: `${modalHeight * 0.92}px`, // 92% of modal height for maximum image size
+                        // Responsive height based on shrinkToFitContent setting
+                        maxHeight: item.shrinkToFitContent 
+                          ? `${modalHeight * 0.7}px` // 70% for content-fit modals
+                          : `${modalHeight * 0.92}px`, // 92% for fixed-size modals (images)
                         objectFit: 'contain',
                         borderRadius: '8px',
                         margin: '0 auto', // Remove top/bottom margin, center horizontally
