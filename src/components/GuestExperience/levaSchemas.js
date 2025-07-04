@@ -301,7 +301,8 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 springConfig: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Config' },
                 textContent: { value: 'Bottom Navigation', label: 'Text Content' },
                 textColor: { value: '#ffffff', label: 'Text Color' },
-                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                buttonFontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Button Font Family' },
+                contentFontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Content Font Family' },
                 fontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Font Size (px)' },
                 fontWeight: { value: 'normal', options: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'], label: 'Font Weight' },
                 // Item dimensions and spacing
