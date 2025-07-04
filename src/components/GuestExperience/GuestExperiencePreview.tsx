@@ -40,6 +40,7 @@ interface GuestExperiencePreviewProps {
   forceMobileView?: boolean;
   onScroll?: (scrollTop: number, scrollHeight: number, clientHeight: number) => void;
   hudContent?: React.ReactNode;
+  weddingId?: string; // Added for BottomNavbar
 }
 
 interface FocusedImageState {
@@ -114,6 +115,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   forceMobileView = false,
   onScroll,
   hudContent,
+  weddingId,
 }) => {
   const [notification, setNotification] = useState({ text: '', visible: false });
   const notificationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -498,6 +500,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               windowHeight={windowHeight}
               TOTAL_PAGES={TOTAL_PAGES}
               styleControls={elementControls[bottomNavbarFolderName]}
+              weddingId={weddingId}
             />
           );
         })

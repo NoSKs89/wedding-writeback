@@ -631,17 +631,17 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       </div>
 
       {/* Render Bottom Navbar outside parallax structure */}
-      {renderableElements
-        .filter(element => element.type === 'component' && element.name === 'Bottom Navbar')
-        .map(element => {
+      {(() => {
+        const bottomNavbarElements = renderableElements.filter(element => element.type === 'component' && element.name === 'Bottom Navbar');
+        console.log('GuestExperience: Bottom Navbar elements found:', bottomNavbarElements.length);
+        console.log('GuestExperience: All renderable elements:', renderableElements.map(el => ({ id: el.id, type: el.type, name: el.name })));
+        console.log('GuestExperience: Wedding ID for navbar:', weddingIdFromApp);
+        
+        return bottomNavbarElements.map(element => {
           const folderName = generateElementFolderName(element);
           const bottomNavbarValues = controlValues[folderName] || {};
-          console.log('GuestExperience - Bottom Navbar controls:', {
-            folderName,
-            bottomNavbarValues,
-            allControlValues: controlValues,
-            isSetupMode
-          });
+          console.log('GuestExperience: Rendering BottomNavbar with values:', bottomNavbarValues);
+          
           return (
             <BottomNavbar 
               key={`bottom-navbar-${element.id}`}
@@ -651,10 +651,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               windowHeight={windowHeight}
               TOTAL_PAGES={TOTAL_PAGES}
               styleControls={bottomNavbarValues}
+              weddingId={weddingIdFromApp}
             />
           );
-        })
-      }
+        });
+      })()}
 
       <>
         <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />

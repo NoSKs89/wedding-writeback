@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
@@ -12,27 +12,32 @@ interface NavbarContentItem {
   backgroundColor: string;
   textColor: string;
   position: number; // Order position on navbar
+  showTitleWhenOpened: boolean; // Whether to show title in modal
 }
 
 // Define the structure for navbar settings
 interface NavbarSettings {
   items: NavbarContentItem[];
-  isEnabled: boolean;
 }
 
 const NavbarSetupPage: React.FC = () => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [navbarSettings, setNavbarSettings] = useState<NavbarSettings>({
     items: [],
-    isEnabled: true,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
-  const [editingItem, setEditingItem] = useState<NavbarContentItem | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Derive editingItem from navbarSettings instead of keeping separate state
+  const editingItem = useMemo(() => {
+    if (!editingItemId) return null;
+    return navbarSettings.items.find(item => item.id === editingItemId) || null;
+  }, [editingItemId, navbarSettings.items]);
 
   // Load navbar settings from server
   useEffect(() => {
@@ -46,7 +51,15 @@ const NavbarSetupPage: React.FC = () => {
       const apiBase = getApiBaseUrl();
       const response = await axios.get(`${apiBase}/weddings/${weddingId}/navbar-settings`);
       if (response.data && response.data.data) {
-        setNavbarSettings(response.data.data);
+        // Handle backward compatibility for showTitleWhenOpened field
+        const settings = {
+          ...response.data.data,
+          items: response.data.data.items.map((item: any) => ({
+            ...item,
+            showTitleWhenOpened: item.showTitleWhenOpened ?? true, // Default to true for existing items
+          })),
+        };
+        setNavbarSettings(settings);
       }
     } catch (error) {
       console.warn('No navbar settings found, using defaults');
@@ -59,8 +72,8 @@ const NavbarSetupPage: React.FC = () => {
           backgroundColor: '#333333',
           textColor: '#ffffff',
           position: 1,
+          showTitleWhenOpened: true,
         }],
-        isEnabled: true,
       });
     }
     setIsLoading(false);
@@ -73,8 +86,18 @@ const NavbarSetupPage: React.FC = () => {
     setSaveMessage(null);
 
     try {
+      // Clean the data before saving - ensure no empty content is saved
+      const cleanedSettings = {
+        ...navbarSettings,
+        items: navbarSettings.items.filter(item => {
+          const hasTitle = item.title && item.title.trim();
+          const hasContent = item.textContent && item.textContent.trim();
+          return hasTitle || hasContent || item.imageUrl;
+        }),
+      };
+
       const apiBase = getApiBaseUrl();
-      await axios.post(`${apiBase}/weddings/${weddingId}/navbar-settings`, navbarSettings);
+      await axios.post(`${apiBase}/weddings/${weddingId}/navbar-settings`, cleanedSettings);
       setSaveMessage('Navbar settings saved successfully!');
       setTimeout(() => setSaveMessage(null), 3000);
     } catch (error) {
@@ -86,19 +109,21 @@ const NavbarSetupPage: React.FC = () => {
   };
 
   const addNewItem = () => {
+    const newItemId = Date.now().toString();
     const newItem: NavbarContentItem = {
-      id: Date.now().toString(),
-      title: 'New Item',
-      textContent: 'Add your content here...',
+      id: newItemId,
+      title: '',
+      textContent: '',
       backgroundColor: '#333333',
       textColor: '#ffffff',
       position: navbarSettings.items.length + 1,
+      showTitleWhenOpened: true,
     };
     setNavbarSettings(prev => ({
       ...prev,
       items: [...prev.items, newItem],
     }));
-    setEditingItem(newItem);
+    setEditingItemId(newItemId);
     setUploadStatus('idle');
     setUploadError(null);
     // Clear the file input when adding new item
@@ -122,8 +147,8 @@ const NavbarSetupPage: React.FC = () => {
         ...prev,
         items: prev.items.filter(item => item.id !== itemId),
       }));
-      if (editingItem?.id === itemId) {
-        setEditingItem(null);
+      if (editingItemId === itemId) {
+        setEditingItemId(null);
         setUploadStatus('idle');
         setUploadError(null);
       }
@@ -183,7 +208,6 @@ const NavbarSetupPage: React.FC = () => {
       // No need to save to the /images endpoint since navbar settings handle storage
       const updatedItem = { ...editingItem, imageUrl: publicUrl };
       updateItem(updatedItem);
-      setEditingItem(updatedItem);
       setUploadStatus('success');
 
       // Clear success message after 3 seconds
@@ -210,7 +234,6 @@ const NavbarSetupPage: React.FC = () => {
     if (editingItem) {
       const updatedItem = { ...editingItem, imageUrl: undefined };
       updateItem(updatedItem);
-      setEditingItem(updatedItem);
       setUploadStatus('idle');
       setUploadError(null);
       // Clear the file input
@@ -229,14 +252,6 @@ const NavbarSetupPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <h1>Navbar Setup</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="checkbox"
-              checked={navbarSettings.isEnabled}
-              onChange={(e) => setNavbarSettings(prev => ({ ...prev, isEnabled: e.target.checked }))}
-            />
-            Enable Bottom Navbar
-          </label>
           <button
             onClick={saveNavbarSettings}
             disabled={isSaving}
@@ -295,13 +310,13 @@ const NavbarSetupPage: React.FC = () => {
                 style={{
                   padding: '15px',
                   marginBottom: '10px',
-                  border: editingItem?.id === item.id ? '2px solid #007bff' : '1px solid #ddd',
+                  border: editingItemId === item.id ? '2px solid #007bff' : '1px solid #ddd',
                   borderRadius: '8px',
                   cursor: 'pointer',
-                  backgroundColor: editingItem?.id === item.id ? '#f8f9fa' : 'white',
+                  backgroundColor: editingItemId === item.id ? '#f8f9fa' : 'white',
                 }}
                 onClick={() => {
-                  setEditingItem(item);
+                  setEditingItemId(item.id);
                   setUploadStatus('idle');
                   setUploadError(null);
                   // Clear the file input when switching items
@@ -311,18 +326,75 @@ const NavbarSetupPage: React.FC = () => {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
-                      {item.title}
+                  {item.imageUrl ? (
+                    // Two-column layout when image is present
+                    <div style={{ flex: 1, display: 'flex', gap: '10px' }}>
+                      {/* Left column: Image preview + Position */}
+                      <div style={{ flex: '0 0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                        <img
+                          src={item.imageUrl}
+                          alt="Preview"
+                          style={{
+                            width: '50px',
+                            height: '50px',
+                            objectFit: 'cover',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                          }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <div style={{ fontSize: '0.7em', color: '#999', textAlign: 'center' }}>
+                          Pos: {item.position}
+                        </div>
+                      </div>
+                      {/* Right column: Title + Content */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                          {!item.title.trim() ? (
+                            <span style={{ fontStyle: 'italic', color: '#999' }}>Click to add title...</span>
+                          ) : (
+                            item.title
+                          )}
+                        </div>
+                        <div style={{ fontSize: '0.9em', color: '#666' }}>
+                          {!item.textContent.trim() ? (
+                            <span style={{ fontStyle: 'italic', color: '#999' }}>Click to add content...</span>
+                          ) : (
+                            <>
+                              {item.textContent.substring(0, 45)}
+                              {item.textContent.length > 45 ? '...' : ''}
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
-                      {item.textContent.substring(0, 60)}
-                      {item.textContent.length > 60 ? '...' : ''}
+                  ) : (
+                    // Original single-column layout when no image
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>
+                        {!item.title.trim() ? (
+                          <span style={{ fontStyle: 'italic', color: '#999' }}>Click to add title...</span>
+                        ) : (
+                          item.title
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px' }}>
+                        {!item.textContent.trim() ? (
+                          <span style={{ fontStyle: 'italic', color: '#999' }}>Click to add content...</span>
+                        ) : (
+                          <>
+                            {item.textContent.substring(0, 60)}
+                            {item.textContent.length > 60 ? '...' : ''}
+                          </>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.8em', color: '#999' }}>
+                        Position: {item.position}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.8em', color: '#999' }}>
-                      Position: {item.position}
-                    </div>
-                  </div>
+                  )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
                     <button
                       onClick={(e) => { e.stopPropagation(); moveItem(item.id, 'up'); }}
@@ -379,7 +451,7 @@ const NavbarSetupPage: React.FC = () => {
         <div style={{ flex: 1, paddingLeft: '20px' }}>
           {editingItem ? (
             <div>
-              <h3>Edit Item: {editingItem.title}</h3>
+              <h3>Edit Item: {!editingItem.title.trim() ? 'Untitled Item' : editingItem.title}</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
@@ -400,6 +472,21 @@ const NavbarSetupPage: React.FC = () => {
                 </div>
 
                 <div>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', marginBottom: '10px' }}>
+                    <input
+                      type="checkbox"
+                      checked={editingItem.showTitleWhenOpened ?? true}
+                      onChange={(e) => updateItem({ ...editingItem, showTitleWhenOpened: e.target.checked })}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span style={{ fontWeight: 'bold' }}>Show When Opened</span>
+                  </label>
+                  <div style={{ fontSize: '0.8em', color: '#6c757d', marginLeft: '24px', marginBottom: '10px' }}>
+                    When checked, the title will appear at the top of the modal when opened
+                  </div>
+                </div>
+
+                <div>
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                     Content Text:
                   </label>
@@ -414,7 +501,7 @@ const NavbarSetupPage: React.FC = () => {
                       borderRadius: '4px',
                       resize: 'vertical',
                     }}
-                    placeholder="Content that will appear when the button is clicked"
+                    placeholder="Add your content here..."
                   />
                 </div>
 
@@ -422,6 +509,22 @@ const NavbarSetupPage: React.FC = () => {
                   <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold' }}>
                     Image (Optional):
                   </label>
+                  
+                  {/* Current image status */}
+                  <div style={{ 
+                    marginBottom: '10px', 
+                    padding: '8px', 
+                    backgroundColor: '#f8f9fa', 
+                    borderRadius: '4px',
+                    fontSize: '0.9em'
+                  }}>
+                    {editingItem.imageUrl ? (
+                      <span style={{ color: '#28a745' }}>✓ Image uploaded and saved</span>
+                    ) : (
+                      <span style={{ color: '#6c757d' }}>No image uploaded</span>
+                    )}
+                  </div>
+
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
                     {editingItem.imageUrl && (
                       <div style={{ position: 'relative' }}>
@@ -464,7 +567,7 @@ const NavbarSetupPage: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
                       <input
                         ref={fileInputRef}
                         type="file"
@@ -479,6 +582,12 @@ const NavbarSetupPage: React.FC = () => {
                         }}
                         disabled={uploadStatus === 'uploading'}
                       />
+                      <div style={{ fontSize: '0.8em', color: '#6c757d' }}>
+                        {editingItem.imageUrl 
+                          ? 'Choose a new file to replace the current image' 
+                          : 'Choose an image file to upload'
+                        }
+                      </div>
                       {uploadStatus === 'uploading' && (
                         <p style={{ fontSize: '0.8em', color: '#007bff', margin: 0 }}>
                           Uploading...
