@@ -451,11 +451,21 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     transitionOpacity: transitionStyle?.opacity
   });
 
-  // Modal dimensions and position (centered)
+  // Modal dimensions and position (centered) - 90vh height as requested
+  const modalHeight = viewportDimensions.height * 0.9; // 90vh as requested
   const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
-  const modalHeight = Math.min(viewportDimensions.height * 0.8, 500);
-  const modalTop = (viewportDimensions.height - modalHeight) / 2;
-  const modalLeft = (viewportDimensions.width - modalWidth) / 2;
+  // Position modal with exactly 5vh on top and bottom (90vh modal = 5vh padding on each side)
+  const modalTop = viewportDimensions.height * 0.05; // 5vh from top
+  const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 2);
+  
+  console.log('Modal positioning calculations:', {
+    viewportHeight: viewportDimensions.height,
+    viewportWidth: viewportDimensions.width,
+    modalHeight,
+    modalWidth,
+    modalTop,
+    modalLeft
+  });
 
   const getSpringConfig = (configName: string) => {
     switch (configName) {
@@ -495,6 +505,11 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
       zIndex: isExpanded ? 1000 : 250,
       // Apply transition opacity if available, otherwise default to 1
       opacity: transitionStyle?.opacity || 1,
+    },
+    onStart: () => {
+      if (isExpanded) {
+        console.log('Modal expanding to position:', { modalTop, modalLeft, modalWidth, modalHeight });
+      }
     }
   });
 
@@ -559,15 +574,13 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
           justifyContent: isExpanded ? 'flex-start' : 'center',
           alignItems: 'center',
           cursor: isExpanded ? 'default' : 'pointer',
-          padding: isExpanded ? '20px' : '10px',
+          padding: isExpanded ? '8px' : '10px', // Reduced modal padding from 20px to 8px
           overflow: 'hidden',
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
           // Apply transition transform if available
           transform: transitionStyle?.transform || undefined,
           // Ensure visibility during transitions
           pointerEvents: transitionEnabled ? 'auto' : 'auto',
-          // DEBUG: Temporary visible border
-          border: '3px solid lime',
         }}
         onClick={() => {
           console.log('NavbarItemButton clicked:', { itemId: item.id, itemTitle: item.title, isExpanded });
@@ -629,7 +642,13 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                 width: '100%',
                 height: '100%',
                 overflow: 'auto',
-                paddingTop: '20px',
+                padding: '10px', // Reduced padding from 20px to 10px
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center', // Center content vertically within modal
+                alignItems: 'center',
+                gap: '8px', // Reduced gap from 15px to 8px
+                boxSizing: 'border-box',
               }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -638,11 +657,12 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                   {contentItem.id === 'title' && (
                     <h2 style={{
                       color: item.textColor,
-                      fontSize: `${fontSize + 6}px`,
+                      fontSize: `${fontSize + 4}px`, // Slightly smaller title
                       fontWeight: 'bold',
                       fontFamily: buttonFontFamily,
                       textAlign: 'center',
-                      margin: '0 0 20px 0',
+                      margin: '0',
+                      padding: '0 5px', // Reduced padding
                     }}>
                       {contentItem.content}
                     </h2>
@@ -650,11 +670,15 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                   {contentItem.id === 'text' && (
                     <div style={{
                       color: item.textColor,
-                      fontSize: `${fontSize}px`,
+                      fontSize: `${fontSize - 1}px`, // Slightly smaller text
                       fontFamily: contentFontFamily,
-                      lineHeight: '1.5',
+                      lineHeight: '1.4', // Tighter line height
                       whiteSpace: 'pre-wrap',
-                      margin: '0 0 20px 0',
+                      margin: '0',
+                      padding: '0 5px', // Reduced padding
+                      textAlign: 'center',
+                      maxWidth: '100%',
+                      overflow: 'auto',
                     }}>
                       {contentItem.content}
                     </div>
@@ -664,12 +688,15 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                       src={contentItem.content as string}
                       alt="Modal content"
                       style={{
-                        maxWidth: '100%',
-                        maxHeight: '300px',
+                        width: '95%', // Use 95% of modal width
+                        // Use much more of the available modal height - minimal padding needed
+                        maxHeight: `${modalHeight * 0.92}px`, // 92% of modal height for maximum image size
                         objectFit: 'contain',
                         borderRadius: '8px',
-                        margin: '0 auto',
+                        margin: '0 auto', // Remove top/bottom margin, center horizontally
                         display: 'block',
+                        // Maintain aspect ratio and center the image
+                        alignSelf: 'center',
                       }}
                     />
                   )}
