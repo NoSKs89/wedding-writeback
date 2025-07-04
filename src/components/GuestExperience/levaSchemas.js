@@ -304,6 +304,11 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
                 fontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Font Size (px)' },
                 fontWeight: { value: 'normal', options: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'], label: 'Font Weight' },
+                // Item dimensions and spacing
+                itemWidth: { value: 120, min: 60, max: 200, step: 5, label: 'Item Width (px)' },
+                itemHeight: { value: 50, min: 30, max: 100, step: 5, label: 'Item Height (px)' },
+                itemSpacing: { value: 20, min: 0, max: 60, step: 5, label: 'Item Spacing (px)' },
+                bottomPadding: { value: 0, min: 0, max: 50, step: 5, label: 'Bottom Padding (px)' },
             };
         }
 

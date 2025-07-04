@@ -32,6 +32,10 @@ interface BottomNavbarStyleControls {
   fontFamily?: string;
   fontSize?: number;
   fontWeight?: string;
+  itemWidth?: number;
+  itemHeight?: number;
+  itemSpacing?: number;
+  bottomPadding?: number;
 }
 
 // Define the props for the BottomNavbar component
@@ -74,6 +78,10 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     fontFamily = 'Arial, sans-serif',
     fontSize = 16,
     fontWeight = 'normal',
+    itemWidth = 120,
+    itemHeight = 50,
+    itemSpacing = 20,
+    bottomPadding = 0,
   } = styleControls;
 
   const getSpringConfig = (configName: string) => {
@@ -181,7 +189,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
       <div
         style={{
           position: 'fixed',
-          bottom: 0,
+          bottom: bottomPadding,
           left: 0,
           right: 0,
           height: navbarHeight,
@@ -199,7 +207,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
         {sortedItems.length > 0 ? (
           <div style={{
             display: 'flex',
-            gap: '20px',
+            gap: `${itemSpacing}px`,
             alignItems: 'center',
             justifyContent: 'center',
             flexWrap: 'wrap',
@@ -220,6 +228,10 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
                 totalItems={sortedItems.length}
                 itemIndex={index}
                 navbarHeight={navbarHeight}
+                itemWidth={itemWidth}
+                itemHeight={itemHeight}
+                itemSpacing={itemSpacing}
+                bottomPadding={bottomPadding}
               />
             ))}
           </div>
@@ -253,6 +265,10 @@ interface NavbarItemButtonProps {
   totalItems: number;
   itemIndex: number;
   navbarHeight: string;
+  itemWidth: number;
+  itemHeight: number;
+  itemSpacing: number;
+  bottomPadding: number;
 }
 
 const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
@@ -267,26 +283,30 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   totalItems,
   itemIndex,
   navbarHeight,
+  itemWidth,
+  itemHeight,
+  itemSpacing,
+  bottomPadding,
 }) => {
   const contentSpringRef = useSpringRef();
   const transformSpringRef = useSpringRef();
 
-  // Calculate button dimensions and position
-  const buttonWidth = 120;
-  const buttonHeight = 50;
+  // Calculate button dimensions and position using provided values
+  const buttonWidth = itemWidth;
+  const buttonHeight = itemHeight;
   
   // Calculate button position in navbar
   const navbarHeightPx = navbarHeight.includes('vh') 
     ? (parseFloat(navbarHeight) / 100) * viewportDimensions.height
     : parseFloat(navbarHeight);
     
-  const buttonTop = viewportDimensions.height - navbarHeightPx + (navbarHeightPx - buttonHeight) / 2;
+  const buttonTop = viewportDimensions.height - navbarHeightPx - bottomPadding + (navbarHeightPx - buttonHeight) / 2;
   
-  // Calculate horizontal spacing for buttons
+  // Calculate horizontal spacing for buttons using provided spacing
   const totalButtonWidth = buttonWidth * totalItems;
-  const totalGap = 20 * (totalItems - 1);
+  const totalGap = itemSpacing * (totalItems - 1);
   const startX = (viewportDimensions.width - totalButtonWidth - totalGap) / 2;
-  const buttonLeft = startX + itemIndex * (buttonWidth + 20);
+  const buttonLeft = startX + itemIndex * (buttonWidth + itemSpacing);
 
   // Modal dimensions and position (centered)
   const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
