@@ -467,7 +467,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   }
   
   const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
-  const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 2);
+  const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 4);
   
   console.log('Modal positioning calculations:', {
     viewportHeight: viewportDimensions.height,
@@ -593,8 +593,8 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
             : '10px',
           overflow: 'hidden',
           boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          // Apply transition transform if available
-          transform: transitionStyle?.transform || undefined,
+          // Only apply transition transform when not expanded to avoid interfering with modal positioning
+          transform: !isExpanded ? (transitionStyle?.transform || undefined) : undefined,
           // Ensure visibility during transitions
           pointerEvents: transitionEnabled ? 'auto' : 'auto',
         }}

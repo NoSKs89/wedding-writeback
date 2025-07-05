@@ -153,6 +153,7 @@ const MobileLayoutPreview = () => {
                 forceMobileView={true}
                 onScroll={handleParallaxScroll}
                 hudContent={hud}
+                weddingId={weddingId}
             />
         ) : (
             <div>Loading live layout...</div>
