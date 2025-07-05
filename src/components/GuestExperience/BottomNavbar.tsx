@@ -1,7 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSpring, useSpringRef, useChain, animated, config, useTransition } from '@react-spring/web';
+import { useControls } from 'leva';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { useLevaStore } from '../../stores/levaStore';
+import { useSetupMode } from '../../contexts/SetupModeContext';
+import { generateElementFolderName, getElementSchema, springConfigPresets } from './levaSchemas';
+import { fontFamilyOptions } from '../../config/fontConfig';
 
 // Define the structure for navbar content items
 interface NavbarContentItem {
@@ -37,6 +42,7 @@ interface BottomNavbarStyleControls {
   itemWidth?: number;
   itemHeight?: number;
   itemSpacing?: number;
+  topPadding?: number;
   bottomPadding?: number;
 }
 
@@ -49,6 +55,10 @@ interface BottomNavbarProps {
   TOTAL_PAGES: number;
   styleControls?: BottomNavbarStyleControls;
   weddingId?: string; // Added to load navbar settings
+  element?: any; // Element config for registering controls
+  experienceSettings?: any; // Experience settings for registering controls
+  overallFontFamily?: any; // Font family for schema
+  layoutSettingsFromPreview?: any; // For preview mode
 }
 
 const BottomNavbar: React.FC<BottomNavbarProps> = ({
@@ -59,7 +69,48 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   TOTAL_PAGES,
   styleControls = {},
   weddingId,
+  element,
+  experienceSettings,
+  overallFontFamily,
+  layoutSettingsFromPreview,
 }) => {
+  const { isSetupMode } = useSetupMode();
+  const updateControlValuesInStore = useLevaStore(state => state.updateControlValues);
+  
+  // Register controls with Leva if in setup mode and element is provided
+  const folderName = element ? generateElementFolderName(element) : 'BottomNavbar_Default';
+  const fontToUse = typeof overallFontFamily === 'string' ? overallFontFamily : overallFontFamily?.value || fontFamilyOptions[0];
+  
+  // Always call useControls, but conditionally render/register them
+  const shouldRegisterControls = isSetupMode && element && !layoutSettingsFromPreview;
+  const schema = element ? getElementSchema(element, fontToUse) : {};
+  
+  const levaValues = useControls(
+    folderName,
+    schema,
+    { 
+      collapsed: true,
+      render: () => shouldRegisterControls
+    },
+    [element?.id, shouldRegisterControls]
+  ) as Record<string, any>;
+  
+  // Update store with control values
+  useEffect(() => {
+    if (shouldRegisterControls && folderName) {
+      updateControlValuesInStore(folderName, levaValues);
+    }
+  }, [levaValues, folderName, updateControlValuesInStore, shouldRegisterControls]);
+  
+  // Determine which style controls to use
+  const effectiveStyleControls = layoutSettingsFromPreview && folderName
+    ? (layoutSettingsFromPreview[folderName] || {})
+    : shouldRegisterControls && Object.keys(levaValues || {}).length > 0
+    ? levaValues
+    : styleControls;
+
+
+
   const [navbarSettings, setNavbarSettings] = useState<NavbarSettings>({ items: [] });
   const [isLoading, setIsLoading] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
@@ -72,12 +123,12 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
 
   // Extract style controls with defaults
   const {
-    navbarHeight = '10vh',
+    navbarHeight = '20vh',
     backgroundColor = '#000000',
     startingOpacity = 0.8,
-    endingOpacity: rawEndingOpacity = 0.4,
-    springConfig = 'gentle',
-    textColor = '#FFFFFF',
+    endingOpacity: rawEndingOpacity = 0.5,
+    springConfig = 'default',
+    textColor = '#ffffff',
     buttonFontFamily = 'Arial, sans-serif',
     contentFontFamily = 'Arial, sans-serif',
     fontSize = 16,
@@ -85,8 +136,9 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     itemWidth = 120,
     itemHeight = 50,
     itemSpacing = 20,
+    topPadding = 0,
     bottomPadding = 0,
-  } = styleControls;
+  } = effectiveStyleControls || {};
 
   // Ensure endingOpacity is never 0 to prevent invisible navbar
   const endingOpacity = rawEndingOpacity === 0 ? 0.3 : rawEndingOpacity;
@@ -106,29 +158,22 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   useEffect(() => {
     if (weddingId) {
       const loadNavbarSettings = async () => {
-        console.log('BottomNavbar: Loading settings for wedding ID:', weddingId);
         try {
           const apiBase = getApiBaseUrl();
           const response = await axios.get(`${apiBase}/weddings/${weddingId}/navbar-settings`);
-          console.log('BottomNavbar: API response:', response.data);
           if (response.data?.success && response.data?.data?.items) {
             setNavbarSettings(response.data.data);
-            console.log('BottomNavbar: Settings updated, items count:', response.data.data.items.length);
-          } else {
-            console.log('BottomNavbar: No items in response');
           }
         } catch (error) {
           console.error('BottomNavbar: Error loading navbar settings:', error);
           // Continue with empty settings
         } finally {
           setIsLoading(false);
-          console.log('BottomNavbar: Loading complete');
         }
       };
 
       loadNavbarSettings();
     } else {
-      console.log('BottomNavbar: No wedding ID provided');
       setIsLoading(false);
     }
   }, [weddingId]);
@@ -149,19 +194,8 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   // Sort items by position
   const sortedItems = [...navbarSettings.items].sort((a, b) => a.position - b.position);
 
-  // Debug expanded item changes
-  useEffect(() => {
-    console.log('BottomNavbar: expandedItemId changed to:', expandedItemId);
-  }, [expandedItemId]);
-
   // Create staggered transition for navbar items
   const itemsToAnimate = shouldAnimateItems ? sortedItems : [];
-  console.log('BottomNavbar: itemTransitions setup:', {
-    shouldAnimateItems,
-    sortedItemsLength: sortedItems.length,
-    itemsToAnimateLength: itemsToAnimate.length,
-    itemsToAnimate: itemsToAnimate.map(item => ({ id: item.id, title: item.title }))
-  });
 
   const itemTransitions = useTransition(
     itemsToAnimate, 
@@ -175,8 +209,6 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     }
   );
 
-  console.log('BottomNavbar: itemTransitions result length:', itemTransitions.length);
-
   // Calculate if navbar should be visible based on scroll position
   useEffect(() => {
     // Convert start/end positions (in page units) to pixel values
@@ -186,57 +218,21 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     // Show navbar when WITHIN the defined range (between start and end)
     const shouldShow = scrollY >= startPixel && scrollY <= endPixel;
     
-    console.log('BottomNavbar visibility calc:', {
-      scrollY,
-      startPosition,
-      endPosition,
-      windowHeight,
-      startPixel,
-      endPixel,
-      shouldShow,
-      currentlyVisible: isVisible,
-      sortedItemsLength: sortedItems.length
-    });
-    
     setIsVisible(shouldShow);
     
     // Trigger item animations with a slight delay after navbar becomes visible
     if (shouldShow && !shouldAnimateItems) {
-      console.log('BottomNavbar: Starting item animations with delay');
       setTimeout(() => {
-        console.log('BottomNavbar: Setting shouldAnimateItems to true');
         setShouldAnimateItems(true);
       }, 100);
     } else if (!shouldShow && shouldAnimateItems) {
-      console.log('BottomNavbar: Hiding item animations');
       setShouldAnimateItems(false);
     }
-    
-    console.log('BottomNavbar: shouldAnimateItems current state:', shouldAnimateItems);
   }, [scrollY, startPosition, endPosition, windowHeight, TOTAL_PAGES, shouldAnimateItems]);
 
-  // Debug the current state
-  console.log('BottomNavbar render state:', {
-    isLoading,
-    isVisible,
-    shouldAnimateItems,
-    sortedItemsLength: sortedItems.length,
-    navbarSettingsItemsLength: navbarSettings.items.length,
-    expandedItemId,
-    weddingId
-  });
-
   if (isLoading) {
-    console.log('BottomNavbar: Still loading, returning null');
     return null; // Don't show anything while loading
   }
-
-  console.log('BottomNavbar: About to render, final check:', {
-    sortedItemsLength: sortedItems.length,
-    isVisible,
-    shouldAnimateItems,
-    itemTransitionsWillRender: sortedItems.length > 0
-  });
 
   // Create gradient background using the color and opacity controls
   const gradientBackground = `linear-gradient(to top, ${backgroundColor}${Math.round(startingOpacity * 255).toString(16).padStart(2, '0')}, ${backgroundColor}${Math.round(endingOpacity * 255).toString(16).padStart(2, '0')})`;
@@ -247,7 +243,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
       <div
         style={{
           position: 'fixed',
-          bottom: bottomPadding,
+          bottom: 0,
           left: 0,
           right: 0,
           height: navbarHeight,
@@ -260,6 +256,9 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           padding: '0 20px',
+          // Apply internal padding to control item positioning
+          paddingTop: `${topPadding}px`,
+          paddingBottom: `${bottomPadding}px`,
         }}
       >
         {sortedItems.length === 0 && (
@@ -347,6 +346,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
               itemWidth={itemWidth}
               itemHeight={itemHeight}
               itemSpacing={itemSpacing}
+              topPadding={topPadding}
               bottomPadding={bottomPadding}
               // Pass useTransition styles directly to NavbarItemButton
               transitionStyle={style}
@@ -379,6 +379,7 @@ interface NavbarItemButtonProps {
   itemWidth: number;
   itemHeight: number;
   itemSpacing: number;
+  topPadding: number;
   bottomPadding: number;
   transitionStyle?: any; // useTransition style object
   transitionEnabled?: boolean; // Whether transitions are active
@@ -400,6 +401,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   itemWidth,
   itemHeight,
   itemSpacing,
+  topPadding,
   bottomPadding,
   transitionStyle,
   transitionEnabled = false,
@@ -429,7 +431,10 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     ? (parseFloat(navbarHeight) / 100) * viewportDimensions.height
     : parseFloat(navbarHeight);
     
-  const buttonTop = viewportDimensions.height - navbarHeightPx - bottomPadding + (navbarHeightPx - buttonHeight) / 2;
+  // Calculate button position with both top and bottom padding
+  const navbarTop = viewportDimensions.height - navbarHeightPx;
+  const availableHeight = navbarHeightPx - topPadding - bottomPadding; // Height available for button centering
+  const buttonTop = navbarTop + topPadding + (availableHeight - buttonHeight) / 2;
   
   // Calculate horizontal spacing for buttons using provided spacing
   const totalButtonWidth = buttonWidth * totalItems;
@@ -437,20 +442,18 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   const startX = (viewportDimensions.width - totalButtonWidth - totalGap) / 2;
   const buttonLeft = startX + itemIndex * (buttonWidth + itemSpacing);
 
-  console.log('NavbarItemButton: Position calculations for', item.title, {
-    buttonWidth,
-    buttonHeight,
-    navbarHeightPx,
-    buttonTop,
-    buttonLeft,
-    startX,
-    totalButtonWidth,
-    totalGap,
-    itemIndex,
-    totalItems,
-    transitionTransform: transitionStyle?.transform,
-    transitionOpacity: transitionStyle?.opacity
-  });
+  // Debug position calculations (only for first item to avoid spam)
+  if (itemIndex === 0) {
+    console.log('BottomNavbar: Button positioning with top/bottom padding:', {
+      navbarHeightPx,
+      topPadding,
+      bottomPadding,
+      availableHeight,
+      buttonHeight,
+      buttonTop,
+      navbarTop
+    });
+  }
 
   // Modal dimensions and position - responsive to shrinkToFitContent setting
   let modalHeight: number;
@@ -519,11 +522,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
       // Apply transition opacity if available, otherwise default to 1
       opacity: transitionStyle?.opacity || 1,
     },
-    onStart: () => {
-      if (isExpanded) {
-        console.log('Modal expanding to position:', { modalTop, modalLeft, modalWidth, modalHeight });
-      }
-    }
+
   });
 
   // Content fade animation
@@ -599,7 +598,6 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
           pointerEvents: transitionEnabled ? 'auto' : 'auto',
         }}
         onClick={() => {
-          console.log('NavbarItemButton clicked:', { itemId: item.id, itemTitle: item.title, isExpanded });
           if (!isExpanded) {
             onToggle(item.id);
           }

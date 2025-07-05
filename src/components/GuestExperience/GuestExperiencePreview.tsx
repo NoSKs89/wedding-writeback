@@ -501,6 +501,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               TOTAL_PAGES={TOTAL_PAGES}
               styleControls={elementControls[bottomNavbarFolderName]}
               weddingId={weddingId}
+              element={element}
+              experienceSettings={experienceSettingsFromApp}
+              overallFontFamily={overallFontFamily}
+              layoutSettingsFromPreview={layoutSettingsFromPreview}
             />
           );
         })

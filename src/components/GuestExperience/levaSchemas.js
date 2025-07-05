@@ -294,7 +294,7 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             // Bottom Navbar specific controls
             return {
                 ...controlsSchema,
-                navbarHeight: { value: '20vh', options: ['10vh', '15vh', '20vh', '25vh', '30vh', '35vh', '40vh'], label: 'Navbar Height' },
+                navbarHeight: { value: '20vh', options: ['5vh', '7.5vh', '10vh', '15vh', '20vh', '25vh', '30vh', '35vh', '40vh'], label: 'Navbar Height' },
                 backgroundColor: { value: '#000000', label: 'Background Color' },
                 startingOpacity: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Starting Opacity' },
                 endingOpacity: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Ending Opacity' },
@@ -309,6 +309,7 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 itemWidth: { value: 120, min: 60, max: 200, step: 5, label: 'Item Width (px)' },
                 itemHeight: { value: 50, min: 30, max: 100, step: 5, label: 'Item Height (px)' },
                 itemSpacing: { value: 20, min: 0, max: 60, step: 5, label: 'Item Spacing (px)' },
+                topPadding: { value: 0, min: 0, max: 50, step: 5, label: 'Top Padding (px)' },
                 bottomPadding: { value: 0, min: 0, max: 50, step: 5, label: 'Bottom Padding (px)' },
             };
         }

@@ -633,14 +633,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       {/* Render Bottom Navbar outside parallax structure */}
       {(() => {
         const bottomNavbarElements = renderableElements.filter(element => element.type === 'component' && element.name === 'Bottom Navbar');
-        console.log('GuestExperience: Bottom Navbar elements found:', bottomNavbarElements.length);
-        console.log('GuestExperience: All renderable elements:', renderableElements.map(el => ({ id: el.id, type: el.type, name: el.name })));
-        console.log('GuestExperience: Wedding ID for navbar:', weddingIdFromApp);
         
         return bottomNavbarElements.map(element => {
           const folderName = generateElementFolderName(element);
           const bottomNavbarValues = controlValues[folderName] || {};
-          console.log('GuestExperience: Rendering BottomNavbar with values:', bottomNavbarValues);
           
           return (
             <BottomNavbar 
@@ -652,6 +648,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               TOTAL_PAGES={TOTAL_PAGES}
               styleControls={bottomNavbarValues}
               weddingId={weddingIdFromApp}
+              element={element}
+              experienceSettings={experienceSettingsFromApp}
+              overallFontFamily={overallFontFamily}
             />
           );
         });
