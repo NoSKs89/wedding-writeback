@@ -21,6 +21,52 @@ interface NavbarSettings {
   items: NavbarContentItem[];
 }
 
+// Utility function to detect URLs and convert them to clickable links
+const renderTextWithLinks = (text: string, style: React.CSSProperties) => {
+  // Enhanced URL regex that catches more URL patterns including www, ftp, etc.
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|ftp:\/\/[^\s]+|[^\s]+\.[a-z]{2,}(?:\/[^\s]*)?)/gi;
+  
+  // Split text by URLs while preserving the URLs
+  const parts = text.split(urlRegex);
+  
+  return parts.map((part, index) => {
+    // Check if this part is a URL
+    if (urlRegex.test(part)) {
+      // Reset regex lastIndex for next test
+      urlRegex.lastIndex = 0;
+      
+      // Ensure the URL has a protocol
+      let href = part;
+      if (!part.startsWith('http') && !part.startsWith('ftp')) {
+        href = part.startsWith('www.') ? `https://${part}` : `https://${part}`;
+      }
+      
+      return (
+        <a
+          key={index}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            ...style,
+            textDecoration: 'underline',
+            color: 'inherit', // Inherit color from parent
+            cursor: 'pointer',
+          }}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent any parent click handlers
+          }}
+        >
+          {part}
+        </a>
+      );
+    } else {
+      // Regular text
+      return <span key={index} style={style}>{part}</span>;
+    }
+  });
+};
+
 const NavbarSetupPage: React.FC = () => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [navbarSettings, setNavbarSettings] = useState<NavbarSettings>({
@@ -520,7 +566,7 @@ const NavbarSetupPage: React.FC = () => {
                       borderRadius: '4px',
                       resize: 'vertical',
                     }}
-                    placeholder="Add your content here..."
+                    placeholder="Add your content here... URLs will automatically become clickable links!"
                   />
                 </div>
 
@@ -695,7 +741,11 @@ const NavbarSetupPage: React.FC = () => {
                       />
                     )}
                     <div style={{ whiteSpace: 'pre-wrap' }}>
-                      {editingItem.textContent}
+                      {renderTextWithLinks(editingItem.textContent, {
+                        color: editingItem.textColor,
+                        fontSize: 'inherit',
+                        fontFamily: 'inherit',
+                      })}
                     </div>
                   </div>
                 </div>
