@@ -225,6 +225,50 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
             scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
             lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+            // Rotate In Animation Controls
+            rotateInEffect: { value: false, label: 'Enable Rotate In Effect' },
+            rotateInType: { 
+                value: 'vertical-90', 
+                options: [
+                    'vertical-90', 
+                    'vertical-180', 
+                    'vertical-270', 
+                    'horizontal-90', 
+                    'horizontal-180', 
+                    'horizontal-270',
+                    'clockwise-90',
+                    'clockwise-180',
+                    'clockwise-270',
+                    'counter-clockwise-90',
+                    'counter-clockwise-180',
+                    'counter-clockwise-270'
+                ], 
+                label: 'Rotate In Type',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Rotate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Rotate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
         };
     } else if (element.type === 'background-image') {
         return {
@@ -237,6 +281,50 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
             startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
             endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+            // Rotate In Animation Controls
+            rotateInEffect: { value: false, label: 'Enable Rotate In Effect' },
+            rotateInType: { 
+                value: 'vertical-90', 
+                options: [
+                    'vertical-90', 
+                    'vertical-180', 
+                    'vertical-270', 
+                    'horizontal-90', 
+                    'horizontal-180', 
+                    'horizontal-270',
+                    'clockwise-90',
+                    'clockwise-180',
+                    'clockwise-270',
+                    'counter-clockwise-90',
+                    'counter-clockwise-180',
+                    'counter-clockwise-270'
+                ], 
+                label: 'Rotate In Type',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Rotate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Rotate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
         };
     } else if (element.type === 'component') {
         // Include component-specific controls based on component name

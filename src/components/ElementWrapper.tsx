@@ -53,6 +53,11 @@ interface ControlValues {
   paddingRight: number;
   enableParentContainer: boolean;
   containerSize: number;
+  // Rotate In Animation Properties
+  rotateInEffect: boolean;
+  rotateInType: string;
+  rotateInCurve: keyof typeof animationCurves | 'disabled';
+  rotateInDuration: number;
 }
 
 export interface ElementWrapperProps {
@@ -180,7 +185,12 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     paddingLeft = 0,
     paddingRight = 0,
     enableParentContainer = false,
-    containerSize = 400
+    containerSize = 400,
+    // Rotate In Animation defaults
+    rotateInEffect = false,
+    rotateInType = 'vertical-90',
+    rotateInCurve = 'linear',
+    rotateInDuration = 0.5
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -273,6 +283,74 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
       }
   }
 
+  // Helper function to get rotation values for different rotate in types
+  const getRotationFromType = (type: string): { rotateX: number; rotateY: number; rotateZ: number } => {
+    switch (type) {
+      case 'vertical-90': return { rotateX: 90, rotateY: 0, rotateZ: 0 };
+      case 'vertical-180': return { rotateX: 180, rotateY: 0, rotateZ: 0 };
+      case 'vertical-270': return { rotateX: 270, rotateY: 0, rotateZ: 0 };
+      case 'horizontal-90': return { rotateX: 0, rotateY: 90, rotateZ: 0 };
+      case 'horizontal-180': return { rotateX: 0, rotateY: 180, rotateZ: 0 };
+      case 'horizontal-270': return { rotateX: 0, rotateY: 270, rotateZ: 0 };
+      case 'clockwise-90': return { rotateX: 0, rotateY: 0, rotateZ: 90 };
+      case 'clockwise-180': return { rotateX: 0, rotateY: 0, rotateZ: 180 };
+      case 'clockwise-270': return { rotateX: 0, rotateY: 0, rotateZ: 270 };
+      case 'counter-clockwise-90': return { rotateX: 0, rotateY: 0, rotateZ: -90 };
+      case 'counter-clockwise-180': return { rotateX: 0, rotateY: 0, rotateZ: -180 };
+      case 'counter-clockwise-270': return { rotateX: 0, rotateY: 0, rotateZ: -270 };
+      default: return { rotateX: 0, rotateY: 0, rotateZ: 0 };
+    }
+  };
+
+  // Calculate rotate in animation for image elements
+  let currentRotateX = 0;
+  let currentRotateY = 0;
+  let currentRotateZ = 0;
+  
+  if ((element.type === 'photo' || element.type === 'background-image') && rotateInEffect) {
+    // Calculate rotation progress based on duration
+    const rotateAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * rotateInDuration);
+    const rotateProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (rotateAnimationEndScrollPoint - elementStartScroll || 1)));
+    
+    if (rotateInCurve !== 'disabled') {
+      const selectedRotateCurve = animationCurves[rotateInCurve as keyof typeof animationCurves] || linear;
+      const easedRotateProgress = selectedRotateCurve(rotateProgress);
+      
+      // Get target rotation values
+      const targetRotation = getRotationFromType(rotateInType);
+      
+      // Apply inverse progress - start with target rotation, animate to 0
+      // This creates the "rotate in" effect
+      currentRotateX = targetRotation.rotateX * (1 - easedRotateProgress);
+      currentRotateY = targetRotation.rotateY * (1 - easedRotateProgress);
+      currentRotateZ = targetRotation.rotateZ * (1 - easedRotateProgress);
+      
+      // Debug logging for rotate in animation (only log if element id is 1 to avoid spam)
+      if (element.id === 1 && rotateProgress > 0 && rotateProgress < 1) {
+        console.log(`🔄 RotateIn Animation [${folderName}]:`, {
+          rotateInType,
+          rotateProgress: rotateProgress.toFixed(3),
+          easedProgress: easedRotateProgress.toFixed(3),
+          targetRotation,
+          currentRotation: {
+            x: currentRotateX.toFixed(1),
+            y: currentRotateY.toFixed(1),
+            z: currentRotateZ.toFixed(1)
+          },
+          scrollY: scrollY.toFixed(0),
+          elementStartScroll: elementStartScroll.toFixed(0),
+          rotateAnimationEndScrollPoint: rotateAnimationEndScrollPoint.toFixed(0)
+        });
+      }
+    } else {
+      // No curve - just use linear progress
+      const targetRotation = getRotationFromType(rotateInType);
+      currentRotateX = targetRotation.rotateX * (1 - rotateProgress);
+      currentRotateY = targetRotation.rotateY * (1 - rotateProgress);
+      currentRotateZ = targetRotation.rotateZ * (1 - rotateProgress);
+    }
+  }
+
   let yTransformBase: number = 0;
   const actualDisplayedHeight = measuredHeight * currentScale;
   const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
@@ -287,9 +365,18 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   
   const finalCalculatedYTransform = yTransformBase + landingYPosition + currentAnimatedYOffset;
   
+  // Build transform string with rotation support
+  const scaleValue = element.type === 'background-image' ? scaleForBgImage : currentScale;
+  let transformString = `translate(${landingXPosition}px, ${finalCalculatedYTransform}px) scale(${scaleValue})`;
+  
+  // Add rotation if rotate in effect is enabled for image elements
+  if ((element.type === 'photo' || element.type === 'background-image') && rotateInEffect) {
+    transformString += ` rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) rotateZ(${currentRotateZ}deg)`;
+  }
+
   const elementStyle: React.CSSProperties = {
     opacity: finalOpacity,
-    transform: `translate(${landingXPosition}px, ${finalCalculatedYTransform}px) scale(${element.type === 'background-image' ? scaleForBgImage : currentScale})`,
+    transform: transformString,
     width: element.type === 'background-image' ? '100%' : 'fit-content',
     height: element.type === 'background-image' ? '100%' : 'auto',
     color: textColor,
@@ -303,7 +390,9 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     position: 'relative',
     clipPath: clipPathToApply,
     willChange: 'transform, opacity',
-    boxSizing: 'border-box'
+    boxSizing: 'border-box',
+    // Add transform-style to enable 3D transformations
+    transformStyle: (element.type === 'photo' || element.type === 'background-image') && rotateInEffect ? 'preserve-3d' : undefined
   };
 
   const childWithRef = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement, { ref: currentChildRef }) : children;
