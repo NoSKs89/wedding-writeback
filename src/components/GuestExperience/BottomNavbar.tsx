@@ -35,9 +35,11 @@ interface BottomNavbarStyleControls {
   springConfig?: string;
   textContent?: string;
   textColor?: string;
+  buttonColor?: string;
   buttonFontFamily?: string;
   contentFontFamily?: string;
-  fontSize?: number;
+  buttonFontSize?: number;
+  modalContentFontSize?: number;
   fontWeight?: string;
   itemWidth?: number;
   itemHeight?: number;
@@ -181,9 +183,11 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     endingOpacity: rawEndingOpacity = 0.5,
     springConfig = 'default',
     textColor = '#ffffff',
+    buttonColor = '#333333',
     buttonFontFamily = 'Arial, sans-serif',
     contentFontFamily = 'Arial, sans-serif',
-    fontSize = 16,
+    buttonFontSize = 16,
+    modalContentFontSize = 16,
     fontWeight = 'normal',
     itemWidth = 120,
     itemHeight = 50,
@@ -191,6 +195,9 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     topPadding = 0,
     bottomPadding = 0,
   } = effectiveStyleControls || {};
+  
+  // Calculate modal title font size (4px larger than content)
+  const modalTitleFontSize = modalContentFontSize + 4;
 
   // Ensure endingOpacity is never 0 to prevent invisible navbar
   const endingOpacity = rawEndingOpacity === 0 ? 0.3 : rawEndingOpacity;
@@ -245,6 +252,18 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
 
   // Sort items by position
   const sortedItems = [...navbarSettings.items].sort((a, b) => a.position - b.position);
+
+  // DEBUG: Log button color to verify it's being received
+  console.log(`🎨 BottomNavbar: Button color control received`, {
+    timestamp: Date.now(),
+    folderName,
+    buttonColor,
+    effectiveStyleControlsKeys: Object.keys(effectiveStyleControls || {}),
+    hasButtonColor: 'buttonColor' in (effectiveStyleControls || {}),
+    rawButtonColorValue: effectiveStyleControls?.buttonColor,
+    willUseGlobalButtonColor: true, // Now always using global buttonColor
+    individualItemBackgroundColors: sortedItems.map(item => item.backgroundColor)
+  });
 
   // Create staggered transition for navbar items
   const itemsToAnimate = shouldAnimateItems ? sortedItems : [];
@@ -317,7 +336,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
           <div style={{
             color: textColor,
             textAlign: 'center',
-            fontSize: `${fontSize}px`,
+            fontSize: `${buttonFontSize}px`,
             fontWeight: fontWeight,
             fontFamily: buttonFontFamily,
             opacity: 0.7,
@@ -345,7 +364,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
             left: '50px',
             width: '80px',
             height: '30px',
-            backgroundColor: item.backgroundColor,
+            backgroundColor: buttonColor,
             borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
@@ -387,10 +406,13 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
                 setExpandedItemId(expandedItemId === itemId ? null : itemId);
               }}
               viewportDimensions={viewportDimensions}
-              fontSize={fontSize}
+              buttonFontSize={buttonFontSize}
+              modalContentFontSize={modalContentFontSize}
+              modalTitleFontSize={modalTitleFontSize}
               fontWeight={fontWeight}
               buttonFontFamily={buttonFontFamily}
               contentFontFamily={contentFontFamily}
+              buttonColor={buttonColor}
               springConfig={springConfig}
               totalItems={sortedItems.length}
               itemIndex={index}
@@ -420,10 +442,13 @@ interface NavbarItemButtonProps {
   isExpanded: boolean;
   onToggle: (itemId: string) => void;
   viewportDimensions: { width: number, height: number };
-  fontSize: number;
+  buttonFontSize: number;
+  modalContentFontSize: number;
+  modalTitleFontSize: number;
   fontWeight: string;
   buttonFontFamily: string;
   contentFontFamily: string;
+  buttonColor: string;
   springConfig: string;
   totalItems: number;
   itemIndex: number;
@@ -442,10 +467,13 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   isExpanded,
   onToggle,
   viewportDimensions,
-  fontSize,
+  buttonFontSize,
+  modalContentFontSize,
+  modalTitleFontSize,
   fontWeight,
   buttonFontFamily,
   contentFontFamily,
+  buttonColor,
   springConfig,
   totalItems,
   itemIndex,
@@ -469,7 +497,11 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     transitionStyle: transitionStyle ? {
       opacity: transitionStyle.opacity?.get?.() || transitionStyle.opacity,
       transform: transitionStyle.transform?.get?.() || transitionStyle.transform
-    } : null
+    } : null,
+    // Button color debugging
+    buttonColorFromProps: buttonColor,
+    itemBackgroundColor: item.backgroundColor,
+    willUseButtonColor: true // Now always using buttonColor from props
   });
   const contentSpringRef = useSpringRef();
   const transformSpringRef = useSpringRef();
@@ -556,7 +588,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
       height: buttonHeight,
       top: buttonTop,
       left: buttonLeft,
-      background: item.backgroundColor,
+      background: buttonColor,
       borderRadius: 8,
       zIndex: isExpanded ? 1000 : 250,
       // Apply transition opacity if available, otherwise default to 1
@@ -568,7 +600,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
       height: isExpanded ? modalHeight : buttonHeight,
       top: isExpanded ? modalTop : buttonTop,
       left: isExpanded ? modalLeft : buttonLeft,
-      background: item.backgroundColor,
+      background: buttonColor,
       borderRadius: isExpanded ? 12 : 8,
       zIndex: isExpanded ? 1000 : 250,
       // Apply transition opacity if available, otherwise default to 1
@@ -659,7 +691,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
         {!isExpanded && (
           <span style={{
             color: item.textColor,
-            fontSize: `${fontSize}px`,
+            fontSize: `${buttonFontSize}px`,
             fontWeight: fontWeight,
             fontFamily: buttonFontFamily,
             textAlign: 'center',
@@ -725,7 +757,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                   {contentItem.id === 'title' && (
                     <h2 style={{
                       color: item.textColor,
-                      fontSize: `${fontSize + 4}px`, // Slightly smaller title
+                      fontSize: `${modalTitleFontSize}px`, // Auto-calculated 4px larger than content
                       fontWeight: 'bold',
                       fontFamily: buttonFontFamily,
                       textAlign: 'center',
@@ -738,7 +770,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                   {contentItem.id === 'text' && (
                     <div style={{
                       color: item.textColor,
-                      fontSize: `${fontSize - 1}px`, // Slightly smaller text
+                      fontSize: `${modalContentFontSize}px`, // Use modal content font size
                       fontFamily: contentFontFamily,
                       lineHeight: '1.4', // Tighter line height
                       whiteSpace: 'pre-wrap',

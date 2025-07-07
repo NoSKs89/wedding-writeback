@@ -292,7 +292,7 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             };
         } else if (element.name === 'Bottom Navbar') {
             // Bottom Navbar specific controls
-            return {
+            const schema = {
                 ...controlsSchema,
                 navbarHeight: { value: '20vh', options: ['5vh', '7.5vh', '10vh', '15vh', '20vh', '25vh', '30vh', '35vh', '40vh'], label: 'Navbar Height' },
                 backgroundColor: { value: '#000000', label: 'Background Color' },
@@ -301,17 +301,30 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 springConfig: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Config' },
                 textContent: { value: 'Bottom Navigation', label: 'Text Content' },
                 textColor: { value: '#ffffff', label: 'Text Color' },
+                buttonColor: { value: '#333333', label: 'Button Color' },
                 buttonFontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Button Font Family' },
                 contentFontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Content Font Family' },
-                fontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Font Size (px)' },
+                buttonFontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Button Font Size (px)' },
+                modalContentFontSize: { value: 16, min: 8, max: 40, step: 1, label: 'Modal Content Font Size (px)' },
                 fontWeight: { value: 'normal', options: ['normal', 'bold', '100', '200', '300', '400', '500', '600', '700', '800', '900'], label: 'Font Weight' },
                 // Item dimensions and spacing
                 itemWidth: { value: 120, min: 60, max: 200, step: 5, label: 'Item Width (px)' },
-                itemHeight: { value: 50, min: 30, max: 100, step: 5, label: 'Item Height (px)' },
+                itemHeight: { value: 50, min: 15, max: 100, step: 5, label: 'Item Height (px)' },
                 itemSpacing: { value: 20, min: 0, max: 60, step: 5, label: 'Item Spacing (px)' },
                 topPadding: { value: 0, min: 0, max: 50, step: 5, label: 'Top Padding (px)' },
                 bottomPadding: { value: 0, min: 0, max: 50, step: 5, label: 'Bottom Padding (px)' },
             };
+            
+            // DEBUG: Log schema to verify buttonColor is included
+            console.log(`🔧 Schema: Bottom Navbar schema generated`, {
+                timestamp: Date.now(),
+                elementId: element.id,
+                hasButtonColor: 'buttonColor' in schema,
+                buttonColorValue: schema.buttonColor?.value,
+                schemaKeys: Object.keys(schema)
+            });
+            
+            return schema;
         }
 
         // For unknown component types, just return basic controls

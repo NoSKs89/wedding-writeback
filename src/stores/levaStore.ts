@@ -120,6 +120,20 @@ export const useLevaStore = create<LevaStoreState>()(
           settingsToApply: settings
         });
         
+        // DEBUG: Check if buttonColor is missing from saved settings
+        Object.keys(settings).forEach(folderName => {
+          if (folderName.includes('Bottom_Navba')) {
+            console.log(`🔍 LevaStore: Bottom Navbar settings analysis`, {
+              timestamp: Date.now(),
+              folderName,
+              hasButtonColor: 'buttonColor' in (settings[folderName] || {}),
+              buttonColorValue: settings[folderName]?.buttonColor,
+              settingsKeys: Object.keys(settings[folderName] || {}),
+              fullSettings: settings[folderName]
+            });
+          }
+        });
+        
         const currentState = get();
         
         // Apply settings using existing setters
