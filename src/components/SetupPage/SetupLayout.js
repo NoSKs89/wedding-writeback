@@ -5,7 +5,7 @@ import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig'; // Import the centralized helper
 import { useIsMobile } from '../../utils/deviceDetect'; // ADDED
 import styles from './SetupLayout.module.css';
-import MobileNavModal from './MobileNavModal'; // Import MobileNavModal
+import NavigationModal from './NavigationModal'; // Import generic NavigationModal
 
 // Create a context for setup authentication
 const SetupAuthContext = createContext(null);
@@ -326,10 +326,11 @@ const SetupLayout = () => {
           <Outlet />
         </main>
         {isMobile && 
-          <MobileNavModal 
+          <NavigationModal 
             isOpen={isMobileNavOpen} 
             onClose={() => setIsMobileNavOpen(false)} 
             weddingId={weddingId} 
+            isMobile={true}
           />
         }
       </div>

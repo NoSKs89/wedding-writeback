@@ -223,6 +223,14 @@ const MobileLayoutEditor = () => {
 
     // Load the mobile layout data
     const mobileSlotData = transformedWeddingData.allLayoutSlots?.mobile?.[1] || {};
+    console.log(`📱 MobileLayoutEditor: Loading mobile slot data`, {
+        timestamp: Date.now(),
+        weddingId,
+        hasAllLayoutSlots: !!transformedWeddingData.allLayoutSlots,
+        hasMobileSlots: !!transformedWeddingData.allLayoutSlots?.mobile,
+        mobileSlotData,
+        mobileSlotDataKeys: Object.keys(mobileSlotData)
+    });
     transformedWeddingData.initialElementLayouts = mobileSlotData;
 
     return (

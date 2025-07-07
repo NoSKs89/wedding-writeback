@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSpring, useSpringRef, useChain, animated, config, useTransition } from '@react-spring/web';
 import { useControls } from 'leva';
 import axios from 'axios';
@@ -81,9 +81,46 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   const folderName = element ? generateElementFolderName(element) : 'BottomNavbar_Default';
   const fontToUse = typeof overallFontFamily === 'string' ? overallFontFamily : overallFontFamily?.value || fontFamilyOptions[0];
   
+  // Get saved values from store (like ElementWrapper does)
+  const getSavedValues = useLevaStore(state => state.controlValues[folderName]);
+  
   // Always call useControls, but conditionally render/register them
   const shouldRegisterControls = isSetupMode && element && !layoutSettingsFromPreview;
-  const schema = element ? getElementSchema(element, fontToUse) : {};
+  
+    // Create schema with saved values merged in (like ElementWrapper does)
+  const schema = React.useMemo(() => {
+    if (!element) return {};
+    const baseSchema = getElementSchema(element, fontToUse) as any;
+    const savedValues = getSavedValues || {};
+    
+    console.log(`🔧 BottomNavbar: Creating schema for ${folderName}`, {
+      timestamp: Date.now(),
+      baseSchemaKeys: Object.keys(baseSchema),
+      savedValues,
+      willMergeSavedValues: Object.keys(savedValues).length > 0
+    });
+    
+    // Merge saved values into schema (same logic as ElementWrapper)
+    const schemaWithSavedValues: any = {};
+    Object.keys(baseSchema).forEach(key => {
+      schemaWithSavedValues[key] = { 
+        ...baseSchema[key], 
+        value: savedValues[key] ?? baseSchema[key].value 
+      };
+    });
+    
+    return schemaWithSavedValues;
+  }, [element, fontToUse, getSavedValues]);
+  
+  console.log(`🎭 BottomNavbar: useControls setup for ${folderName}`, {
+    timestamp: Date.now(),
+    elementId: element?.id,
+    isSetupMode,
+    hasElement: !!element,
+    hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
+    shouldRegisterControls,
+    schemaKeys: Object.keys(schema)
+  });
   
   const levaValues = useControls(
     folderName,
@@ -95,9 +132,24 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     [element?.id, shouldRegisterControls]
   ) as Record<string, any>;
   
+  console.log(`🎛️ BottomNavbar: levaValues received for ${folderName}`, {
+    timestamp: Date.now(),
+    levaValues,
+    shouldRegisterControls
+  });
+  
   // Update store with control values
   useEffect(() => {
+    console.log(`📊 BottomNavbar: useEffect for updateControlValuesInStore`, {
+      timestamp: Date.now(),
+      folderName,
+      shouldRegisterControls,
+      levaValues,
+      willUpdate: shouldRegisterControls && folderName
+    });
+    
     if (shouldRegisterControls && folderName) {
+      console.log(`✅ BottomNavbar: Calling updateControlValuesInStore for ${folderName}`, levaValues);
       updateControlValuesInStore(folderName, levaValues);
     }
   }, [levaValues, folderName, updateControlValuesInStore, shouldRegisterControls]);

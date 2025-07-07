@@ -1,11 +1,12 @@
 import React from 'react';
 import { useTransition, animated, config } from '@react-spring/web';
-import { Link, useNavigate } from 'react-router-dom'; // useNavigate for links
+import { useNavigate } from 'react-router-dom';
 
-interface MobileNavModalProps {
+interface NavigationModalProps {
   isOpen: boolean;
   onClose: () => void;
   weddingId: string | undefined;
+  isMobile?: boolean;
 }
 
 const navLinks = [
@@ -20,13 +21,18 @@ const navLinks = [
   { label: 'Navbar Setup', path: '/setup/navbar' },
 ];
 
-const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddingId }) => {
+const NavigationModal: React.FC<NavigationModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  weddingId, 
+  isMobile = true 
+}) => {
   const navigate = useNavigate();
 
   const modalTransition = useTransition(isOpen, {
-    from: { opacity: 0, transform: 'translateX(100%)' },
-    enter: { opacity: 1, transform: 'translateX(0%)' },
-    leave: { opacity: 0, transform: 'translateX(100%)' },
+    from: { opacity: 0, transform: isMobile ? 'translateX(100%)' : 'translateY(-100%)' },
+    enter: { opacity: 1, transform: isMobile ? 'translateX(0%)' : 'translateY(0%)' },
+    leave: { opacity: 0, transform: isMobile ? 'translateX(100%)' : 'translateY(-100%)' },
     config: config.gentle,
   });
 
@@ -42,7 +48,7 @@ const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddin
     if (weddingId) {
       navigate(`/${weddingId}${path}`);
     }
-    onClose(); // Close modal after navigation
+    onClose();
   };
 
   return modalTransition(
@@ -64,19 +70,36 @@ const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddin
           <animated.div
             style={{
               position: 'fixed',
-              top: 0,
-              right: 0,
-              width: '80%',
-              maxWidth: '300px',
-              height: '100vh',
+              ...(isMobile 
+                ? {
+                    top: 0,
+                    right: 0,
+                    width: '80%',
+                    maxWidth: '300px',
+                    height: '100vh',
+                  }
+                : {
+                    top: 0,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: '90%',
+                    maxWidth: '600px',
+                    height: 'auto',
+                    maxHeight: '80vh',
+                  }
+              ),
               backgroundColor: 'rgba(50, 50, 50, 0.98)',
-              boxShadow: '-5px 0px 15px rgba(0,0,0,0.3)',
+              boxShadow: isMobile 
+                ? '-5px 0px 15px rgba(0,0,0,0.3)' 
+                : '0 5px 15px rgba(0,0,0,0.3)',
               zIndex: 10005,
               display: 'flex',
               flexDirection: 'column',
               padding: '20px',
               paddingTop: '60px',
-              transform: styles.transform,
+              borderRadius: isMobile ? '0' : '0 0 8px 8px',
+              transform: isMobile ? styles.transform : styles.transform,
+              overflowY: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -97,7 +120,24 @@ const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddin
             >
               &times;
             </button>
-            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+            
+            <h3 style={{ 
+              color: 'white', 
+              marginTop: 0, 
+              marginBottom: '20px',
+              textAlign: 'center'
+            }}>
+              Setup Navigation
+            </h3>
+            
+            <ul style={{ 
+              listStyle: 'none', 
+              padding: 0, 
+              margin: 0,
+              display: 'grid',
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: isMobile ? '0' : '10px'
+            }}>
               {itemsTransition((itemStyles, navItem) => (
                 <animated.li style={itemStyles} key={navItem.label}>
                   <button
@@ -109,13 +149,14 @@ const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddin
                       textAlign: 'left',
                       background: 'none',
                       border: 'none',
-                      borderBottom: '1px solid rgba(255,255,255,0.1)',
+                      borderBottom: isMobile ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                      borderRadius: isMobile ? '0' : '4px',
                       color: 'white',
-                      fontSize: '1.2rem',
+                      fontSize: '1.1rem',
                       cursor: 'pointer',
                       transition: 'background-color 0.2s ease',
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.05)')}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)')}
                     onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
                     {navItem.label}
@@ -129,4 +170,4 @@ const MobileNavModal: React.FC<MobileNavModalProps> = ({ isOpen, onClose, weddin
   );
 };
 
-export default MobileNavModal; 
+export default NavigationModal; 

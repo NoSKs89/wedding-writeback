@@ -202,9 +202,22 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- DATA LOADING & SLOT SYNC EFFECTS ---
   useEffect(() => {
+    console.log(`🚀 GuestExperience: DATA LOADING effect triggered`, {
+      timestamp: Date.now(),
+      hasInitialElementLayouts: !!weddingDataFromApp?.initialElementLayouts,
+      initialElementLayouts: weddingDataFromApp?.initialElementLayouts,
+      weddingIdFromApp,
+      isMobile,
+      defaultLayoutSlotToLoad,
+      willCallLoadLayoutSettingsFromDB: !!weddingDataFromApp?.initialElementLayouts,
+      willCallSwitchPreviewingSlotInStore: !weddingDataFromApp?.initialElementLayouts && !!weddingIdFromApp
+    });
+    
     if (weddingDataFromApp?.initialElementLayouts) {
+      console.log(`📂 GuestExperience: Calling loadLayoutSettingsFromDB with:`, weddingDataFromApp.initialElementLayouts);
       loadLayoutSettingsFromDB(weddingDataFromApp.initialElementLayouts, defaultLayoutSlotToLoad);
     } else if (weddingIdFromApp) {
+      console.log(`🔄 GuestExperience: Calling switchPreviewingSlotInStore for ${isMobile ? 'mobile' : 'desktop'} slot ${defaultLayoutSlotToLoad}`);
       switchPreviewingSlotInStore(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', defaultLayoutSlotToLoad);
     }
   }, [weddingDataFromApp?.initialElementLayouts, weddingIdFromApp, isMobile, defaultLayoutSlotToLoad, loadLayoutSettingsFromDB, switchPreviewingSlotInStore]);

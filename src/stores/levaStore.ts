@@ -52,18 +52,47 @@ export const useLevaStore = create<LevaStoreState>()(
     },
 
     registerControls: (folderName, schema, initialValues, setter) => {
+      console.log(`🔧 LevaStore: registerControls called for ${folderName}`, {
+        timestamp: Date.now(),
+        initialValues,
+        hasExistingSchema: !!get().schemas[folderName],
+        hasExistingControlValues: !!get().controlValues[folderName],
+        existingControlValues: get().controlValues[folderName]
+      });
+      
       set(state => {
         if (!state.schemas[folderName]) {
+          console.log(`📝 LevaStore: First-time registration for ${folderName} with initial values:`, initialValues);
           state.schemas[folderName] = schema;
           state.levaSetters[folderName] = setter;
           state.initialControlValues[folderName] = initialValues;
           state.controlValues[folderName] = initialValues;
           state.changedKeys[folderName] = new Set();
+        } else {
+          console.log(`♻️ LevaStore: Re-registration for ${folderName}, keeping existing values:`, state.controlValues[folderName]);
+          // Update setter but keep existing values
+          state.levaSetters[folderName] = setter;
         }
       });
+
+      // Check if we have saved values that should override the initial values
+      const currentState = get();
+      const savedValues = currentState.rawDbSettings[folderName];
+      if (savedValues && Object.keys(savedValues).length > 0) {
+        console.log(`🎯 LevaStore: Found saved values for ${folderName}, applying immediately:`, savedValues);
+        setter(savedValues);
+        set(state => {
+          state.controlValues[folderName] = savedValues;
+        });
+      }
     },
 
     updateControlValues: (folderName, newValues) => {
+      console.log(`🔄 LevaStore: updateControlValues called for ${folderName}`, {
+        timestamp: Date.now(),
+        newValues,
+        previousValues: get().controlValues[folderName]
+      });
       set(state => {
         state.controlValues = {
           ...state.controlValues,
@@ -77,11 +106,33 @@ export const useLevaStore = create<LevaStoreState>()(
     },
 
     loadSettingsFromDB: (settings, slotNumber) => {
-      console.log(`%c[levaStore] loadSettingsFromDB called for slot ${slotNumber}. Setting isSwitchingSlots: true.`, 'color: orange');
+      console.log(`🔄 LevaStore: loadSettingsFromDB called for slot ${slotNumber}. Setting isSwitchingSlots: true.`, {
+        timestamp: Date.now(),
+        settingsCount: Object.keys(settings).length,
+        settingsPreview: Object.fromEntries(Object.entries(settings).slice(0, 2)),
+        currentControlValues: Object.keys(get().controlValues)
+      });
       set({ isSwitchingSlots: true });
     
       setTimeout(() => {
-        console.log(`%c[levaStore] setTimeout fired for slot ${slotNumber}. Updating values and setting isSwitchingSlots: false.`, 'color: lightgreen');
+        console.log(`⚡ LevaStore: setTimeout fired for slot ${slotNumber}. Updating values and setting isSwitchingSlots: false.`, {
+          timestamp: Date.now(),
+          settingsToApply: settings
+        });
+        
+        const currentState = get();
+        
+        // Apply settings using existing setters
+        Object.entries(settings).forEach(([folderName, folderSettings]) => {
+          const setter = currentState.levaSetters[folderName];
+          if (setter && folderSettings) {
+            console.log(`🎯 LevaStore: Applying loaded settings to ${folderName}:`, folderSettings);
+            setter(folderSettings);
+          } else {
+            console.log(`⏳ LevaStore: No setter available yet for ${folderName}, will apply when registered`);
+          }
+        });
+        
         set(state => {
           if (slotNumber) {
             state.currentPreviewingSlot = slotNumber;
