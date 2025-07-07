@@ -58,6 +58,12 @@ interface ControlValues {
   rotateInType: string;
   rotateInCurve: keyof typeof animationCurves | 'disabled';
   rotateInDuration: number;
+  // Translate In Animation Properties
+  translateInEffect: boolean;
+  translateInDirection: string;
+  translateInCurve: keyof typeof animationCurves | 'disabled';
+  translateInDuration: number;
+  translateInDistance: number;
 }
 
 export interface ElementWrapperProps {
@@ -190,7 +196,13 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     rotateInEffect = false,
     rotateInType = 'vertical-90',
     rotateInCurve = 'linear',
-    rotateInDuration = 0.5
+    rotateInDuration = 0.5,
+    // Translate In Animation defaults
+    translateInEffect = false,
+    translateInDirection = 'from-left',
+    translateInCurve = 'linear',
+    translateInDuration = 0.5,
+    translateInDistance = 200
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -286,15 +298,31 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   // Helper function to get rotation values for different rotate in types
   const getRotationFromType = (type: string): { rotateX: number; rotateY: number; rotateZ: number } => {
     switch (type) {
+      // Vertical rotations (X-axis)
+      case 'vertical-15': return { rotateX: 15, rotateY: 0, rotateZ: 0 };
+      case 'vertical-30': return { rotateX: 30, rotateY: 0, rotateZ: 0 };
+      case 'vertical-45': return { rotateX: 45, rotateY: 0, rotateZ: 0 };
       case 'vertical-90': return { rotateX: 90, rotateY: 0, rotateZ: 0 };
       case 'vertical-180': return { rotateX: 180, rotateY: 0, rotateZ: 0 };
       case 'vertical-270': return { rotateX: 270, rotateY: 0, rotateZ: 0 };
+      // Horizontal rotations (Y-axis)
+      case 'horizontal-15': return { rotateX: 0, rotateY: 15, rotateZ: 0 };
+      case 'horizontal-30': return { rotateX: 0, rotateY: 30, rotateZ: 0 };
+      case 'horizontal-45': return { rotateX: 0, rotateY: 45, rotateZ: 0 };
       case 'horizontal-90': return { rotateX: 0, rotateY: 90, rotateZ: 0 };
       case 'horizontal-180': return { rotateX: 0, rotateY: 180, rotateZ: 0 };
       case 'horizontal-270': return { rotateX: 0, rotateY: 270, rotateZ: 0 };
+      // Clockwise rotations (Z-axis)
+      case 'clockwise-15': return { rotateX: 0, rotateY: 0, rotateZ: 15 };
+      case 'clockwise-30': return { rotateX: 0, rotateY: 0, rotateZ: 30 };
+      case 'clockwise-45': return { rotateX: 0, rotateY: 0, rotateZ: 45 };
       case 'clockwise-90': return { rotateX: 0, rotateY: 0, rotateZ: 90 };
       case 'clockwise-180': return { rotateX: 0, rotateY: 0, rotateZ: 180 };
       case 'clockwise-270': return { rotateX: 0, rotateY: 0, rotateZ: 270 };
+      // Counter-clockwise rotations (negative Z-axis)
+      case 'counter-clockwise-15': return { rotateX: 0, rotateY: 0, rotateZ: -15 };
+      case 'counter-clockwise-30': return { rotateX: 0, rotateY: 0, rotateZ: -30 };
+      case 'counter-clockwise-45': return { rotateX: 0, rotateY: 0, rotateZ: -45 };
       case 'counter-clockwise-90': return { rotateX: 0, rotateY: 0, rotateZ: -90 };
       case 'counter-clockwise-180': return { rotateX: 0, rotateY: 0, rotateZ: -180 };
       case 'counter-clockwise-270': return { rotateX: 0, rotateY: 0, rotateZ: -270 };
@@ -302,12 +330,23 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     }
   };
 
-  // Calculate rotate in animation for image elements
+  // Helper function to get translate offset values for different translate in directions
+  const getTranslateFromDirection = (direction: string, distance: number): { translateX: number; translateY: number } => {
+    switch (direction) {
+      case 'from-left': return { translateX: -distance, translateY: 0 };
+      case 'from-right': return { translateX: distance, translateY: 0 };
+      case 'from-top': return { translateX: 0, translateY: -distance };
+      case 'from-bottom': return { translateX: 0, translateY: distance };
+      default: return { translateX: 0, translateY: 0 };
+    }
+  };
+
+  // Calculate rotate in animation for image and text elements
   let currentRotateX = 0;
   let currentRotateY = 0;
   let currentRotateZ = 0;
   
-  if ((element.type === 'photo' || element.type === 'background-image') && rotateInEffect) {
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && rotateInEffect) {
     // Calculate rotation progress based on duration
     const rotateAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * rotateInDuration);
     const rotateProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (rotateAnimationEndScrollPoint - elementStartScroll || 1)));
@@ -327,8 +366,25 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
       
       // Debug logging for rotate in animation (only log if element id is 1 to avoid spam)
       if (element.id === 1 && rotateProgress > 0 && rotateProgress < 1) {
+        const getRotationTypeDescription = (type: string): string => {
+          if (type.includes('vertical-15')) return 'Vertical 15° (Subtle tilt down)';
+          if (type.includes('vertical-30')) return 'Vertical 30° (Light tilt down)';
+          if (type.includes('vertical-45')) return 'Vertical 45° (Diagonal tilt down)';
+          if (type.includes('horizontal-15')) return 'Horizontal 15° (Subtle left/right tilt)';
+          if (type.includes('horizontal-30')) return 'Horizontal 30° (Light left/right tilt)';
+          if (type.includes('horizontal-45')) return 'Horizontal 45° (Diagonal left/right tilt)';
+          if (type.includes('clockwise-15')) return 'Clockwise 15° (Subtle spin)';
+          if (type.includes('clockwise-30')) return 'Clockwise 30° (Light spin)';
+          if (type.includes('clockwise-45')) return 'Clockwise 45° (Diagonal spin)';
+          if (type.includes('counter-clockwise-15')) return 'Counter-clockwise 15° (Subtle reverse spin)';
+          if (type.includes('counter-clockwise-30')) return 'Counter-clockwise 30° (Light reverse spin)';
+          if (type.includes('counter-clockwise-45')) return 'Counter-clockwise 45° (Diagonal reverse spin)';
+          return type; // Fallback for other types
+        };
+        
         console.log(`🔄 RotateIn Animation [${folderName}]:`, {
           rotateInType,
+          description: getRotationTypeDescription(rotateInType),
           rotateProgress: rotateProgress.toFixed(3),
           easedProgress: easedRotateProgress.toFixed(3),
           targetRotation,
@@ -351,6 +407,62 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     }
   }
 
+  // Calculate translate in animation for image and text elements
+  let currentTranslateX = 0;
+  let currentTranslateY = 0;
+  
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && translateInEffect) {
+    // Calculate translation progress based on duration
+    const translateAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * translateInDuration);
+    const translateProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (translateAnimationEndScrollPoint - elementStartScroll || 1)));
+    
+    if (translateInCurve !== 'disabled') {
+      const selectedTranslateCurve = animationCurves[translateInCurve as keyof typeof animationCurves] || linear;
+      const easedTranslateProgress = selectedTranslateCurve(translateProgress);
+      
+      // Get target translate offset values
+      const targetTranslate = getTranslateFromDirection(translateInDirection, translateInDistance);
+      
+      // Apply inverse progress - start with target offset, animate to 0
+      // This creates the "translate in" effect
+      currentTranslateX = targetTranslate.translateX * (1 - easedTranslateProgress);
+      currentTranslateY = targetTranslate.translateY * (1 - easedTranslateProgress);
+      
+      // Debug logging for translate in animation (only log if element id is 1 to avoid spam)
+      if (element.id === 1 && translateProgress > 0 && translateProgress < 1) {
+        const getTranslateDirectionDescription = (direction: string): string => {
+          switch (direction) {
+            case 'from-left': return 'From Left (slides in from left side)';
+            case 'from-right': return 'From Right (slides in from right side)';
+            case 'from-top': return 'From Top (slides in from above)';
+            case 'from-bottom': return 'From Bottom (slides in from below)';
+            default: return direction;
+          }
+        };
+        
+        console.log(`↗️ TranslateIn Animation [${folderName}]:`, {
+          translateInDirection,
+          description: getTranslateDirectionDescription(translateInDirection),
+          translateProgress: translateProgress.toFixed(3),
+          easedProgress: easedTranslateProgress.toFixed(3),
+          targetTranslate,
+          currentTranslate: {
+            x: currentTranslateX.toFixed(1),
+            y: currentTranslateY.toFixed(1)
+          },
+          scrollY: scrollY.toFixed(0),
+          elementStartScroll: elementStartScroll.toFixed(0),
+          translateAnimationEndScrollPoint: translateAnimationEndScrollPoint.toFixed(0)
+        });
+      }
+    } else {
+      // No curve - just use linear progress
+      const targetTranslate = getTranslateFromDirection(translateInDirection, translateInDistance);
+      currentTranslateX = targetTranslate.translateX * (1 - translateProgress);
+      currentTranslateY = targetTranslate.translateY * (1 - translateProgress);
+    }
+  }
+
   let yTransformBase: number = 0;
   const actualDisplayedHeight = measuredHeight * currentScale;
   const lockIsActive = lockToViewportEdge !== 'disabled' && scrollY >= elementStartScroll && scrollY < elementEndScroll;
@@ -365,12 +477,28 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   
   const finalCalculatedYTransform = yTransformBase + landingYPosition + currentAnimatedYOffset;
   
-  // Build transform string with rotation support
-  const scaleValue = element.type === 'background-image' ? scaleForBgImage : currentScale;
-  let transformString = `translate(${landingXPosition}px, ${finalCalculatedYTransform}px) scale(${scaleValue})`;
+  // Debug log for combined effects (only log if element id is 1 to avoid spam)
+  if (element.id === 1 && (rotateInEffect || translateInEffect)) {
+    console.log(`🎬 Combined Animation Effects [${folderName}]:`, {
+      rotateInActive: rotateInEffect,
+      translateInActive: translateInEffect,
+      currentRotation: { x: currentRotateX, y: currentRotateY, z: currentRotateZ },
+      currentTranslation: { x: currentTranslateX, y: currentTranslateY },
+      finalPosition: { x: landingXPosition + currentTranslateX, y: finalCalculatedYTransform + currentTranslateY }
+    });
+  }
   
-  // Add rotation if rotate in effect is enabled for image elements
-  if ((element.type === 'photo' || element.type === 'background-image') && rotateInEffect) {
+  // Build transform string with rotation and translation support
+  const scaleValue = element.type === 'background-image' ? scaleForBgImage : currentScale;
+  
+  // Combine base positioning with translate in animation
+  const finalXPosition = landingXPosition + currentTranslateX;
+  const finalYPosition = finalCalculatedYTransform + currentTranslateY;
+  
+  let transformString = `translate(${finalXPosition}px, ${finalYPosition}px) scale(${scaleValue})`;
+  
+  // Add rotation if rotate in effect is enabled for image and text elements
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && rotateInEffect) {
     transformString += ` rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) rotateZ(${currentRotateZ}deg)`;
   }
 
@@ -391,8 +519,8 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     clipPath: clipPathToApply,
     willChange: 'transform, opacity',
     boxSizing: 'border-box',
-    // Add transform-style to enable 3D transformations
-    transformStyle: (element.type === 'photo' || element.type === 'background-image') && rotateInEffect ? 'preserve-3d' : undefined
+    // Add transform-style to enable 3D transformations for both rotate and translate effects
+    transformStyle: (element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && (rotateInEffect || translateInEffect) ? 'preserve-3d' : undefined
   };
 
   const childWithRef = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement, { ref: currentChildRef }) : children;

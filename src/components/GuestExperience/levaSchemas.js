@@ -214,31 +214,32 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
             textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
             textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
-        };
-    } else if (element.type === 'photo' && element.name !== 'background-image') {
-        return {
-            ...controlsSchema,
-            landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
-            landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
-            startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
-            endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
-            scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
-            scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
-            lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
-            // Rotate In Animation Controls
+            // Rotate In Animation Controls for Text
             rotateInEffect: { value: false, label: 'Enable Rotate In Effect' },
             rotateInType: { 
                 value: 'vertical-90', 
                 options: [
+                    'vertical-15',
+                    'vertical-30',
+                    'vertical-45',
                     'vertical-90', 
                     'vertical-180', 
                     'vertical-270', 
+                    'horizontal-15',
+                    'horizontal-30',
+                    'horizontal-45',
                     'horizontal-90', 
                     'horizontal-180', 
                     'horizontal-270',
+                    'clockwise-15',
+                    'clockwise-30',
+                    'clockwise-45',
                     'clockwise-90',
                     'clockwise-180',
                     'clockwise-270',
+                    'counter-clockwise-15',
+                    'counter-clockwise-30',
+                    'counter-clockwise-45',
                     'counter-clockwise-90',
                     'counter-clockwise-180',
                     'counter-clockwise-270'
@@ -269,8 +270,169 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                     return get(`${folderName}.rotateInEffect`);
                 }
             },
+            // Translate In Animation Controls for Text
+            translateInEffect: { value: false, label: 'Enable Translate In Effect' },
+            translateInDirection: { 
+                value: 'from-left', 
+                options: [
+                    'from-left',
+                    'from-right', 
+                    'from-top',
+                    'from-bottom'
+                ], 
+                label: 'Translate In Direction',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Translate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Translate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDistance: { 
+                value: 200, 
+                min: 50, 
+                max: 1000, 
+                step: 10, 
+                label: 'Translate In Distance (px)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
         };
-    } else if (element.type === 'background-image') {
+            } else if (element.type === 'photo' && element.name !== 'background-image') {
+        return {
+            ...controlsSchema,
+            landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
+            landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+            startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
+            endingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Ending Scale' },
+            scaleEndYPosition: { value: 0.5, min: 0, max: 1, step: 0.01, label: 'Scale End Y (% duration)' },
+            scaleAnimationCurve: { value: 'linear', options: Object.keys(animationCurves), label: 'Scale Animation Curve' },
+            lockToViewportEdge: { value: 'disabled', options: ['disabled', 'imageBottom-viewportBottom', 'imageTop-viewportTop'], label: 'Lock to Viewport Edge'},
+            // Rotate In Animation Controls
+            rotateInEffect: { value: false, label: 'Enable Rotate In Effect' },
+            rotateInType: { 
+                value: 'vertical-90', 
+                options: [
+                    'vertical-15',
+                    'vertical-30',
+                    'vertical-45',
+                    'vertical-90', 
+                    'vertical-180', 
+                    'vertical-270', 
+                    'horizontal-15',
+                    'horizontal-30',
+                    'horizontal-45',
+                    'horizontal-90', 
+                    'horizontal-180', 
+                    'horizontal-270',
+                    'clockwise-15',
+                    'clockwise-30',
+                    'clockwise-45',
+                    'clockwise-90',
+                    'clockwise-180',
+                    'clockwise-270',
+                    'counter-clockwise-15',
+                    'counter-clockwise-30',
+                    'counter-clockwise-45',
+                    'counter-clockwise-90',
+                    'counter-clockwise-180',
+                    'counter-clockwise-270'
+                ], 
+                label: 'Rotate In Type',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Rotate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            rotateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Rotate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            // Translate In Animation Controls
+            translateInEffect: { value: false, label: 'Enable Translate In Effect' },
+            translateInDirection: { 
+                value: 'from-left', 
+                options: [
+                    'from-left',
+                    'from-right', 
+                    'from-top',
+                    'from-bottom'
+                ], 
+                label: 'Translate In Direction',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Translate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Translate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDistance: { 
+                value: 200, 
+                min: 50, 
+                max: 1000, 
+                step: 10, 
+                label: 'Translate In Distance (px)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+        };
+            } else if (element.type === 'background-image') {
         return {
             ...controlsSchema,
             cropToCircleEffect: { value: false, label: 'Enable Circle Crop & Shrink' },
@@ -286,15 +448,27 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             rotateInType: { 
                 value: 'vertical-90', 
                 options: [
+                    'vertical-15',
+                    'vertical-30',
+                    'vertical-45',
                     'vertical-90', 
                     'vertical-180', 
                     'vertical-270', 
+                    'horizontal-15',
+                    'horizontal-30',
+                    'horizontal-45',
                     'horizontal-90', 
                     'horizontal-180', 
                     'horizontal-270',
+                    'clockwise-15',
+                    'clockwise-30',
+                    'clockwise-45',
                     'clockwise-90',
                     'clockwise-180',
                     'clockwise-270',
+                    'counter-clockwise-15',
+                    'counter-clockwise-30',
+                    'counter-clockwise-45',
                     'counter-clockwise-90',
                     'counter-clockwise-180',
                     'counter-clockwise-270'
@@ -323,6 +497,53 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 render: (get) => {
                     const folderName = generateElementFolderName(element);
                     return get(`${folderName}.rotateInEffect`);
+                }
+            },
+            // Translate In Animation Controls
+            translateInEffect: { value: false, label: 'Enable Translate In Effect' },
+            translateInDirection: { 
+                value: 'from-left', 
+                options: [
+                    'from-left',
+                    'from-right', 
+                    'from-top',
+                    'from-bottom'
+                ], 
+                label: 'Translate In Direction',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInCurve: { 
+                value: 'linear', 
+                options: ['disabled', ...Object.keys(animationCurves)], 
+                label: 'Translate In Curve',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDuration: { 
+                value: 0.5, 
+                min: 0, 
+                max: 1, 
+                step: 0.01, 
+                label: 'Translate In Duration (% of element duration)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
+                }
+            },
+            translateInDistance: { 
+                value: 200, 
+                min: 50, 
+                max: 1000, 
+                step: 10, 
+                label: 'Translate In Distance (px)',
+                render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.translateInEffect`);
                 }
             },
         };
