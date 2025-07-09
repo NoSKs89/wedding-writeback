@@ -125,7 +125,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   const { isSetupMode } = useSetupMode();
   const isActuallyMobile = useIsMobile();
-  const isMobile = forceMobileView || isActuallyMobile;
+  const isMobile = forceMobileView !== undefined ? forceMobileView : isActuallyMobile;
 
   // --- LEVA & ZUSTAND STORE ---
   const isSwitchingSlots = useLevaStore(state => state.isSwitchingSlots);
