@@ -13,7 +13,7 @@ import ElementWrapper from '../ElementWrapper';
 
 import { useIsMobile } from '../../utils/deviceDetect';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
-import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
+import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingColorScheme, parallaxPhysicsPresets, ParallaxPhysicsPreset, animationCurves } from '../../config/levaSchemas';
 import { generateElementFolderName } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import '../../App.css';
@@ -200,9 +200,36 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
   const {
     springPreset: selectedSpringPresetKeyGuest = 'default',
+    parallaxPhysicsPreset: selectedParallaxPhysicsPresetKey = 'default',
     colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name,
     overallFontFamily = fontFamilyOptions[0],
   } = overallControls || {};
+
+  const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
+  const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default;
+  
+  // Helper function to apply parallax physics to scroll values
+  const applyParallaxPhysics = useCallback((rawScrollValue: number, maxValue?: number): number => {
+    const { scrollSpeedMultiplier, scrollEasing, momentumDamping, responsiveness } = activeParallaxPhysicsGuest;
+    
+    // Apply speed multiplier
+    let adjustedValue = rawScrollValue * scrollSpeedMultiplier;
+    
+    // Apply easing if specified and we have a max value for normalization
+    if (scrollEasing !== 'linear' && maxValue && maxValue > 0) {
+      const normalizedProgress = Math.min(1, Math.max(0, adjustedValue / maxValue));
+      const easingFunction = animationCurves[scrollEasing as keyof typeof animationCurves];
+      if (easingFunction) {
+        const easedProgress = easingFunction(normalizedProgress);
+        adjustedValue = easedProgress * maxValue;
+      }
+    }
+    
+    // Apply responsiveness (damping for rapid changes)
+    adjustedValue *= responsiveness;
+    
+    return adjustedValue;
+  }, [activeParallaxPhysicsGuest]);
 
   const [scrollY, setScrollY] = useState(0);
   const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
@@ -251,9 +278,11 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     });
     return Array.from(fonts).map(name => ({ name }));
   }, [overallFontFamily, elementsFromBlueprint, layoutSettingsFromPreview]);
-
-  const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
   
+  // Calculate scroll values with parallax physics applied
+  const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
+  const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
+
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
 
   const { 
@@ -307,9 +336,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   }, []);
 
   useEffect(() => { let isMounted = true; if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length) { if (isMounted) setImageNaturalDimensions([]); return; } const imagePaths = weddingDataFromApp.scrapbookImages.map((img: any) => img.fileName?.startsWith('http') ? img.fileName : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`); const dimsPromises = imagePaths.map((src: string) => new Promise<NaturalImageDimensions>(resolve => { if (!src) return resolve({ width: 0, height: 0, src: '' }); const img = new Image(); img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src }); img.onerror = () => resolve({ width: 0, height: 0, src }); img.src = src; })); Promise.all(dimsPromises).then(dims => { if (isMounted) setImageNaturalDimensions(dims); }); return () => { isMounted = false; }; }, [isScrapbookEnabled, weddingDataFromApp]);
-  useEffect(() => { if (!isScrapbookEnabled) { if (focusedImage || imageReturningToScrapbook || pendingImageToFocus) { setFocusedImage(null); setImageReturningToScrapbook(null); setPendingImageToFocus(null); focusedImageApi.start({ opacity: 0, immediate: true }); } return; } if (focusedImage) { const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight); const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5); focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${top}px`, left: `${left}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' } }); } else if (imageReturningToScrapbook) { const { currentIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook; const targetEl = scrapbookImageRefs.current[currentIndex]; const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === currentIndex); if (targetEl && itemData) { const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(itemData.initialStyle.transform); const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0); focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } }); focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } }); } else { focusedImageApi.start({ opacity: 0, immediate: true }); setImageReturningToScrapbook(null); if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); } } } else { focusedImageApi.start({ opacity: 0, immediate: true }); } }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollY, activeSpringConfigGuest]);
+  useEffect(() => { if (!isScrapbookEnabled) { if (focusedImage || imageReturningToScrapbook || pendingImageToFocus) { setFocusedImage(null); setImageReturningToScrapbook(null); setPendingImageToFocus(null); focusedImageApi.start({ opacity: 0, immediate: true }); } return; } if (focusedImage) { const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight); const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5); focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${top}px`, left: `${left}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' } }); } else if (imageReturningToScrapbook) { const { currentIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook; const targetEl = scrapbookImageRefs.current[currentIndex]; const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === currentIndex); if (targetEl && itemData) { const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(itemData.initialStyle.transform); const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0); focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } }); focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } }); } else { focusedImageApi.start({ opacity: 0, immediate: true }); setImageReturningToScrapbook(null); if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); } } } else { focusedImageApi.start({ opacity: 0, immediate: true }); } }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollYWithPhysics, activeSpringConfigGuest]);
   const handleCloseFocusedImage = useCallback((e: React.MouseEvent) => { e.stopPropagation(); if (focusedImage) { setImageReturningToScrapbook(focusedImage); setFocusedImage(null); setPendingImageToFocus(null); } }, [focusedImage]);
-  const updateAndFocusNewImage = useCallback((newDisplayIndex: number): FocusedImageState | null => { if (!isScrapbookEnabled || !displayedImagesAndTheirData?.length) return null; const targetData = displayedImagesAndTheirData.find(d => d.displayIndex === newDisplayIndex); const targetEl = scrapbookImageRefs.current[newDisplayIndex]; if (!targetData || !targetEl) return null; let naturalDims = imageNaturalDimensions.find(dim => dim.src === targetData.src); if (!naturalDims?.width) { if (targetEl.naturalWidth > 0) naturalDims = { width: targetEl.naturalWidth, height: targetEl.naturalHeight, src: targetData.src }; else return null; } const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(targetData.initialStyle.transform); const dynamicRot = Math.sin(scrollY * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0); return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex }; }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollY]);
+  const updateAndFocusNewImage = useCallback((newDisplayIndex: number): FocusedImageState | null => { if (!isScrapbookEnabled || !displayedImagesAndTheirData?.length) return null; const targetData = displayedImagesAndTheirData.find(d => d.displayIndex === newDisplayIndex); const targetEl = scrapbookImageRefs.current[newDisplayIndex]; if (!targetData || !targetEl) return null; let naturalDims = imageNaturalDimensions.find(dim => dim.src === targetData.src); if (!naturalDims?.width) { if (targetEl.naturalWidth > 0) naturalDims = { width: targetEl.naturalWidth, height: targetEl.naturalHeight, src: targetData.src }; else return null; } const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(targetData.initialStyle.transform); const dynamicRot = Math.sin(scrollYWithPhysics * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0); return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex }; }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollYWithPhysics]);
   const handlePreviousImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => { e.stopPropagation(); if (!focusedImage || !displayedImagesAndTheirData?.length) return; const newIndex = (focusedImage.currentIndex - 1 + displayedImagesAndTheirData.length) % displayedImagesAndTheirData.length; const newDetails = updateAndFocusNewImage(newIndex); if (newDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newDetails); setFocusedImage(null); } }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
   const handleNextImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => { e.stopPropagation(); if (!focusedImage || !displayedImagesAndTheirData?.length) return; const newIndex = (focusedImage.currentIndex + 1) % displayedImagesAndTheirData.length; const newDetails = updateAndFocusNewImage(newIndex); if (newDetails) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(newDetails); setFocusedImage(null); } }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
   const handleImageClick = useCallback((itemData: any) => {
@@ -375,7 +404,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             <InteractiveScrapbook
               weddingData={weddingDataFromApp}
               config={el}
-              scrollY={scrollY}
+              scrollY={scrollYWithPhysics}
               onImageClick={handleImageClick}
               focusedImageGlobal={focusedImage}
               imageReturningToScrapbookGlobal={imageReturningToScrapbook}
@@ -414,7 +443,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         <ElementWrapper 
           element={el} 
           experienceSettings={experienceSettingsFromApp} 
-          scrollY={scrollY} 
+          scrollY={scrollYWithPhysics} 
           windowHeight={windowHeight} 
           TOTAL_PAGES={TOTAL_PAGES} 
           layoutSettingsFromPreview={elementControls}
@@ -467,7 +496,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             }}
           >
             <ShiftingBackgroundColors 
-              scrollY={scrollY} 
+              scrollY={scrollYWithPhysics} 
               TOTAL_PAGES={TOTAL_PAGES} 
               windowHeight={windowHeight} 
               selectedColorScheme={selectedColorScheme}
@@ -494,7 +523,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
           return (
             <BottomNavbar 
               key={`bottom-navbar-${element.id}`}
-              scrollY={scrollY}
+              scrollY={scrollYWithPhysics}
               startPosition={element.sticky.start}
               endPosition={element.sticky.end}
               windowHeight={windowHeight}

@@ -14,7 +14,7 @@ import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
-import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme } from '../../config/levaSchemas';
+import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme, parallaxPhysicsPresets, ParallaxPhysicsPreset, animationCurves } from '../../config/levaSchemas';
 import { generateElementFolderName, getElementSchema } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import { getApiBaseUrl } from '../../config/apiConfig';
@@ -158,7 +158,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [overallControls, setOverallControls] = useControls(() => ({
     'Overall Controls (Guest)': folder({
         showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
-        springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Physics Preset (Guest)' },
+        springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Scrapbook Image Physics (Guest)' },
+        parallaxPhysicsPreset: { value: 'default', options: Object.keys(parallaxPhysicsPresets), label: 'Parallax Physics Preset (Guest)' },
         colorScheme: { value: weddingColorSchemes[0].name, options: weddingColorSchemes.map(scheme => scheme.name), label: 'Color Scheme' },
         overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
         previewingLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
@@ -169,6 +170,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const {
     showHUD: showGlobalHUDEnabledGuest,
     springPreset: selectedSpringPresetKeyGuest,
+    parallaxPhysicsPreset: selectedParallaxPhysicsPresetKey,
     colorScheme: selectedColorSchemeName,
     overallFontFamily,
     previewingLayoutSlot,
@@ -249,7 +251,37 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [overallFontFamily, elementsFromBlueprint, controlValues]);
 
   const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
+  const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default;
+  
+  // Helper function to apply parallax physics to scroll values
+  const applyParallaxPhysics = useCallback((rawScrollValue: number, maxValue?: number): number => {
+    const { scrollSpeedMultiplier, scrollEasing, momentumDamping, responsiveness } = activeParallaxPhysicsGuest;
+    
+    // Apply speed multiplier
+    let adjustedValue = rawScrollValue * scrollSpeedMultiplier;
+    
+    // Apply easing if specified and we have a max value for normalization
+    if (scrollEasing !== 'linear' && maxValue && maxValue > 0) {
+      const normalizedProgress = Math.min(1, Math.max(0, adjustedValue / maxValue));
+      const easingFunction = animationCurves[scrollEasing as keyof typeof animationCurves];
+      if (easingFunction) {
+        const easedProgress = easingFunction(normalizedProgress);
+        adjustedValue = easedProgress * maxValue;
+      }
+    }
+    
+    // Apply responsiveness (damping for rapid changes)
+    adjustedValue *= responsiveness;
+    
+    return adjustedValue;
+  }, [activeParallaxPhysicsGuest]);
+  
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
+  
+  // Calculate scroll values with parallax physics applied
+  const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
+  const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
+  
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
@@ -343,7 +375,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       if (targetEl && itemData) {
         const rect = targetEl.getBoundingClientRect();
         const baseRot = parseRotationFromStyle(itemData.initialStyle.transform);
-        const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0);
+        const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0);
         focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } });
         focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } });
       } else {
@@ -354,7 +386,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     } else {
       focusedImageApi.start({ opacity: 0, immediate: true });
     }
-  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollY, activeSpringConfigGuest]);
+  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollYWithPhysics, activeSpringConfigGuest]);
   
   const handleCloseFocusedImage = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -370,9 +402,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     if (!naturalDims?.width) { if (targetEl.naturalWidth > 0) naturalDims = { width: targetEl.naturalWidth, height: targetEl.naturalHeight, src: targetData.src }; else return null; }
     const rect = targetEl.getBoundingClientRect();
     const baseRot = parseRotationFromStyle(targetData.initialStyle.transform);
-    const dynamicRot = Math.sin(scrollY * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0);
+    const dynamicRot = Math.sin(scrollYWithPhysics * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0);
     return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex };
-  }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollY]);
+  }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollYWithPhysics]);
 
   const handlePreviousImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => {
     e.stopPropagation();
@@ -397,11 +429,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === index);
     if (!itemData) return;
     const baseRot = parseRotationFromStyle(initialStyle.transform);
-    const dynamicRot = Math.sin(scrollY * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0);
+    const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0);
     const clickedDetails: FocusedImageState = { ...itemData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: index };
     if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedDetails); setFocusedImage(null); }
     else { setFocusedImage(clickedDetails); }
-  }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollY, focusedImage]);
+  }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollYWithPhysics, focusedImage]);
 
   // --- LOADING GUARD ---
   if (isSwitchingSlots || !experienceSettingsFromApp) {
@@ -569,7 +601,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>
             <ShiftingBackgroundColors 
-              scrollY={scrollY} 
+              scrollY={scrollYWithPhysics} 
               TOTAL_PAGES={TOTAL_PAGES} 
               windowHeight={windowHeight} 
               selectedColorScheme={selectedColorScheme}
@@ -592,7 +624,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     contentToRender = <InteractiveScrapbook 
                       weddingData={weddingDataFromApp} 
                       config={element.content} 
-                      scrollY={scrollY} 
+                      scrollY={scrollYWithPhysics} 
                       onImageClick={handleImageClick} 
                       focusedImageGlobal={focusedImage} 
                       imageReturningToScrapbookGlobal={imageReturningToScrapbook} 
@@ -630,7 +662,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                   <ElementWrapper 
                     element={element} 
                     experienceSettings={experienceSettingsFromApp} 
-                    scrollY={scrollY} 
+                    scrollY={scrollYWithPhysics} 
                     windowHeight={windowHeight} 
                     TOTAL_PAGES={TOTAL_PAGES}
                     overallFontFamily={overallFontFamily}
@@ -654,7 +686,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           return (
             <BottomNavbar 
               key={`bottom-navbar-${element.id}`}
-              scrollY={scrollY}
+              scrollY={scrollYWithPhysics}
               startPosition={element.sticky.start}
               endPosition={element.sticky.end}
               windowHeight={windowHeight}

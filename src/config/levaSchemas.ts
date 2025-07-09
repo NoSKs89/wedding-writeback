@@ -63,6 +63,60 @@ export const springConfigPresets: { [key: string]: SpringConfigPreset } = {
   strong: { tension: 300, friction: 30, name: 'Strong (Custom)' },
 };
 
+// Parallax physics presets for scroll-based motion and effects
+export interface ParallaxPhysicsPreset {
+  name: string;
+  scrollSpeedMultiplier: number; // Multiplier for all scroll-based animations
+  scrollEasing: string; // Easing function name from animationCurves
+  momentumDamping: number; // How much to dampen scroll momentum effects (0-1)
+  responsiveness: number; // How quickly animations respond to scroll changes (0.1-2)
+}
+
+export const parallaxPhysicsPresets: { [key: string]: ParallaxPhysicsPreset } = {
+  default: { 
+    name: 'Default', 
+    scrollSpeedMultiplier: 1.0, 
+    scrollEasing: 'linear', 
+    momentumDamping: 0.8, 
+    responsiveness: 1.0 
+  },
+  smooth: { 
+    name: 'Smooth', 
+    scrollSpeedMultiplier: 0.8, 
+    scrollEasing: 'easeInOutQuad', 
+    momentumDamping: 0.9, 
+    responsiveness: 0.7 
+  },
+  snappy: { 
+    name: 'Snappy', 
+    scrollSpeedMultiplier: 1.3, 
+    scrollEasing: 'easeOutCubic', 
+    momentumDamping: 0.6, 
+    responsiveness: 1.5 
+  },
+  cinematic: { 
+    name: 'Cinematic', 
+    scrollSpeedMultiplier: 0.6, 
+    scrollEasing: 'quickInSlowOut', 
+    momentumDamping: 0.95, 
+    responsiveness: 0.5 
+  },
+  energetic: { 
+    name: 'Energetic', 
+    scrollSpeedMultiplier: 1.4, 
+    scrollEasing: 'easeInQuint', 
+    momentumDamping: 0.5, 
+    responsiveness: 1.8 
+  },
+  gentle: { 
+    name: 'Gentle', 
+    scrollSpeedMultiplier: 0.7, 
+    scrollEasing: 'easeInOutQuad', 
+    momentumDamping: 0.95, 
+    responsiveness: 0.6 
+  },
+};
+
 export const weddingColorSchemes: WeddingColorScheme[] = [
     { 
       name: "Classic Elegance", 
@@ -100,7 +154,8 @@ export const weddingColorSchemes: WeddingColorScheme[] = [
 
 export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boolean) => ({
     showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
-    springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Animation Physics Preset (Guest)' },
+    springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Scrapbook Image Physics (Guest)' },
+    parallaxPhysicsPreset: { value: 'default', options: Object.keys(parallaxPhysicsPresets), label: 'Parallax Physics Preset (Guest)' },
     colorScheme: { value: weddingColorSchemes[0].name, options: weddingColorSchemes.map(scheme => scheme.name), label: 'Color Scheme' },
     overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
     previewingLayoutSlot: { value: 1, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
