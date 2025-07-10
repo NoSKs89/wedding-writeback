@@ -8,6 +8,78 @@ import { useSetupMode } from '../../contexts/SetupModeContext';
 import { generateElementFolderName, getElementSchema, springConfigPresets } from './levaSchemas';
 import { fontFamilyOptions } from '../../config/fontConfig';
 
+// Utility function to detect and convert URLs to clickable links
+const convertTextToLinksAndElements = (text: string, linkColor: string, linkHoverColor: string = '#ffffff') => {
+  if (!text || typeof text !== 'string') return text;
+  
+  // Comprehensive URL regex that catches various formats including venmo.com, paypal.me, etc.
+  const urlRegex = /(https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?|www\.(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?|(?:[-\w.])+\.(?:com|org|net|edu|gov|mil|int|info|biz|name|museum|coop|aero|pro|tv|co|me|io|ai|ly|be|de|fr|uk|ca|au|jp|cn|ru|br|in|mx|nl|se|no|dk|fi|it|es|pl|cz|hu|ro|bg|hr|si|sk|lt|lv|ee|mt|cy|lu|is|li|mc|sm|va|ad|md|by|ua|ge|am|az|kz|kg|tj|tm|uz|mn|af|pk|bd|lk|mv|np|bt|mm|la|kh|vn|th|my|sg|id|ph|bn|tl|pw|mh|fm|ki|nr|tv|ws|to|vu|fj|sb|nc|pf)(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?)/gi;
+  
+  const parts = text.split(urlRegex);
+  const elements: React.ReactNode[] = [];
+  
+  let urlIndex = 0;
+  parts.forEach((part, index) => {
+    if (urlRegex.test(part)) {
+      // This is a URL - convert to clickable link
+      let href = part;
+      // Add protocol if missing
+      if (!part.startsWith('http://') && !part.startsWith('https://')) {
+        href = 'https://' + part;
+      }
+      
+      elements.push(
+        <a
+          key={`link-${urlIndex}`}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: linkColor,
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
+            fontWeight: '600', // Slightly bolder
+            padding: '2px 4px',
+            borderRadius: '3px',
+            display: 'inline-block',
+            margin: '0 1px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = linkHoverColor;
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.1)';
+            e.currentTarget.style.textShadow = '0 0 8px rgba(255, 255, 255, 0.3)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = linkColor;
+            e.currentTarget.style.backgroundColor = 'transparent';
+            e.currentTarget.style.textShadow = 'none';
+          }}
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent modal from closing
+          }}
+        >
+          🔗 {part}
+        </a>
+      );
+      urlIndex++;
+    } else if (part) {
+      // Regular text - preserve line breaks
+      const textParts = part.split('\n');
+      textParts.forEach((textPart, textIndex) => {
+        if (textIndex > 0) {
+          elements.push(<br key={`br-${index}-${textIndex}`} />);
+        }
+        if (textPart) {
+          elements.push(textPart);
+        }
+      });
+    }
+  });
+  
+  return elements.length > 0 ? elements : text;
+};
+
 // Define the structure for navbar content items
 interface NavbarContentItem {
   id: string;
@@ -770,17 +842,21 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                   {contentItem.id === 'text' && (
                     <div style={{
                       color: item.textColor,
-                      fontSize: `${modalContentFontSize}px`, // Use modal content font size
+                      fontSize: `${modalContentFontSize}px`,
                       fontFamily: contentFontFamily,
-                      lineHeight: '1.4', // Tighter line height
+                      lineHeight: '1.4',
                       whiteSpace: 'pre-wrap',
                       margin: '0',
-                      padding: '0 5px', // Reduced padding
+                      padding: '0 5px',
                       textAlign: 'center',
                       maxWidth: '100%',
                       overflow: 'auto',
                     }}>
-                      {contentItem.content}
+                      {convertTextToLinksAndElements(
+                        contentItem.content as string, 
+                        '#4A9EFF', // Bright blue that works on most backgrounds
+                        '#FFD700'  // Gold hover color for clear distinction
+                      )}
                     </div>
                   )}
                   {contentItem.id === 'image' && (
