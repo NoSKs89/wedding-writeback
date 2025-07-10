@@ -577,6 +577,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   });
   const contentSpringRef = useSpringRef();
   const transformSpringRef = useSpringRef();
+  const sequentialContentSpringRef = useSpringRef();
 
   // Calculate button dimensions and position using provided values
   const buttonWidth = itemWidth;
@@ -639,6 +640,57 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     hasImage: !!item.imageUrl
   });
 
+  // Process content into sequential animation pieces
+  const sequentialContentPieces = useMemo(() => {
+    if (!isExpanded) return [];
+    
+    const pieces: Array<{
+      id: string;
+      type: 'title' | 'text-line' | 'image';
+      content: string;
+      originalIndex: number;
+    }> = [];
+    
+    let currentIndex = 0;
+    
+    // Add title if it should be shown
+    if (item.showTitleWhenOpened && item.title) {
+      pieces.push({
+        id: `title-${currentIndex}`,
+        type: 'title',
+        content: item.title,
+        originalIndex: currentIndex
+      });
+      currentIndex++;
+    }
+    
+    // Add image before text if it exists
+    if (item.imageUrl) {
+      pieces.push({
+        id: `image-${currentIndex}`,
+        type: 'image',
+        content: item.imageUrl,
+        originalIndex: currentIndex
+      });
+      currentIndex++;
+    }
+    
+    // Split text content by newlines and add each line
+    if (item.textContent) {
+      const textLines = item.textContent.split('\n').filter(line => line.trim());
+      textLines.forEach((line, lineIndex) => {
+        pieces.push({
+          id: `text-line-${currentIndex}-${lineIndex}`,
+          type: 'text-line',
+          content: line,
+          originalIndex: currentIndex + lineIndex
+        });
+      });
+    }
+    
+    return pieces;
+  }, [isExpanded, item.title, item.showTitleWhenOpened, item.textContent, item.imageUrl]);
+
   const getSpringConfig = (configName: string) => {
     switch (configName) {
       case 'slow': return { tension: 100, friction: 50 };
@@ -681,35 +733,25 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
 
   });
 
-  // Content fade animation
-  const { opacity: contentOpacity } = useSpring({
-    ref: contentSpringRef,
-    config: config.gentle,
-    opacity: isExpanded ? 1 : 0,
-    delay: isExpanded ? 200 : 0,
-  });
-
-  // Chain animations: transform first, then content
-  useChain(
-    isExpanded ? [transformSpringRef, contentSpringRef] : [contentSpringRef, transformSpringRef],
-    [0, isExpanded ? 0.3 : 0.0]
+  // Sequential content animation - each piece animates in sequence
+  const sequentialContentTransitions = useTransition(
+    sequentialContentPieces, 
+    {
+      ref: sequentialContentSpringRef,
+      keys: piece => piece.id,
+      from: { opacity: 0, transform: 'translateY(20px) scale(0.95)' },
+      enter: { opacity: 1, transform: 'translateY(0px) scale(1)' },
+      leave: { opacity: 0, transform: 'translateY(-10px) scale(0.95)' },
+      trail: 150, // 150ms delay between each piece
+      config: config.gentle,
+    }
   );
 
-  // Prepare content items for transition animation
-  const contentItems = isExpanded ? [
-    { id: 'title', content: item.showTitleWhenOpened && item.title ? item.title : null },
-    { id: 'text', content: item.textContent },
-    { id: 'image', content: item.imageUrl }
-  ].filter(contentItem => contentItem.content) : [];
-
-  const transitions = useTransition(contentItems, {
-    keys: contentItem => contentItem.id,
-    from: { opacity: 0, transform: 'translateY(15px)' },
-    enter: { opacity: 1, transform: 'translateY(0px)' },
-    leave: { opacity: 0, transform: 'translateY(-15px)' },
-    trail: 100,
-    config: config.gentle,
-  });
+  // Chain animations: transform first, then sequential content
+  useChain(
+    isExpanded ? [transformSpringRef, sequentialContentSpringRef] : [sequentialContentSpringRef, transformSpringRef],
+    [0, isExpanded ? 0.4 : 0.0] // Longer delay to let modal fully appear first
+  );
 
   return (
     <>
@@ -808,7 +850,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
             {/* Animated content */}
             <animated.div
               style={{
-                opacity: contentOpacity,
+                opacity: 1, // Sequential content handles its own opacity
                 width: '100%',
                 height: '100%',
                 overflow: 'auto',
@@ -824,9 +866,9 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              {transitions((style, contentItem) => (
-                <animated.div style={style} key={contentItem.id}>
-                  {contentItem.id === 'title' && (
+              {sequentialContentTransitions((style, piece) => (
+                <animated.div style={style} key={piece.id}>
+                  {piece.type === 'title' && (
                     <h2 style={{
                       color: item.textColor,
                       fontSize: `${modalTitleFontSize}px`, // Auto-calculated 4px larger than content
@@ -836,10 +878,10 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                       margin: '0',
                       padding: '0 5px', // Reduced padding
                     }}>
-                      {contentItem.content}
+                      {piece.content}
                     </h2>
                   )}
-                  {contentItem.id === 'text' && (
+                  {piece.type === 'text-line' && (
                     <div style={{
                       color: item.textColor,
                       fontSize: `${modalContentFontSize}px`,
@@ -853,15 +895,15 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                       overflow: 'auto',
                     }}>
                       {convertTextToLinksAndElements(
-                        contentItem.content as string, 
+                        piece.content as string, 
                         '#4A9EFF', // Bright blue that works on most backgrounds
                         '#FFD700'  // Gold hover color for clear distinction
                       )}
                     </div>
                   )}
-                  {contentItem.id === 'image' && (
+                  {piece.type === 'image' && (
                     <img
-                      src={contentItem.content as string}
+                      src={piece.content as string}
                       alt="Modal content"
                       style={{
                         width: '95%', // Use 95% of modal width
