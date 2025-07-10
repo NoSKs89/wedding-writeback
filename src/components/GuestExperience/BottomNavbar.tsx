@@ -8,9 +8,35 @@ import { useSetupMode } from '../../contexts/SetupModeContext';
 import { generateElementFolderName, getElementSchema, springConfigPresets } from './levaSchemas';
 import { fontFamilyOptions } from '../../config/fontConfig';
 
-// Utility function to detect and convert URLs to clickable links
+// Utility function to detect and convert URLs to clickable links and format bold text
 const convertTextToLinksAndElements = (text: string, linkColor: string, linkHoverColor: string = '#ffffff') => {
   if (!text || typeof text !== 'string') return text;
+  
+  // Helper function to process text part for bold formatting
+  const processBoldText = (textPart: string, baseKey: string) => {
+    if (!textPart) return null;
+    
+    // Regex to find text surrounded by asterisks: *text*
+    const boldRegex = /\*([^*]+)\*/g;
+    const parts = textPart.split(boldRegex);
+    const processedElements: React.ReactNode[] = [];
+    
+    parts.forEach((part, partIndex) => {
+      if (partIndex % 2 === 1) {
+        // This is the content that was between asterisks - make it bold
+        processedElements.push(
+          <strong key={`bold-${baseKey}-${partIndex}`} style={{ fontWeight: 'bold' }}>
+            {part}
+          </strong>
+        );
+      } else if (part) {
+        // Regular text - add as-is
+        processedElements.push(part);
+      }
+    });
+    
+    return processedElements.length > 0 ? processedElements : textPart;
+  };
   
   // Comprehensive URL regex that catches various formats including venmo.com, paypal.me, etc.
   const urlRegex = /(https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?|www\.(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?|(?:[-\w.])+\.(?:com|org|net|edu|gov|mil|int|info|biz|name|museum|coop|aero|pro|tv|co|me|io|ai|ly|be|de|fr|uk|ca|au|jp|cn|ru|br|in|mx|nl|se|no|dk|fi|it|es|pl|cz|hu|ro|bg|hr|si|sk|lt|lv|ee|mt|cy|lu|is|li|mc|sm|va|ad|md|by|ua|ge|am|az|kz|kg|tj|tm|uz|mn|af|pk|bd|lk|mv|np|bt|mm|la|kh|vn|th|my|sg|id|ph|bn|tl|pw|mh|fm|ki|nr|tv|ws|to|vu|fj|sb|nc|pf)(?:\:[0-9]+)?(?:\/(?:[\w\/_.\-~!$&'()*+,;=:@])*)?(?:\?(?:[\w&=%.\-~!$'()*+,;=:@/])*)?(?:\#(?:[\w.\-~!$&'()*+,;=:@/])*)?)/gi;
@@ -42,8 +68,10 @@ const convertTextToLinksAndElements = (text: string, linkColor: string, linkHove
             fontWeight: '600', // Slightly bolder
             padding: '2px 4px',
             borderRadius: '3px',
-            display: 'inline-block',
-            margin: '0 1px',
+            display: 'inline', // Allow wrapping within text flow
+            margin: '0',
+            wordBreak: 'break-all', // Enable breaking long URLs
+            overflowWrap: 'break-word', // Additional wrap support
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = linkHoverColor;
@@ -64,14 +92,28 @@ const convertTextToLinksAndElements = (text: string, linkColor: string, linkHove
       );
       urlIndex++;
     } else if (part) {
-      // Regular text - preserve line breaks
+      // Regular text - handle line breaks and bold formatting
       const textParts = part.split('\n');
       textParts.forEach((textPart, textIndex) => {
         if (textIndex > 0) {
           elements.push(<br key={`br-${index}-${textIndex}`} />);
         }
         if (textPart) {
-          elements.push(textPart);
+          // Process this text part for bold formatting
+          const processedBoldText = processBoldText(textPart, `${index}-${textIndex}`);
+          if (Array.isArray(processedBoldText)) {
+            // If bold processing returned multiple elements, add each one
+            processedBoldText.forEach((element, boldIndex) => {
+              elements.push(
+                <span key={`text-${index}-${textIndex}-${boldIndex}`}>
+                  {element}
+                </span>
+              );
+            });
+          } else {
+            // Single text element
+            elements.push(processedBoldText);
+          }
         }
       });
     }
@@ -742,7 +784,7 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
       from: { opacity: 0, transform: 'translateY(20px) scale(0.95)' },
       enter: { opacity: 1, transform: 'translateY(0px) scale(1)' },
       leave: { opacity: 0, transform: 'translateY(-10px) scale(0.95)' },
-      trail: 150, // 150ms delay between each piece
+      trail: 200, // 180ms delay between each piece (20% increase from 150ms)
       config: config.gentle,
     }
   );
@@ -849,23 +891,40 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
 
             {/* Animated content */}
             <animated.div
+              className="bottom-navbar-modal-content"
               style={{
                 opacity: 1, // Sequential content handles its own opacity
                 width: '100%',
                 height: '100%',
-                overflow: 'auto',
-                // Responsive padding based on modal type
-                padding: item.shrinkToFitContent ? '15px' : '10px',
+                overflow: 'hidden', // Prevent scrollbars completely
+                // Responsive padding based on modal type with increased bottom padding
+                padding: item.shrinkToFitContent ? '15px 15px 20px 15px' : '10px 10px 16px 10px',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center', // Center content vertically within modal
                 alignItems: 'center',
-                // Responsive gap based on modal type
-                gap: item.shrinkToFitContent ? '12px' : '8px',
+                // Responsive gap based on modal type - increased for better spacing
+                gap: item.shrinkToFitContent ? '22px' : '16px',
                 boxSizing: 'border-box',
+                // Additional scrollbar prevention for all browsers
+                scrollbarWidth: 'none', // Firefox
+                msOverflowStyle: 'none', // IE and Edge
               }}
               onClick={(e) => e.stopPropagation()}
             >
+              {/* CSS for WebKit scrollbar hiding */}
+              <style>
+                {`
+                  .bottom-navbar-modal-content::-webkit-scrollbar {
+                    display: none !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                  }
+                  .bottom-navbar-modal-content {
+                    -webkit-overflow-scrolling: touch;
+                  }
+                `}
+              </style>
               {sequentialContentTransitions((style, piece) => (
                 <animated.div style={style} key={piece.id}>
                   {piece.type === 'title' && (
@@ -887,12 +946,14 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
                       fontSize: `${modalContentFontSize}px`,
                       fontFamily: contentFontFamily,
                       lineHeight: '1.4',
-                      whiteSpace: 'pre-wrap',
+                      whiteSpace: 'normal', // Allow text to wrap naturally
                       margin: '0',
                       padding: '0 5px',
                       textAlign: 'center',
                       maxWidth: '100%',
-                      overflow: 'auto',
+                      wordWrap: 'break-word', // Ensure long words wrap properly
+                      overflowWrap: 'break-word', // Additional wrap support
+                      hyphens: 'auto', // Enable hyphenation for better wrapping
                     }}>
                       {convertTextToLinksAndElements(
                         piece.content as string, 
