@@ -64,6 +64,11 @@ interface ControlValues {
   translateInCurve: keyof typeof animationCurves | 'disabled';
   translateInDuration: number;
   translateInDistance: number;
+  // Video-specific properties
+  autoplay: boolean;
+  loop: boolean;
+  muted: boolean;
+  showControls: boolean;
 }
 
 export interface ElementWrapperProps {
@@ -202,7 +207,12 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     translateInDirection = 'from-left',
     translateInCurve = 'linear',
     translateInDuration = 0.5,
-    translateInDistance = 200
+    translateInDistance = 200,
+    // Video-specific properties
+    autoplay = false,
+    loop = false,
+    muted = false,
+    showControls = true
   } = values as ControlValues;
 
   const [measuredHeight, setMeasuredHeight] = useState(0);
@@ -346,7 +356,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   let currentRotateY = 0;
   let currentRotateZ = 0;
   
-  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && rotateInEffect) {
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video') && rotateInEffect) {
     // Calculate rotation progress based on duration
     const rotateAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * rotateInDuration);
     const rotateProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (rotateAnimationEndScrollPoint - elementStartScroll || 1)));
@@ -411,7 +421,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   let currentTranslateX = 0;
   let currentTranslateY = 0;
   
-  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && translateInEffect) {
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video') && translateInEffect) {
     // Calculate translation progress based on duration
     const translateAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * translateInDuration);
     const translateProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (translateAnimationEndScrollPoint - elementStartScroll || 1)));
@@ -498,7 +508,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   let transformString = `translate(${finalXPosition}px, ${finalYPosition}px) scale(${scaleValue})`;
   
   // Add rotation if rotate in effect is enabled for image and text elements
-  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && rotateInEffect) {
+  if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video') && rotateInEffect) {
     transformString += ` rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) rotateZ(${currentRotateZ}deg)`;
   }
 
@@ -520,7 +530,7 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     willChange: 'transform, opacity',
     boxSizing: 'border-box',
     // Add transform-style to enable 3D transformations for both rotate and translate effects
-    transformStyle: (element.type === 'photo' || element.type === 'background-image' || element.type === 'text') && (rotateInEffect || translateInEffect) ? 'preserve-3d' : undefined
+    transformStyle: (element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video') && (rotateInEffect || translateInEffect) ? 'preserve-3d' : undefined
   };
 
   const childWithRef = React.isValidElement(children) ? React.cloneElement(children as React.ReactElement, { ref: currentChildRef }) : children;

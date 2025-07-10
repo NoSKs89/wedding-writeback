@@ -1,7 +1,7 @@
 export interface ElementConfig {
   id: number;
   name: string;
-  type: 'text' | 'photo' | 'background-image' | 'component' | 'empty';
+  type: 'text' | 'photo' | 'background-image' | 'component' | 'empty' | 'video';
   content: any;
   timelineColor: string;
 }

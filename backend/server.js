@@ -573,6 +573,7 @@ exports.handler = async (event, context) => {
               case 'scrapbook': s3KeyPrefix = `${weddingId}/scrapbook/`; break;
               case 'shareGallery': s3KeyPrefix = `${weddingId}/share-gallery/`; break;
               case 'navbar': s3KeyPrefix = `${weddingId}/navbar/`; break;
+              case 'video': s3KeyPrefix = `${weddingId}/videos/`; break;
               default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
           const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
@@ -595,7 +596,13 @@ exports.handler = async (event, context) => {
 
           if (imageType === 'introCouple') wedding.introCouple = imageUrl;
           else if (imageType === 'introBackground') wedding.introBackground = imageUrl;
-          else if (imageType === 'scrapbook') {
+          else if (imageType === 'video') {
+              // For video elements, we'll store the URL directly in introCouple or introBackground
+              // depending on how it's being used, or create a new field for videos
+              // For now, let's assume video elements are stored separately
+              if (!wedding.videoElements) wedding.videoElements = [];
+              wedding.videoElements.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
+          } else if (imageType === 'scrapbook') {
               wedding.scrapbookImages.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
           } else return createResponse(400, { message: 'Invalid imageType for image post.' }, requestOrigin);
           

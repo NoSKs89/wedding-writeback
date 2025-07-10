@@ -133,6 +133,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       imageTypeForUpload = 'introCouple';
     } else if (element.type === 'background-image') {
       imageTypeForUpload = 'introBackground';
+    } else if (element.type === 'video') {
+      imageTypeForUpload = 'video'; // New imageType for video files
     }
 
     try {
@@ -187,24 +189,30 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
     } else if (newTypeValue === 'component-bottom-navbar') {
         onUpdate({ type: 'component', content: 'Bottom Navbar', name: 'Bottom Navbar' });
-    } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image') {
-        onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image', content: null, name: undefined });
+    } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image' || newTypeValue === 'video') {
+        onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image' | 'video', content: null, name: undefined });
     } else {
         onUpdate({ type: 'empty', content: null, name: undefined });
     }
   };
 
-  const handlePhotoUpload = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setSelectedFile(file);
       
-      // Show local preview immediately
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFilePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      // Show local preview immediately for images
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFilePreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      } else if (file.type.startsWith('video/')) {
+        // For videos, we could show a video icon or the first frame
+        // For now, we'll just clear the preview and show the filename
+        setFilePreview(null);
+      }
 
       // Start the actual upload process
       handleFileUpload(file);
@@ -392,6 +400,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
             <select value={dropdownValue} onChange={handleTypeChange} style={selectStyle}>
               <option value="empty"> - inactive - </option>
               <option value="photo">Photo</option>
+              <option value="video">Video</option>
               <option value="text">Text</option>
               <option value="component-rsvp">RSVP Form</option>
               <option value="component-scrapbook">Scrapbook</option>
@@ -403,7 +412,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
 
         {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
         {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}
-        {(element.type === 'photo' || element.type === 'background-image') && (
+        {(element.type === 'photo' || element.type === 'background-image' || element.type === 'video') && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '10px' }}>
             {filePreview && 
               <img 
@@ -421,8 +430,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <input 
                 type="file" 
-                accept="image/*" 
-                onChange={handlePhotoUpload} 
+                accept={element.type === 'video' ? 'video/*' : 'image/*'} 
+                onChange={handleFileInputChange} 
                 style={{ 
                   fontSize: '0.8rem', 
                   maxWidth: '150px' 

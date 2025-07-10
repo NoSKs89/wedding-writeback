@@ -26,8 +26,8 @@ export interface TimelineMarker {
 
 export interface ElementConfig {
   id: number; // Now 1-8
-  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image'; // Added 'background-image'
-  content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo, text content, component type, or scrapbook config
+  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video'; // Added 'video'
+  content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo/video, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
   // Z-index is implicitly determined by array order (index 0 is highest)
@@ -154,6 +154,8 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
         previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
       } else if (el.type === 'photo' && typeof el.content === 'string') {
         previewImageUrl = el.content;
+      } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
+        previewImageUrl = el.content; // Videos can show as preview images (thumbnail)
       } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
         previewImageUrl = el.content;
       }
@@ -300,6 +302,8 @@ const ExperienceSetupPage: React.FC = () => {
           iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
         } else if (el.type === 'photo' && typeof el.content === 'string') {
           previewImageUrl = el.content;
+        } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
+          previewImageUrl = el.content; // Videos can show as preview images (thumbnail)
         } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
           previewImageUrl = el.content;
         }
@@ -382,6 +386,8 @@ const ExperienceSetupPage: React.FC = () => {
             } else if (el.type === 'component') {
                 previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
             } else if (el.type === 'photo' && typeof el.content === 'string') {
+                previewImageUrl = el.content;
+            } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
                 previewImageUrl = el.content;
             } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image
                 previewImageUrl = el.content;

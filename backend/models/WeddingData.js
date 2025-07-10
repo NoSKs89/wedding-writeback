@@ -51,6 +51,7 @@ const WeddingDataSchema = new mongoose.Schema({
   introCouple: String,     // Was introCoupleUrl
   scrapbookImageFolder: String, // Was scrapbookImageFolderUrl
   scrapbookImages: [ImageSchema],
+  videoElements: [ImageSchema], // Using ImageSchema since videos have similar metadata structure
   isPlated: Boolean,
   allowKids: { type: Boolean, default: true },
   platedOptions: [MealOptionSchema],

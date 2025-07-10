@@ -614,6 +614,24 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               switch (element.type) {
                 case 'text': contentToRender = <h2>{element.content}</h2>; break;
                 case 'photo': contentToRender = <img src={element.content} alt={element.name || 'Wedding photo'} style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }} />; break;
+                case 'video': {
+                  const videoFolderName = generateElementFolderName(element);
+                  const videoControls = controlValues[videoFolderName] || {};
+                  const { autoplay = true, loop = true, muted = true, showControls = false } = videoControls;
+                  
+                  contentToRender = (
+                    <video 
+                      src={element.content} 
+                      autoPlay={autoplay}
+                      loop={loop}
+                      muted={muted}
+                      controls={showControls}
+                      style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }}
+                      onError={(e) => console.error('Video playback error:', e)}
+                    />
+                  );
+                  break;
+                }
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
                 case 'component':
                   if (element.name === 'RSVP Form') {
