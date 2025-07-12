@@ -240,6 +240,11 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
 
+  // --- PRELOADING STATE ---
+  const [isPreloading, setIsPreloading] = useState(true);
+  const [preloadProgress, setPreloadProgress] = useState(0);
+  const [preloadTotal, setPreloadTotal] = useState(0);
+
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
@@ -282,6 +287,102 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     });
     return Array.from(fonts).map(name => ({ name }));
   }, [overallFontFamily, elementsFromBlueprint, layoutSettingsFromPreview]);
+
+  // --- ASSET COLLECTION FOR PRELOADING ---
+  const assetsToPreload = useMemo(() => {
+    const assets: string[] = [];
+    
+    // Collect assets from renderable elements
+    renderableElements.forEach(element => {
+      if (element.type === 'photo' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'video' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'background-image' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'background-video' && typeof element.content === 'string') {
+        assets.push(element.content);
+      }
+    });
+    
+    // Collect scrapbook images
+    if (weddingDataFromApp?.scrapbookImages?.length) {
+      weddingDataFromApp.scrapbookImages.forEach((img: any) => {
+        const imageSrc = img.fileName?.startsWith('http') 
+          ? img.fileName 
+          : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`;
+        if (imageSrc) {
+          assets.push(imageSrc);
+        }
+      });
+    }
+    
+    // Remove duplicates
+    return Array.from(new Set(assets));
+  }, [renderableElements, weddingDataFromApp]);
+
+  // --- PRELOADING MANAGER INTEGRATION ---
+  useEffect(() => {
+    if (assetsToPreload.length === 0) {
+      setIsPreloading(false);
+      return;
+    }
+
+    setPreloadTotal(assetsToPreload.length);
+    
+    const handleProgress = (loaded: number, total: number) => {
+      setPreloadProgress(loaded);
+    };
+    
+    const handleComplete = () => {
+      setIsPreloading(false);
+    };
+
+    // Simple preloading logic
+    const preloadAssets = async () => {
+      let loadedCount = 0;
+      
+      const loadPromises = assetsToPreload.map((src) => {
+        return new Promise<void>((resolve) => {
+          const isVideo = src.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+          
+          if (isVideo) {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            video.onerror = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            video.src = src;
+          } else {
+            const img = new Image();
+            img.onload = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            img.onerror = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            img.src = src;
+          }
+        });
+      });
+
+      await Promise.allSettled(loadPromises);
+      setTimeout(handleComplete, 300); // Small delay for smooth transition
+    };
+
+    preloadAssets();
+  }, [assetsToPreload]);
   
   // Calculate scroll values with parallax physics applied
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
@@ -575,8 +676,119 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       }}>
         {notification.text}
       </animated.div>
-      <FontGrabber fonts={googleFontsToLoad} />
-      <div style={{ width: '100%', height: '100vh', background: background || '#1a1a1a' }}>
+
+      {/* Show loading screen during preloading */}
+      {isPreloading && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: `linear-gradient(135deg, ${background} 0%, ${primary} 100%)`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          color: text,
+          fontFamily: 'Arial, sans-serif',
+        }}>
+          {/* Animated Loading Icon */}
+          <div style={{
+            width: '80px',
+            height: '80px',
+            margin: '0 0 30px 0',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              border: `4px solid ${secondary}40`,
+              borderTop: `4px solid ${secondary}`,
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <style>
+              {`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                @keyframes pulse {
+                  0%, 100% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.7; transform: scale(1.05); }
+                }
+                @keyframes shimmer {
+                  0% { background-position: -200px 0; }
+                  100% { background-position: 200px 0; }
+                }
+              `}
+            </style>
+          </div>
+
+          {/* Loading Text */}
+          <h2 style={{
+            margin: '0 0 20px 0',
+            fontSize: '2rem',
+            fontWeight: '300',
+            textAlign: 'center',
+            animation: 'pulse 2s ease-in-out infinite',
+          }}>
+            Loading Preview
+          </h2>
+
+          {/* Progress Bar */}
+          <div style={{
+            width: '300px',
+            height: '6px',
+            backgroundColor: `${secondary}20`,
+            borderRadius: '3px',
+            overflow: 'hidden',
+            margin: '0 0 15px 0',
+          }}>
+            <div style={{
+              width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
+              height: '100%',
+              background: `linear-gradient(90deg, ${secondary}, ${accent})`,
+              borderRadius: '3px',
+              transition: 'width 0.3s ease',
+              backgroundSize: '200px 100%',
+              animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
+            }} />
+          </div>
+
+          {/* Progress Text */}
+          <p style={{
+            margin: '0',
+            fontSize: '1rem',
+            opacity: 0.8,
+            textAlign: 'center',
+          }}>
+            {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing preview...'}
+          </p>
+
+          {/* Completion Animation */}
+          {preloadProgress >= preloadTotal && preloadTotal > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              fontSize: '4rem',
+              animation: 'pulse 0.5s ease-in-out',
+            }}>
+              ✨
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main experience content - only show when not preloading */}
+      {!isPreloading && (
+        <>
+          <FontGrabber fonts={googleFontsToLoad} />
+          <div style={{ width: '100%', height: '100vh', background: background || '#1a1a1a' }}>
         <Parallax
           ref={parallaxRef}
           pages={TOTAL_PAGES}
@@ -587,9 +799,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             top: 0,
             left: 0,
             backgroundColor: background || '#1a1a1a',
-            // Basic hardware acceleration
+            // Enhanced hardware acceleration to prevent rendering glitches
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
+            transform: 'translateZ(0)', // Force GPU acceleration
+            WebkitTransform: 'translateZ(0)',
+            willChange: 'scroll-position, transform',
             WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
           }}
         >
@@ -602,8 +817,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               zIndex: -15,
               width: '100%',
               height: '100%',
-              backgroundColor: 'rgba(26, 26, 26, 0.7)', 
-              pointerEvents: 'none'
+              backgroundColor: '#1a1a1a', 
+              pointerEvents: 'none',
+              // Enhanced GPU acceleration for immediate rendering
+              transform: 'translateZ(0)',
+              willChange: 'transform',
+              backfaceVisibility: 'hidden'
             }}
           >
           </ParallaxLayer>
@@ -663,30 +882,32 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         })
       }
 
-      <>
-        <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />
-        {isScrapbookEnabled && (focusedImage || imageReturningToScrapbook) && (
-          <animated.div {...bindFocusedImageDrag()} style={{ ...focusedImageContainerSpring, zIndex: 1001, position: 'fixed', touchAction: 'none' } as any}>
-            {(focusedImage || imageReturningToScrapbook) && (
-              <div onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}>
-                <img src={focusedImage?.src || imageReturningToScrapbook?.src} alt={focusedImage?.altText || imageReturningToScrapbook?.altText} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', boxShadow: '0px 10px 30px rgba(0,0,0,0.5)', border: '10px solid white', borderRadius: '3px' }} />
-                {focusedImage && (
-                  <>
-                    <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
-                    <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
-                    {showCaptions && (
-                      <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
-                        <p style={{ margin: 0 }}>{focusedImage.altText}</p>
-                        {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
-                      </animated.div>
+          <>
+            <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />
+            {isScrapbookEnabled && (focusedImage || imageReturningToScrapbook) && (
+              <animated.div {...bindFocusedImageDrag()} style={{ ...focusedImageContainerSpring, zIndex: 1001, position: 'fixed', touchAction: 'none' } as any}>
+                {(focusedImage || imageReturningToScrapbook) && (
+                  <div onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}>
+                    <img src={focusedImage?.src || imageReturningToScrapbook?.src} alt={focusedImage?.altText || imageReturningToScrapbook?.altText} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', boxShadow: '0px 10px 30px rgba(0,0,0,0.5)', border: '10px solid white', borderRadius: '3px' }} />
+                    {focusedImage && (
+                      <>
+                        <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
+                        <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
+                        {showCaptions && (
+                          <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
+                            <p style={{ margin: 0 }}>{focusedImage.altText}</p>
+                            {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
+                          </animated.div>
+                        )}
+                      </>
                     )}
-                  </>
+                  </div>
                 )}
-              </div>
+              </animated.div>
             )}
-          </animated.div>
-        )}
-      </>
+          </>
+        </>
+      )}
     </>
   );
 };

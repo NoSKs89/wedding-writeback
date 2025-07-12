@@ -57,9 +57,9 @@ export const scrapbookLayoutControlsSchema = {
   shadowBlur: { value: 15, min: 0, max: 50, step: 1, label: 'Shadow Blur (px)' },
   shadowColor: { value: 'rgba(0,0,0,0.25)', label: 'Shadow Color' },
   baseOpacity: { value: 0.85, min: 0, max: 1, step: 0.01, label: 'Base Opacity' },
-  dynamicRotationRange: { value: 25, min: 0, max: 90, step: 1, label: 'Dynamic Rotation Range (±deg)' },
-  scrollSensitivityFactor: { value: 0.0003, min: 0, max: 0.001, step: 0.00001, label: 'Scroll Sensitivity Factor' },
-  parallaxDepthFactor: { value: 0.01, min: 0, max: 0.1, step: 0.001, label: 'Parallax Depth Factor' },
+  dynamicRotationRange: { value: 35, min: 0, max: 90, step: 1, label: 'Dynamic Rotation Range (±deg)' }, // Increased to 35 for more visible rotation
+  scrollSensitivityFactor: { value: 0.003, min: 0, max: 0.01, step: 0.0001, label: 'Scroll Sensitivity Factor' }, // Increased to 0.003 for more visible movement
+  parallaxDepthFactor: { value: 0.08, min: 0, max: 0.5, step: 0.001, label: 'Parallax Depth Factor' }, // Increased to 0.08 for more visible parallax movement
   itemBaseScale: { value: 1, min: 0.5, max: 2, step: 0.01, label: 'Item Base Scale' },
   movementScrollCap: { value: 5000, min: 1000, max: 10000, step: 100, label: 'Movement Scroll Cap' },
 };
@@ -140,12 +140,14 @@ const calculateScrollDependentValues = (displayIndex: any, scrollY: any, layoutV
   let parallaxScale = currentItemBaseScale + (cappedScrollYForMovement * (currentParallaxDepthFactor * 0.05)); // Example: make scale change less drastic
   parallaxScale = Math.max(0.5, Math.min(parallaxScale, currentItemBaseScale * 1.5)); // Clamp scale relative to base
 
-  return {
+  const result = {
     dynamicAngleOffsetDeg, 
     parallaxTranslateX,
     parallaxTranslateY,
     parallaxScale,
   };
+
+  return result;
 };
 
 interface DisplayedImageData {
@@ -209,7 +211,8 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
   }, {}), []);
   
   const layoutValues = useMemo(() => {
-    return { ...defaultLayoutValues, ...(layoutControlsFromProp || {}) };
+    const result = { ...defaultLayoutValues, ...(layoutControlsFromProp || {}) };
+    return result;
   }, [layoutControlsFromProp, defaultLayoutValues]);
 
   const { 

@@ -111,6 +111,193 @@ const getCenteredPosition = (targetWidth: number, targetHeight: number, offsetXv
   return { top: topPx, left: leftPx };
 };
 
+// --- PRELOADING MANAGER ---
+interface PreloadedAsset {
+  type: 'image' | 'video';
+  src: string;
+  loaded: boolean;
+  error?: boolean;
+}
+
+const PreloadingManager: React.FC<{ 
+  assets: string[]; 
+  onComplete: () => void; 
+  onProgress?: (loaded: number, total: number) => void 
+}> = ({ assets, onComplete, onProgress }) => {
+  const [loadedAssets, setLoadedAssets] = useState<PreloadedAsset[]>([]);
+  
+  useEffect(() => {
+    if (assets.length === 0) {
+      onComplete();
+      return;
+    }
+
+    const assetPromises = assets.map((src, index) => {
+      return new Promise<PreloadedAsset>((resolve) => {
+        const isVideo = src.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+        
+        if (isVideo) {
+          // Preload video
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.onloadedmetadata = () => {
+            resolve({ type: 'video', src, loaded: true });
+          };
+          video.onerror = () => {
+            resolve({ type: 'video', src, loaded: true, error: true });
+          };
+          video.src = src;
+        } else {
+          // Preload image
+          const img = new Image();
+          img.onload = () => {
+            resolve({ type: 'image', src, loaded: true });
+          };
+          img.onerror = () => {
+            resolve({ type: 'image', src, loaded: true, error: true });
+          };
+          img.src = src;
+        }
+      });
+    });
+
+    // Track progress as assets load
+    Promise.allSettled(assetPromises.map((promise, index) => 
+      promise.then(asset => {
+        setLoadedAssets(prev => {
+          const newAssets = [...prev, asset];
+          if (onProgress) {
+            onProgress(newAssets.length, assets.length);
+          }
+          return newAssets;
+        });
+        return asset;
+      })
+    )).then(() => {
+      // Small delay to ensure smooth transition
+      setTimeout(onComplete, 300);
+    });
+  }, [assets, onComplete, onProgress]);
+
+  return null; // This component doesn't render anything
+};
+
+// --- LOADING SCREEN COMPONENT ---
+const LoadingScreen: React.FC<{ 
+  progress: number; 
+  total: number; 
+  selectedColorScheme: WeddingColorScheme 
+}> = ({ progress, total, selectedColorScheme }) => {
+  const progressPercentage = total > 0 ? (progress / total) * 100 : 0;
+  const isComplete = progress >= total && total > 0;
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      width: '100vw',
+      height: '100vh',
+      background: `linear-gradient(135deg, ${selectedColorScheme.colors.background} 0%, ${selectedColorScheme.colors.primary} 100%)`,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 999999,
+      color: selectedColorScheme.colors.text,
+      fontFamily: 'Arial, sans-serif',
+    }}>
+      {/* Animated Loading Icon */}
+      <div style={{
+        width: '80px',
+        height: '80px',
+        margin: '0 0 30px 0',
+        position: 'relative',
+      }}>
+        <div style={{
+          width: '100%',
+          height: '100%',
+          border: `4px solid ${selectedColorScheme.colors.secondary}40`,
+          borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }} />
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50% { opacity: 0.7; transform: scale(1.05); }
+            }
+            @keyframes shimmer {
+              0% { background-position: -200px 0; }
+              100% { background-position: 200px 0; }
+            }
+          `}
+        </style>
+      </div>
+
+      {/* Loading Text */}
+      <h2 style={{
+        margin: '0 0 20px 0',
+        fontSize: '2rem',
+        fontWeight: '300',
+        textAlign: 'center',
+        animation: 'pulse 2s ease-in-out infinite',
+      }}>
+        Loading Experience
+      </h2>
+
+      {/* Progress Bar */}
+      <div style={{
+        width: '300px',
+        height: '6px',
+        backgroundColor: `${selectedColorScheme.colors.secondary}20`,
+        borderRadius: '3px',
+        overflow: 'hidden',
+        margin: '0 0 15px 0',
+      }}>
+        <div style={{
+          width: `${progressPercentage}%`,
+          height: '100%',
+          background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
+          borderRadius: '3px',
+          transition: 'width 0.3s ease',
+          backgroundSize: '200px 100%',
+          animation: progressPercentage < 100 ? 'shimmer 1.5s infinite' : 'none',
+        }} />
+      </div>
+
+      {/* Progress Text */}
+      <p style={{
+        margin: '0',
+        fontSize: '1rem',
+        opacity: 0.8,
+        textAlign: 'center',
+      }}>
+        {total > 0 ? `Loading assets... ${progress}/${total}` : 'Preparing experience...'}
+      </p>
+
+      {/* Completion Animation */}
+      {isComplete && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          fontSize: '4rem',
+          animation: 'pulse 0.5s ease-in-out',
+        }}>
+          ✨
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- GUEST EXPERIENCE COMPONENT ---
 const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const { 
@@ -187,6 +374,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
 
+  // --- PRELOADING STATE ---
+  const [isPreloading, setIsPreloading] = useState(true);
+  const [preloadProgress, setPreloadProgress] = useState(0);
+  const [preloadTotal, setPreloadTotal] = useState(0);
+
   // --- SAVE LOGIC STATE ---
   const [currentSavingToSlot, setCurrentSavingToSlot] = useState(defaultLayoutSlotToLoad);
   const [isSaving, setIsSaving] = useState(false);
@@ -254,6 +446,102 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     });
     return Array.from(fonts).map(name => ({ name }));
   }, [overallFontFamily, elementsFromBlueprint, controlValues]);
+
+  // --- ASSET COLLECTION FOR PRELOADING ---
+  const assetsToPreload = useMemo(() => {
+    const assets: string[] = [];
+    
+    // Collect assets from renderable elements
+    renderableElements.forEach(element => {
+      if (element.type === 'photo' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'video' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'background-image' && typeof element.content === 'string') {
+        assets.push(element.content);
+      } else if (element.type === 'background-video' && typeof element.content === 'string') {
+        assets.push(element.content);
+      }
+    });
+    
+    // Collect scrapbook images
+    if (weddingDataFromApp?.scrapbookImages?.length) {
+      weddingDataFromApp.scrapbookImages.forEach((img: any) => {
+        const imageSrc = img.fileName?.startsWith('http') 
+          ? img.fileName 
+          : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`;
+        if (imageSrc) {
+          assets.push(imageSrc);
+        }
+      });
+    }
+    
+    // Remove duplicates
+    return Array.from(new Set(assets));
+  }, [renderableElements, weddingDataFromApp]);
+
+  // --- PRELOADING MANAGER INTEGRATION ---
+  useEffect(() => {
+    if (assetsToPreload.length === 0) {
+      setIsPreloading(false);
+      return;
+    }
+
+    setPreloadTotal(assetsToPreload.length);
+    
+    const handleProgress = (loaded: number, total: number) => {
+      setPreloadProgress(loaded);
+    };
+    
+    const handleComplete = () => {
+      setIsPreloading(false);
+    };
+
+    // Simple preloading logic without separate component
+    const preloadAssets = async () => {
+      let loadedCount = 0;
+      
+      const loadPromises = assetsToPreload.map((src) => {
+        return new Promise<void>((resolve) => {
+          const isVideo = src.match(/\.(mp4|mov|avi|webm|mkv)$/i);
+          
+          if (isVideo) {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+            video.onloadedmetadata = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            video.onerror = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            video.src = src;
+          } else {
+            const img = new Image();
+            img.onload = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            img.onerror = () => {
+              loadedCount++;
+              handleProgress(loadedCount, assetsToPreload.length);
+              resolve();
+            };
+            img.src = src;
+          }
+        });
+      });
+
+      await Promise.allSettled(loadPromises);
+      setTimeout(handleComplete, 300); // Small delay for smooth transition
+    };
+
+    preloadAssets();
+  }, [assetsToPreload]);
 
   const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
   const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default;
@@ -462,6 +750,115 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return null; 
   }
 
+  // --- SHOW LOADING SCREEN DURING PRELOADING ---
+  if (isPreloading) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        background: `linear-gradient(135deg, ${selectedColorScheme.colors.background} 0%, ${selectedColorScheme.colors.primary} 100%)`,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 999999,
+        color: selectedColorScheme.colors.text,
+        fontFamily: 'Arial, sans-serif',
+      }}>
+        {/* Animated Loading Icon */}
+        <div style={{
+          width: '80px',
+          height: '80px',
+          margin: '0 0 30px 0',
+          position: 'relative',
+        }}>
+          <div style={{
+            width: '100%',
+            height: '100%',
+            border: `4px solid ${selectedColorScheme.colors.secondary}40`,
+            borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <style>
+            {`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              @keyframes pulse {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.7; transform: scale(1.05); }
+              }
+              @keyframes shimmer {
+                0% { background-position: -200px 0; }
+                100% { background-position: 200px 0; }
+              }
+            `}
+          </style>
+        </div>
+
+        {/* Loading Text */}
+        <h2 style={{
+          margin: '0 0 20px 0',
+          fontSize: '2rem',
+          fontWeight: '300',
+          textAlign: 'center',
+          animation: 'pulse 2s ease-in-out infinite',
+        }}>
+          Loading Experience
+        </h2>
+
+        {/* Progress Bar */}
+        <div style={{
+          width: '300px',
+          height: '6px',
+          backgroundColor: `${selectedColorScheme.colors.secondary}20`,
+          borderRadius: '3px',
+          overflow: 'hidden',
+          margin: '0 0 15px 0',
+        }}>
+          <div style={{
+            width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
+            height: '100%',
+            background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
+            borderRadius: '3px',
+            transition: 'width 0.3s ease',
+            backgroundSize: '200px 100%',
+            animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
+          }} />
+        </div>
+
+        {/* Progress Text */}
+        <p style={{
+          margin: '0',
+          fontSize: '1rem',
+          opacity: 0.8,
+          textAlign: 'center',
+        }}>
+          {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing experience...'}
+        </p>
+
+        {/* Completion Animation */}
+        {preloadProgress >= preloadTotal && preloadTotal > 0 && (
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontSize: '4rem',
+            animation: 'pulse 0.5s ease-in-out',
+          }}>
+            ✨
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Add rsvpEndpoint to weddingDataFromApp if it doesn't exist
   const weddingDataWithEndpoint = {
     ...weddingDataFromApp,
@@ -615,9 +1012,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
             backgroundColor: selectedColorScheme?.colors?.background || '#1a1a1a',
-            // Basic hardware acceleration
+            // Enhanced hardware acceleration to prevent rendering glitches
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
+            transform: 'translateZ(0)', // Force GPU acceleration
+            WebkitTransform: 'translateZ(0)',
+            willChange: 'scroll-position, transform',
             // Hide scrollbars for webkit browsers (Chrome, Safari, most mobile browsers)
             ...(isMobile ? {
               scrollbarWidth: 'none', // Firefox
@@ -630,8 +1030,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           {/* Safety background layer to prevent white flashes during scroll */}
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ 
             zIndex: -15, 
-            backgroundColor: 'rgba(26, 26, 26, 0.7)', 
-            pointerEvents: 'none'
+            backgroundColor: '#1a1a1a', 
+            pointerEvents: 'none',
+            // Enhanced GPU acceleration for immediate rendering
+            transform: 'translateZ(0)',
+            willChange: 'transform',
+            backfaceVisibility: 'hidden'
           }}>
           </ParallaxLayer>
           

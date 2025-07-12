@@ -198,6 +198,11 @@ export const getElementSchema = (element: any, globalFontFamilyFromStore: any) =
     } else if (element.type === 'photo' && element.name !== 'background-image') {
         return {
             ...controlsSchema,
+            // Override default opacity for photos to create natural fade-out
+            opacityAtStart: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Start' },
+            opacityAtMiddle: { value: 0.8, min: 0, max: 1, step: 0.01, label: 'Opacity @ Middle' },
+            opacityAtEnd: { value: 0, min: 0, max: 1, step: 0.01, label: 'Opacity @ End' },
+            opacityAnimationCurve: { value: 'easeInOutQuad', options: ['disabled', ...Object.keys(animationCurves)], label: 'Opacity Curve' },
             landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
             landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
             startingScale: { value: 1, min: 0.1, max: 5, step: 0.01, label: 'Starting Scale' },
@@ -212,6 +217,11 @@ export const getElementSchema = (element: any, globalFontFamilyFromStore: any) =
     } else if (element.type === 'background-image') {
         return {
             ...controlsSchema,
+            // Override default opacity for background images to create natural fade-out
+            opacityAtStart: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Start' },
+            opacityAtMiddle: { value: 0.7, min: 0, max: 1, step: 0.01, label: 'Opacity @ Middle' },
+            opacityAtEnd: { value: 0, min: 0, max: 1, step: 0.01, label: 'Opacity @ End' },
+            opacityAnimationCurve: { value: 'easeInOutQuad', options: ['disabled', ...Object.keys(animationCurves)], label: 'Opacity Curve' },
             cropToCircleEffect: { value: false, label: 'Enable Circle Crop & Shrink' },
             circleEffectCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Circle Effect Curve' },
             circleInitialRadius: { value: 150, min: 50, max: 200, step: 1, label: 'Circle Initial Radius (%)' },

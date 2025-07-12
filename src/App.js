@@ -127,8 +127,9 @@ const WeddingPageController = ({ isSetupMode = false }) => {
     setIsSetupMode(isSetupMode);
   }, [isSetupMode, setIsSetupMode]);
 
+  // Loading is now handled by the new preloading system in GuestExperience component
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '50px', fontSize: '1.2rem' }}>Loading Experience...</div>;
+    return null; // Let GuestExperience handle its own loading
   }
 
   if (error) {
