@@ -574,9 +574,21 @@ exports.handler = async (event, context) => {
               case 'shareGallery': s3KeyPrefix = `${weddingId}/share-gallery/`; break;
               case 'navbar': s3KeyPrefix = `${weddingId}/navbar/`; break;
               case 'video': s3KeyPrefix = `${weddingId}/videos/`; break;
+              case 'backgroundVideo': s3KeyPrefix = `${weddingId}/background-videos/`; break;
               default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
-          const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${fileName.replace(/\s+/g, '_')}`;
+          const sanitizedFileName = fileName.replace(/\s+/g, '_').replace(/[\/\\]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+          const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${sanitizedFileName}`;
+          
+          console.log(`📁 S3 Upload Debug:`, {
+              originalFileName: fileName,
+              sanitizedFileName: sanitizedFileName,
+              s3KeyPrefix: s3KeyPrefix,
+              uniqueFileName: uniqueFileName,
+              imageType: imageType,
+              weddingId: weddingId
+          });
+          
           const command = new PutObjectCommand({ Bucket: AWS_S3_BUCKET_NAME, Key: uniqueFileName, ContentType: fileType });
           const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
           const publicUrl = `https://${AWS_S3_BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${uniqueFileName}`;
@@ -602,9 +614,17 @@ exports.handler = async (event, context) => {
               // For now, let's assume video elements are stored separately
               if (!wedding.videoElements) wedding.videoElements = [];
               wedding.videoElements.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
+          } else if (imageType === 'backgroundVideo') {
+              // For background video elements, we'll store them in a separate field
+              if (!wedding.backgroundVideoElements) wedding.backgroundVideoElements = [];
+              wedding.backgroundVideoElements.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
           } else if (imageType === 'scrapbook') {
               wedding.scrapbookImages.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
-          } else return createResponse(400, { message: 'Invalid imageType for image post.' }, requestOrigin);
+          } else if (imageType === 'shareGallery') {
+              wedding.shareGalleryImages.push({ fileName: imageUrl, s3Key, caption: caption || '', uploadedAt: new Date() });
+          } else if (imageType === 'navbar') {
+              wedding.navbarBackground = imageUrl;
+          }
           
           await wedding.save();
           return createResponse(200, { message: `Image for ${imageType} saved.`, weddingData: wedding }, requestOrigin);

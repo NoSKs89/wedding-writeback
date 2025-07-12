@@ -26,7 +26,7 @@ export interface TimelineMarker {
 
 export interface ElementConfig {
   id: number; // Now 1-8
-  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video'; // Added 'video'
+  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video'; // Added 'background-video'
   content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo/video, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
@@ -158,6 +158,8 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
         previewImageUrl = el.content; // Videos can show as preview images (thumbnail)
       } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
         previewImageUrl = el.content;
+      } else if (el.type === 'background-video' && typeof el.content === 'string') { // Added for background video preview
+        previewImageUrl = el.content; // Background videos can show as preview images (thumbnail)
       }
 
       const specificDefaults = specificDefaultPositions[el.id];
@@ -306,6 +308,8 @@ const ExperienceSetupPage: React.FC = () => {
           previewImageUrl = el.content; // Videos can show as preview images (thumbnail)
         } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image preview
           previewImageUrl = el.content;
+        } else if (el.type === 'background-video' && typeof el.content === 'string') { // Added for background video preview
+          previewImageUrl = el.content; // Background videos can show as preview images (thumbnail)
         }
 
         // Default positions based on element ID if markers don't exist
@@ -390,6 +394,8 @@ const ExperienceSetupPage: React.FC = () => {
             } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
                 previewImageUrl = el.content;
             } else if (el.type === 'background-image' && typeof el.content === 'string') { // Added for background-image
+                previewImageUrl = el.content;
+            } else if (el.type === 'background-video' && typeof el.content === 'string') { // Added for background video
                 previewImageUrl = el.content;
             }
 

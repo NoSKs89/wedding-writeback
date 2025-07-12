@@ -626,13 +626,52 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       loop={loop}
                       muted={muted}
                       controls={showControls}
-                      style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }}
+                      style={{ 
+                        maxWidth: '100%', 
+                        maxHeight: '100%', 
+                        width: 'auto',
+                        height: 'auto',
+                        borderRadius: '8px',
+                        objectFit: 'contain'
+                      }}
                       onError={(e) => console.error('Video playback error:', e)}
                     />
                   );
                   break;
                 }
                 case 'background-image': contentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${element.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
+                case 'background-video': {
+                  const bgVideoFolderName = generateElementFolderName(element);
+                  const bgVideoControls = controlValues[bgVideoFolderName] || {};
+                  const { autoplay = true, loop = true, muted = true, showControls = false } = bgVideoControls;
+                  
+                  contentToRender = (
+                    <div style={{ 
+                      width: '100%', 
+                      height: '100%', 
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}>
+                      <video 
+                        src={element.content} 
+                        autoPlay={autoplay}
+                        loop={loop}
+                        muted={muted}
+                        controls={showControls}
+                        style={{ 
+                          width: '100%', 
+                          height: '100%', 
+                          objectFit: 'cover',
+                          position: 'absolute',
+                          top: 0,
+                          left: 0
+                        }}
+                        onError={(e) => console.error('Background video playback error:', e)}
+                      />
+                    </div>
+                  );
+                  break;
+                }
                 case 'component':
                   if (element.name === 'RSVP Form') {
                     const rsvpFolderName = generateElementFolderName(element);
@@ -666,7 +705,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
                   ...centerStyle, 
                   zIndex: 
-                    element.type === 'background-image' 
+                    element.type === 'background-image' || element.type === 'background-video'
                       ? -5 
                       : element.type === 'component' && element.name === 'Scrapbook' 
                       ? 100 

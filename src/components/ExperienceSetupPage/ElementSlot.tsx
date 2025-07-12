@@ -135,6 +135,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       imageTypeForUpload = 'introBackground';
     } else if (element.type === 'video') {
       imageTypeForUpload = 'video'; // New imageType for video files
+    } else if (element.type === 'background-video') {
+      imageTypeForUpload = 'backgroundVideo'; // New imageType for background video files
     }
 
     try {
@@ -189,8 +191,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
     } else if (newTypeValue === 'component-bottom-navbar') {
         onUpdate({ type: 'component', content: 'Bottom Navbar', name: 'Bottom Navbar' });
-    } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image' || newTypeValue === 'video') {
-        onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image' | 'video', content: null, name: undefined });
+    } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image' || newTypeValue === 'video' || newTypeValue === 'background-video') {
+        onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image' | 'video' | 'background-video', content: null, name: undefined });
     } else {
         onUpdate({ type: 'empty', content: null, name: undefined });
     }
@@ -406,13 +408,14 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
               <option value="component-scrapbook">Scrapbook</option>
               <option value="component-bottom-navbar">Bottom Navbar</option>
               <option value="background-image">Background Image</option>
+              <option value="background-video">Background Video</option>
             </select>
           </div>
         </div>
 
         {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
         {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}
-        {(element.type === 'photo' || element.type === 'background-image' || element.type === 'video') && (
+        {(element.type === 'photo' || element.type === 'background-image' || element.type === 'video' || element.type === 'background-video') && (
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '10px' }}>
             {filePreview && 
               <img 
@@ -430,12 +433,9 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
               <input 
                 type="file" 
-                accept={element.type === 'video' ? 'video/*' : 'image/*'} 
+                accept={element.type === 'video' || element.type === 'background-video' ? 'video/*' : 'image/*'} 
                 onChange={handleFileInputChange} 
-                style={{ 
-                  fontSize: '0.8rem', 
-                  maxWidth: '150px' 
-                }}
+                style={{ fontSize: '14px', padding: '4px', width: '200px' }}
               />
               {uploadStatus === 'uploading' && <p style={{fontSize: '0.8em', color: '#007bff'}}>Uploading...</p>}
               {uploadStatus === 'success' && element.content && <p style={{fontSize: '0.8em', color: 'green'}}>Saved!</p>}

@@ -398,13 +398,52 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             loop={loop}
             muted={muted}
             controls={showControls}
-            style={{ maxWidth: '80%', maxHeight: '80vh', borderRadius: '8px' }}
+            style={{ 
+              maxWidth: '100%', 
+              maxHeight: '100%', 
+              width: 'auto',
+              height: 'auto',
+              borderRadius: '8px',
+              objectFit: 'contain'
+            }}
             onError={(e) => console.error('Video playback error:', e)}
           />
         );
         break;
       }
       case 'background-image': componentToRender = <div style={{ width: '100%', height: '100%', backgroundImage: `url(${el.content})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />; break;
+      case 'background-video': {
+        const bgVideoFolderName = generateElementFolderName(el);
+        const bgVideoControls = elementControls[bgVideoFolderName] || {};
+        const { autoplay = true, loop = true, muted = true, showControls = false } = bgVideoControls;
+        
+        componentToRender = (
+          <div style={{ 
+            width: '100%', 
+            height: '100%', 
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <video 
+              src={el.content} 
+              autoPlay={autoplay}
+              loop={loop}
+              muted={muted}
+              controls={showControls}
+              style={{ 
+                width: '100%', 
+                height: '100%', 
+                objectFit: 'cover',
+                position: 'absolute',
+                top: 0,
+                left: 0
+              }}
+              onError={(e) => console.error('Background video playback error:', e)}
+            />
+          </div>
+        );
+        break;
+      }
       case 'component':
         if (el.name === 'RSVP Form') {
           const rsvpFolderName = generateElementFolderName(el);
@@ -447,7 +486,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       <ParallaxLayer key={el.key} sticky={el.sticky as ParallaxLayerProps['sticky']} style={{ 
           ...centerStyle, 
           zIndex: 
-            el.type === 'background-image'
+            el.type === 'background-image' || el.type === 'background-video'
               ? -5
               : el.type === 'component' && el.name === 'Scrapbook'
               ? 100
