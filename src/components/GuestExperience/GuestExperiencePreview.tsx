@@ -236,6 +236,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
   const parallaxRef = useRef<IParallax>(null);
 
+  // Natural scroll handling
+  const lastScrollY = useRef(0);
+  const lastScrollTime = useRef(Date.now());
+
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
@@ -315,13 +319,20 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     const parallaxContainer = parallaxRef.current?.container.current;
     if (parallaxContainer) {
       const handleResize = () => { setWindowHeight(window.innerHeight); setWindowWidth(window.innerWidth); };
+      
       const handleScroll = () => {
         const { scrollTop, scrollHeight, clientHeight } = parallaxContainer;
+        
+        // Natural scroll handling - no artificial capping
         setScrollY(scrollTop);
+        lastScrollY.current = scrollTop;
+        lastScrollTime.current = Date.now();
+        
         if (onScroll) {
           onScroll(scrollTop, scrollHeight, clientHeight);
         }
       };
+      
       parallaxContainer.addEventListener('scroll', handleScroll);
       window.addEventListener('resize', handleResize);
       return () => {
@@ -436,7 +447,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             width: '100%', 
             height: '100%', 
             position: 'relative',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            backgroundColor: '#000000' // Fallback during video load
           }}>
             <video 
               src={el.content} 
@@ -453,7 +465,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                 objectFit: 'cover',
                 position: 'absolute',
                 top: 0,
-                left: 0
+                left: 0,
+                backgroundColor: '#000000',
+                backfaceVisibility: 'hidden' // Prevent rendering glitches
               }}
               onError={(e) => console.error('Background video playback error:', e)}
               onLoadedMetadata={(e) => {
@@ -525,6 +539,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 125
               : (renderableElements.length - index) + 10,
           pointerEvents: el.type === 'component' && el.name === 'RSVP Form' ? 'none' : 'auto',
+          backgroundColor: (el.type === 'background-image' || el.type === 'background-video') 
+            ? '#000000' 
+            : 'transparent', // Background layers get black background, others transparent
       }}>
         <ElementWrapper 
           element={el} 
@@ -559,7 +576,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         {notification.text}
       </animated.div>
       <FontGrabber fonts={googleFontsToLoad} />
-      <div style={{ width: '100%', height: '100vh', background: background }}>
+      <div style={{ width: '100%', height: '100vh', background: background || '#1a1a1a' }}>
         <Parallax
           ref={parallaxRef}
           pages={TOTAL_PAGES}
@@ -569,8 +586,29 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             position: 'absolute',
             top: 0,
             left: 0,
+            backgroundColor: background || '#1a1a1a',
+            // Basic hardware acceleration
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
+            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
           }}
         >
+          {/* Safety background layer to prevent white flashes during scroll */}
+          <ParallaxLayer
+            offset={0}
+            speed={0}
+            sticky={{ start: 0, end: TOTAL_PAGES }}
+            style={{
+              zIndex: -15,
+              width: '100%',
+              height: '100%',
+              backgroundColor: 'rgba(26, 26, 26, 0.7)', 
+              pointerEvents: 'none'
+            }}
+          >
+          </ParallaxLayer>
+          
+          {/* Dynamic gradient background */}
           <ParallaxLayer
             offset={0}
             speed={0}

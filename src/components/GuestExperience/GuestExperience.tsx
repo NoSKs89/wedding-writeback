@@ -182,6 +182,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
   const parallaxRef = useRef<IParallax>(null);
 
+  // Scroll handling for parallax
+  const [scrollVelocity, setScrollVelocity] = useState(0);
+  const lastScrollY = useRef(0);
+  const lastScrollTime = useRef(Date.now());
+
   // --- SAVE LOGIC STATE ---
   const [currentSavingToSlot, setCurrentSavingToSlot] = useState(defaultLayoutSlotToLoad);
   const [isSaving, setIsSaving] = useState(false);
@@ -337,7 +342,24 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   useEffect(() => {
     const parallaxContainer = parallaxRef.current?.container.current;
     if (!parallaxContainer) return;
-    const handleScroll = () => setScrollY(parallaxContainer.scrollTop);
+    
+    const handleScroll = () => {
+      const currentScrollY = parallaxContainer.scrollTop;
+      const currentTime = Date.now();
+      
+      // Calculate scroll velocity for debug display
+      const deltaScroll = Math.abs(currentScrollY - lastScrollY.current);
+      const deltaTime = currentTime > lastScrollTime.current ? currentTime - lastScrollTime.current : 1;
+      const velocity = deltaScroll / deltaTime;
+      
+      // Update scroll state naturally - no artificial capping
+      setScrollY(currentScrollY);
+      setScrollVelocity(velocity);
+      
+      lastScrollY.current = currentScrollY;
+      lastScrollTime.current = currentTime;
+    };
+    
     parallaxContainer.addEventListener('scroll', handleScroll);
     return () => parallaxContainer.removeEventListener('scroll', handleScroll);
   }, [parallaxRef.current]);
@@ -566,6 +588,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       {isSetupMode && showGlobalHUDEnabledGuest && (
         <div style={{ position: 'fixed', top: "60px", left: '10px', zIndex: 10000, background: 'rgba(0,0,0,0.6)', color: 'white', padding: '8px', borderRadius: '0 0 5px 5px', fontSize: '13px', fontFamily: 'monospace' }}>
           <div>ScrollY: {scrollY.toFixed(0)} | %: {(scrollY / ((TOTAL_PAGES - 1) * windowHeight) * 100).toFixed(1)}</div>
+          <div>Velocity: {scrollVelocity.toFixed(2)} px/ms | Natural Scrolling</div>
           <div>Previewing: {previewingLayoutSlot} | Saving to: {currentSavingToSlot} | Prod: {isMobile ? experienceSettingsFromApp.defaultLayoutSlotMobile : experienceSettingsFromApp.defaultLayoutSlotDesktop}</div>
         </div>
       )}
@@ -575,7 +598,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         style={{ 
           width: '100%', 
           height: '100vh', 
-          background: '#f0f0f0',
+          background: selectedColorScheme?.colors?.background || '#1a1a1a',
           // Hide scrollbars on mobile and all devices
           ...(isMobile ? {
             scrollbarWidth: 'none', // Firefox
@@ -591,14 +614,28 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             top: '0', 
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
+            backgroundColor: selectedColorScheme?.colors?.background || '#1a1a1a',
+            // Basic hardware acceleration
+            backfaceVisibility: 'hidden',
+            WebkitBackfaceVisibility: 'hidden',
             // Hide scrollbars for webkit browsers (Chrome, Safari, most mobile browsers)
             ...(isMobile ? {
               scrollbarWidth: 'none', // Firefox
               msOverflowStyle: 'none', // IE and Edge
+              WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
             } : {})
           }}
         >
           
+          {/* Safety background layer to prevent white flashes during scroll */}
+          <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ 
+            zIndex: -15, 
+            backgroundColor: 'rgba(26, 26, 26, 0.7)', 
+            pointerEvents: 'none'
+          }}>
+          </ParallaxLayer>
+          
+          {/* Dynamic gradient background */}
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>
             <ShiftingBackgroundColors 
               scrollY={scrollYWithPhysics} 
@@ -664,7 +701,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       width: '100%', 
                       height: '100%', 
                       position: 'relative',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      backgroundColor: '#000000' // Fallback during video load
                     }}>
                       <video 
                         src={element.content} 
@@ -681,7 +719,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                           objectFit: 'cover',
                           position: 'absolute',
                           top: 0,
-                          left: 0
+                          left: 0,
+                          backgroundColor: '#000000',
+                          backfaceVisibility: 'hidden' // Prevent rendering glitches
                         }}
                         onError={(e) => console.error('Background video playback error:', e)}
                         onLoadedMetadata={(e) => {
@@ -744,6 +784,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 125
                       : (elementsFromBlueprint.length - (element.id || 0) + 1),
                   pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
+                  backgroundColor: (element.type === 'background-image' || element.type === 'background-video') 
+                    ? '#000000' 
+                    : 'transparent', // Background layers get black background, others transparent
                 }}>
                   <ElementWrapper 
                     element={element} 
