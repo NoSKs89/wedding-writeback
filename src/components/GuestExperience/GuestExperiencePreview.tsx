@@ -398,6 +398,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             loop={loop}
             muted={muted}
             controls={showControls}
+            playsInline={true}
+            webkit-playsinline="true"
+            preload="metadata"
             style={{ 
               width: 'auto',
               height: 'auto',
@@ -406,6 +409,18 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               display: 'block'
             }}
             onError={(e) => console.error('Video playback error:', e)}
+            onLoadedMetadata={(e) => {
+              // Programmatic play for iOS Safari compatibility
+              if (autoplay && muted) {
+                const video = e.target as HTMLVideoElement;
+                const playPromise = video.play();
+                if (playPromise !== undefined) {
+                  playPromise.catch((error: any) => {
+                    console.log('Video autoplay failed:', error);
+                  });
+                }
+              }
+            }}
           />
         );
         break;
@@ -429,6 +444,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               loop={loop}
               muted={muted}
               controls={showControls}
+              playsInline={true}
+              webkit-playsinline="true"
+              preload="metadata"
               style={{ 
                 width: '100%', 
                 height: '100%', 
@@ -438,6 +456,18 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                 left: 0
               }}
               onError={(e) => console.error('Background video playback error:', e)}
+              onLoadedMetadata={(e) => {
+                // Programmatic play for iOS Safari compatibility
+                if (autoplay && muted) {
+                  const video = e.target as HTMLVideoElement;
+                  const playPromise = video.play();
+                  if (playPromise !== undefined) {
+                    playPromise.catch((error: any) => {
+                      console.log('Background video autoplay failed:', error);
+                    });
+                  }
+                }
+              }}
             />
           </div>
         );

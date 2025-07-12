@@ -209,12 +209,12 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     const baseSchema = getElementSchema(element, fontToUse) as any;
     const savedValues = getSavedValues || {};
     
-    console.log(`🔧 BottomNavbar: Creating schema for ${folderName}`, {
-      timestamp: Date.now(),
-      baseSchemaKeys: Object.keys(baseSchema),
-      savedValues,
-      willMergeSavedValues: Object.keys(savedValues).length > 0
-    });
+    // console.log(`🔧 BottomNavbar: Creating schema for ${folderName}`, {
+    //   timestamp: Date.now(),
+    //   baseSchemaKeys: Object.keys(baseSchema),
+    //   savedValues,
+    //   willMergeSavedValues: Object.keys(savedValues).length > 0
+    // });
     
     // Merge saved values into schema (same logic as ElementWrapper)
     const schemaWithSavedValues: any = {};
@@ -228,15 +228,15 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     return schemaWithSavedValues;
   }, [element, fontToUse, getSavedValues]);
   
-  console.log(`🎭 BottomNavbar: useControls setup for ${folderName}`, {
-    timestamp: Date.now(),
-    elementId: element?.id,
-    isSetupMode,
-    hasElement: !!element,
-    hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
-    shouldRegisterControls,
-    schemaKeys: Object.keys(schema)
-  });
+  // console.log(`🎭 BottomNavbar: useControls setup for ${folderName}`, {
+  //   timestamp: Date.now(),
+  //   elementId: element?.id,
+  //   isSetupMode,
+  //   hasElement: !!element,
+  //   hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
+  //   shouldRegisterControls,
+  //   schemaKeys: Object.keys(schema)
+  // });
   
   const levaValues = useControls(
     folderName,
@@ -248,24 +248,24 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
     [element?.id, shouldRegisterControls]
   ) as Record<string, any>;
   
-  console.log(`🎛️ BottomNavbar: levaValues received for ${folderName}`, {
-    timestamp: Date.now(),
-    levaValues,
-    shouldRegisterControls
-  });
+  // console.log(`🎛️ BottomNavbar: levaValues received for ${folderName}`, {
+  //   timestamp: Date.now(),
+  //   levaValues,
+  //   shouldRegisterControls
+  // });
   
   // Update store with control values
   useEffect(() => {
-    console.log(`📊 BottomNavbar: useEffect for updateControlValuesInStore`, {
-      timestamp: Date.now(),
-      folderName,
-      shouldRegisterControls,
-      levaValues,
-      willUpdate: shouldRegisterControls && folderName
-    });
+    // console.log(`📊 BottomNavbar: useEffect for updateControlValuesInStore`, {
+    //   timestamp: Date.now(),
+    //   folderName,
+    //   shouldRegisterControls,
+    //   levaValues,
+    //   willUpdate: shouldRegisterControls && folderName
+    // });
     
     if (shouldRegisterControls && folderName) {
-      console.log(`✅ BottomNavbar: Calling updateControlValuesInStore for ${folderName}`, levaValues);
+      // console.log(`✅ BottomNavbar: Calling updateControlValuesInStore for ${folderName}`, levaValues);
       updateControlValuesInStore(folderName, levaValues);
     }
   }, [levaValues, folderName, updateControlValuesInStore, shouldRegisterControls]);
@@ -368,16 +368,16 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
   const sortedItems = [...navbarSettings.items].sort((a, b) => a.position - b.position);
 
   // DEBUG: Log button color to verify it's being received
-  console.log(`🎨 BottomNavbar: Button color control received`, {
-    timestamp: Date.now(),
-    folderName,
-    buttonColor,
-    effectiveStyleControlsKeys: Object.keys(effectiveStyleControls || {}),
-    hasButtonColor: 'buttonColor' in (effectiveStyleControls || {}),
-    rawButtonColorValue: effectiveStyleControls?.buttonColor,
-    willUseGlobalButtonColor: true, // Now always using global buttonColor
-    individualItemBackgroundColors: sortedItems.map(item => item.backgroundColor)
-  });
+  // console.log(`🎨 BottomNavbar: Button color control received`, {
+  //   timestamp: Date.now(),
+  //   folderName,
+  //   buttonColor,
+  //   effectiveStyleControlsKeys: Object.keys(effectiveStyleControls || {}),
+  //   hasButtonColor: 'buttonColor' in (effectiveStyleControls || {}),
+  //   rawButtonColorValue: effectiveStyleControls?.buttonColor,
+  //   willUseGlobalButtonColor: true, // Now always using global buttonColor
+  //   individualItemBackgroundColors: sortedItems.map(item => item.backgroundColor)
+  // });
 
   // Create staggered transition for navbar items
   const itemsToAnimate = shouldAnimateItems ? sortedItems : [];
@@ -486,7 +486,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
             zIndex: 300,
             cursor: 'pointer',
           }}
-          onClick={() => console.log('Simple button clicked:', item.title)}
+          // onClick={() => console.log('Simple button clicked:', item.title)}
         >
           <span style={{ color: item.textColor, fontSize: '14px' }}>
             {item.title}
@@ -496,19 +496,19 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
 
       {/* Animated NavbarItemButton components with LERP transformation */}
       {(() => {
-        console.log('BottomNavbar: About to render itemTransitions, sortedItems.length:', sortedItems.length);
+        // console.log('BottomNavbar: About to render itemTransitions, sortedItems.length:', sortedItems.length);
         if (sortedItems.length === 0) return null;
         
         const renderedTransitions = itemTransitions((style, item, _, index) => {
-          console.log('BottomNavbar: Rendering itemTransition for:', {
-            itemId: item.id,
-            itemTitle: item.title,
-            index,
-            styleOpacity: style.opacity.get ? style.opacity.get() : style.opacity,
-            styleTransform: style.transform.get ? style.transform.get() : style.transform,
-            shouldAnimateItems,
-            expandedItemId
-          });
+          // console.log('BottomNavbar: Rendering itemTransition for:', {
+          //   itemId: item.id,
+          //   itemTitle: item.title,
+          //   index,
+          //   styleOpacity: style.opacity.get ? style.opacity.get() : style.opacity,
+          //   styleTransform: style.transform.get ? style.transform.get() : style.transform,
+          //   shouldAnimateItems,
+          //   expandedItemId
+          // });
           
           return (
             <NavbarItemButton
@@ -516,7 +516,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
               item={item}
               isExpanded={expandedItemId === item.id}
               onToggle={(itemId) => {
-                console.log('BottomNavbar: onToggle called for itemId:', itemId, 'currentExpanded:', expandedItemId);
+                // console.log('BottomNavbar: onToggle called for itemId:', itemId, 'currentExpanded:', expandedItemId);
                 setExpandedItemId(expandedItemId === itemId ? null : itemId);
               }}
               viewportDimensions={viewportDimensions}
@@ -543,7 +543,7 @@ const BottomNavbar: React.FC<BottomNavbarProps> = ({
           );
         });
         
-        console.log('BottomNavbar: renderedTransitions type:', typeof renderedTransitions, 'Array.isArray:', Array.isArray(renderedTransitions));
+        // console.log('BottomNavbar: renderedTransitions type:', typeof renderedTransitions, 'Array.isArray:', Array.isArray(renderedTransitions));
         return renderedTransitions;
       })()}
     </>
@@ -600,23 +600,23 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   transitionStyle,
   transitionEnabled = false,
 }) => {
-  console.log('NavbarItemButton: Rendering for item:', {
-    itemId: item.id,
-    itemTitle: item.title,
-    isExpanded,
-    itemIndex,
-    totalItems,
-    viewportDimensions,
-    transitionEnabled,
-    transitionStyle: transitionStyle ? {
-      opacity: transitionStyle.opacity?.get?.() || transitionStyle.opacity,
-      transform: transitionStyle.transform?.get?.() || transitionStyle.transform
-    } : null,
-    // Button color debugging
-    buttonColorFromProps: buttonColor,
-    itemBackgroundColor: item.backgroundColor,
-    willUseButtonColor: true // Now always using buttonColor from props
-  });
+  // console.log('NavbarItemButton: Rendering for item:', {
+  //   itemId: item.id,
+  //   itemTitle: item.title,
+  //   isExpanded,
+  //   itemIndex,
+  //   totalItems,
+  //   viewportDimensions,
+  //   transitionEnabled,
+  //   transitionStyle: transitionStyle ? {
+  //     opacity: transitionStyle.opacity?.get?.() || transitionStyle.opacity,
+  //     transform: transitionStyle.transform?.get?.() || transitionStyle.transform
+  //   } : null,
+  //   // Button color debugging
+  //   buttonColorFromProps: buttonColor,
+  //   itemBackgroundColor: item.backgroundColor,
+  //   willUseButtonColor: true // Now always using buttonColor from props
+  // });
   const contentSpringRef = useSpringRef();
   const transformSpringRef = useSpringRef();
   const sequentialContentSpringRef = useSpringRef();
@@ -643,15 +643,15 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
 
   // Debug position calculations (only for first item to avoid spam)
   if (itemIndex === 0) {
-    console.log('BottomNavbar: Button positioning with top/bottom padding:', {
-      navbarHeightPx,
-      topPadding,
-      bottomPadding,
-      availableHeight,
-      buttonHeight,
-      buttonTop,
-      navbarTop
-    });
+    // console.log('BottomNavbar: Button positioning with top/bottom padding:', {
+    //   navbarHeightPx,
+    //   topPadding,
+    //   bottomPadding,
+    //   availableHeight,
+    //   buttonHeight,
+    //   buttonTop,
+    //   navbarTop
+    // });
   }
 
   // Modal dimensions and position - responsive to shrinkToFitContent setting
@@ -671,16 +671,16 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
   const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
   const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 4);
   
-  console.log('Modal positioning calculations:', {
-    viewportHeight: viewportDimensions.height,
-    viewportWidth: viewportDimensions.width,
-    modalHeight,
-    modalWidth,
-    modalTop,
-    modalLeft,
-    shrinkToFitContent: item.shrinkToFitContent,
-    hasImage: !!item.imageUrl
-  });
+  // console.log('Modal positioning calculations:', {
+  //   viewportHeight: viewportDimensions.height,
+  //   viewportWidth: viewportDimensions.width,
+  //   modalHeight,
+  //   modalWidth,
+  //   modalTop,
+  //   modalLeft,
+  //   shrinkToFitContent: item.shrinkToFitContent,
+  //   hasImage: !!item.imageUrl
+  // });
 
   // Process content into sequential animation pieces
   const sequentialContentPieces = useMemo(() => {

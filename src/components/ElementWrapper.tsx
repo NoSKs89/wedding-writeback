@@ -491,13 +491,13 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   
   // Debug log for combined effects (only log if element id is 1 to avoid spam)
   if (element.id === 1 && (rotateInEffect || translateInEffect)) {
-    console.log(`🎬 Combined Animation Effects [${folderName}]:`, {
-      rotateInActive: rotateInEffect,
-      translateInActive: translateInEffect,
-      currentRotation: { x: currentRotateX, y: currentRotateY, z: currentRotateZ },
-      currentTranslation: { x: currentTranslateX, y: currentTranslateY },
-      finalPosition: { x: landingXPosition + currentTranslateX, y: finalCalculatedYTransform + currentTranslateY }
-    });
+    // console.log(`🎬 Combined Animation Effects [${folderName}]:`, {
+    //   rotateInActive: rotateInEffect,
+    //   translateInActive: translateInEffect,
+    //   currentRotation: { x: currentRotateX, y: currentRotateY, z: currentRotateZ },
+    //   currentTranslation: { x: currentTranslateX, y: currentTranslateY },
+    //   finalPosition: { x: landingXPosition + currentTranslateX, y: finalCalculatedYTransform + currentTranslateY }
+    // });
   }
   
   // Build transform string with rotation and translation support
