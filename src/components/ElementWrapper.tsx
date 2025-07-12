@@ -504,18 +504,24 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const scaleValue = element.type === 'background-image' ? scaleForBgImage : currentScale;
   
   // Combine base positioning with translate in animation
-  const finalXPosition = landingXPosition + currentTranslateX;
-  const finalYPosition = finalCalculatedYTransform + currentTranslateY;
+  // Round values to prevent floating point precision issues that cause stutter
+  const finalXPosition = Math.round((landingXPosition + currentTranslateX) * 100) / 100;
+  const finalYPosition = Math.round((finalCalculatedYTransform + currentTranslateY) * 100) / 100;
+  const roundedScale = Math.round(scaleValue * 1000) / 1000;
   
-  let transformString = `translate(${finalXPosition}px, ${finalYPosition}px) scale(${scaleValue})`;
+  // Use translate3d for better GPU acceleration and round rotation values
+  let transformString = `translate3d(${finalXPosition}px, ${finalYPosition}px, 0) scale(${roundedScale})`;
   
   // Add rotation if rotate in effect is enabled for image and text elements
   if ((element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video' || element.type === 'background-video') && rotateInEffect) {
-    transformString += ` rotateX(${currentRotateX}deg) rotateY(${currentRotateY}deg) rotateZ(${currentRotateZ}deg)`;
+    const roundedRotateX = Math.round(currentRotateX * 10) / 10;
+    const roundedRotateY = Math.round(currentRotateY * 10) / 10;
+    const roundedRotateZ = Math.round(currentRotateZ * 10) / 10;
+    transformString += ` rotateX(${roundedRotateX}deg) rotateY(${roundedRotateY}deg) rotateZ(${roundedRotateZ}deg)`;
   }
 
   const elementStyle: React.CSSProperties = {
-    opacity: finalOpacity,
+    opacity: Math.round(finalOpacity * 1000) / 1000, // Round opacity to prevent micro-stutters
     transform: transformString,
     width: (element.type === 'background-image' || element.type === 'background-video') ? '100%' : 'fit-content',
     height: (element.type === 'background-image' || element.type === 'background-video') ? '100%' : 'auto',
@@ -529,8 +535,14 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
     paddingRight: `${paddingRight}px`,
     position: 'relative',
     clipPath: clipPathToApply,
-    willChange: 'transform, opacity',
+    // Optimized willChange - only specify properties that actually change
+    willChange: (rotateInEffect || translateInEffect || finalOpacity !== 1 || scaleValue !== 1) 
+      ? 'transform, opacity' 
+      : 'auto',
     boxSizing: 'border-box',
+    // Enhanced hardware acceleration
+    backfaceVisibility: 'hidden',
+    WebkitBackfaceVisibility: 'hidden',
     // Add transform-style to enable 3D transformations for both rotate and translate effects
     transformStyle: (element.type === 'photo' || element.type === 'background-image' || element.type === 'text' || element.type === 'video' || element.type === 'background-video') && (rotateInEffect || translateInEffect) ? 'preserve-3d' : undefined
   };

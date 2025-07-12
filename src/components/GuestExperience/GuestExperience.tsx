@@ -842,19 +842,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing experience...'}
         </p>
 
-        {/* Completion Animation */}
-        {preloadProgress >= preloadTotal && preloadTotal > 0 && (
-          <div style={{
-            position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            fontSize: '4rem',
-            animation: 'pulse 0.5s ease-in-out',
-          }}>
-            ✨
-          </div>
-        )}
+        {/* Completion Animation - Removed star emoji */}
       </div>
     );
   }
