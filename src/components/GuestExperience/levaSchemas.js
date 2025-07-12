@@ -83,7 +83,7 @@ export const generateElementFolderName = (element) => {
         } else {
             namePart = 'Text';
         }
-    } else if (element.type === 'photo' || element.type === 'background-image') {
+    } else if (element.type === 'photo' || element.type === 'background-image' || element.type === 'video' || element.type === 'background-video') {
         if (element.content) {
             // Extract filename without extension and sanitize
             const filename = element.content.split('/').pop() || element.content;
@@ -91,7 +91,10 @@ export const generateElementFolderName = (element) => {
             const sanitizedName = sanitizeText(nameWithoutExt);
             namePart = sanitizedName.substring(0, 12);
         } else {
-            namePart = element.type === 'background-image' ? 'BgImg' : 'Photo';
+            namePart = element.type === 'background-image' ? 'BgImg' 
+                     : element.type === 'background-video' ? 'BgVideo'
+                     : element.type === 'video' ? 'Video'
+                     : 'Photo';
         }
     } else if (element.type === 'component') {
         // For component types, sanitize the name and add underscores between words

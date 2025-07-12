@@ -399,12 +399,11 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             muted={muted}
             controls={showControls}
             style={{ 
-              maxWidth: '100%', 
-              maxHeight: '100%', 
               width: 'auto',
               height: 'auto',
               borderRadius: '8px',
-              objectFit: 'contain'
+              objectFit: 'contain',
+              display: 'block'
             }}
             onError={(e) => console.error('Video playback error:', e)}
           />

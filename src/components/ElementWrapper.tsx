@@ -251,11 +251,13 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   }
 
   let currentScale = 1;
-  if (element.type === 'photo' && element.name !== 'background-image' && startingScale !== endingScale) {
-    const scaleAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * scaleEndYPosition);
-    const scaleProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (scaleAnimationEndScrollPoint - elementStartScroll || 1)));
-    const selectedScaleCurve = animationCurves[scaleAnimationCurve as keyof typeof animationCurves] || linear;
-    currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
+  if ((element.type === 'photo' && element.name !== 'background-image') || element.type === 'video' || element.type === 'background-video') {
+    if (startingScale !== endingScale) {
+      const scaleAnimationEndScrollPoint = elementStartScroll + (elementScrollDuration * scaleEndYPosition);
+      const scaleProgress = Math.min(1, Math.max(0, (scrollY - elementStartScroll) / (scaleAnimationEndScrollPoint - elementStartScroll || 1)));
+      const selectedScaleCurve = animationCurves[scaleAnimationCurve as keyof typeof animationCurves] || linear;
+      currentScale = startingScale + (endingScale - startingScale) * selectedScaleCurve(scaleProgress);
+    }
   }
 
   let currentAnimatedYOffset = 0;
@@ -515,8 +517,8 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
   const elementStyle: React.CSSProperties = {
     opacity: finalOpacity,
     transform: transformString,
-    width: element.type === 'background-image' ? '100%' : 'fit-content',
-    height: element.type === 'background-image' ? '100%' : 'auto',
+    width: (element.type === 'background-image' || element.type === 'background-video') ? '100%' : 'fit-content',
+    height: (element.type === 'background-image' || element.type === 'background-video') ? '100%' : 'auto',
     color: textColor,
     fontFamily: fontFamily,
     fontSize: `${currentFontSize}px`,

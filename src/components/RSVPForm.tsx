@@ -680,9 +680,8 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
                 </animated.div>
                 <animated.div style={kidsInfoSpring}>
                   {bringingKids && (
-                    <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+                    <p style={{fontSize: '0.75rem', opacity: 1, margin: '0 0 1rem 0', padding: '0.5rem 1rem', textAlign: 'left', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
                       *Kids under 12 will be served a kids meal of chicken fingers, fries, and fruit;
-                      <br />
                       they will kindly not enter the buffet line.
                     </p>
                   )}
@@ -752,7 +751,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
           </animated.div>
           <animated.div style={kidsInfoSpring}>
             {bringingKids && (
-              <p style={{fontSize: '0.75rem', opacity: 0.6, margin: '0 0 1rem 0', textAlign: 'center', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+              <p style={{fontSize: '0.75rem', opacity: 1, margin: '0 0 1rem 0', padding: '0.5rem 1rem', textAlign: 'left', fontStyle: 'italic', color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>
                 *Kids under 12 will be served a kids meal of chicken fingers, fries, and fruit;
                 <br />
                 they will kindly not enter the buffet line.
