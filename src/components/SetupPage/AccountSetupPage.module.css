@@ -132,4 +132,178 @@
 .status.paid {
   background-color: #d1e7dd;
   color: #0f5132;
+}
+
+/* Email RSVP Alerts Section */
+.emailAlertsSection {
+  margin-top: 30px;
+  margin-bottom: 30px;
+}
+
+.emailAlertsForm {
+  display: flex;
+  flex-direction: column;
+}
+
+.checkbox {
+  margin-right: 8px;
+  transform: scale(1.2);
+}
+
+.emailInputContainer {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.emailInput {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 1rem;
+}
+
+.emailInput:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.addEmailButton {
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+  white-space: nowrap;
+}
+
+.addEmailButton:hover {
+  background-color: #218838;
+}
+
+.addEmailButton:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.emailList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.emailItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.emailItem:hover {
+  background-color: #e9ecef;
+}
+
+.emailText {
+  font-size: 0.95rem;
+  color: #333;
+  flex: 1;
+}
+
+.removeEmailButton {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.removeEmailButton:hover {
+  background-color: #c82333;
+}
+
+.removeEmailButton:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.25);
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .emailInputContainer {
+    flex-direction: column;
+  }
+  
+  .emailInput {
+    margin-bottom: 10px;
+  }
+  
+  .addEmailButton {
+    width: 100%;
+  }
+  
+  .emailItem {
+    padding: 12px;
+  }
+} 
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.4);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modalContent {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+  padding: 32px 24px 24px 24px;
+  min-width: 320px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.changePasswordSection {
+  margin-top: 40px;
+  text-align: center;
+}
+
+.submitButton {
+  margin-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .modalContent {
+    min-width: 90vw;
+    padding: 18px 8px 16px 8px;
+  }
 } 

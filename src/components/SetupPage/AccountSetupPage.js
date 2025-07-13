@@ -20,6 +20,18 @@ const AccountSetupPage = () => {
   const [isDisplayNameLoading, setIsDisplayNameLoading] = useState(false);
   const [isFetchingAccountData, setIsFetchingAccountData] = useState(true);
 
+  // Email RSVP Alerts state
+  const [emailRsvpAlertsEnabled, setEmailRsvpAlertsEnabled] = useState(false);
+  const [rsvpAlertEmails, setRsvpAlertEmails] = useState([]);
+  const [newEmailInput, setNewEmailInput] = useState('');
+  const [emailAlertsMessage, setEmailAlertsMessage] = useState({ text: '', type: '' });
+  const [isEmailAlertsLoading, setIsEmailAlertsLoading] = useState(false);
+
+  // Modal state for password change
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalMessage, setPasswordModalMessage] = useState({ text: '', type: '' });
+  const [isPasswordModalLoading, setIsPasswordModalLoading] = useState(false);
+
   useEffect(() => {
     const fetchAccountData = async () => {
       setIsFetchingAccountData(true);
@@ -39,57 +51,144 @@ const AccountSetupPage = () => {
       setIsFetchingAccountData(false);
     };
 
+    const fetchEmailRsvpAlerts = async () => {
+      try {
+        const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/email-rsvp-alerts`);
+        if (response.data && response.data.success) {
+          setEmailRsvpAlertsEnabled(response.data.data.enabled);
+          setRsvpAlertEmails(response.data.data.emails || []);
+        }
+      } catch (error) {
+        console.error("Error fetching email RSVP alerts:", error);
+        setEmailAlertsMessage({ text: 'Error fetching email RSVP alerts.', type: 'error' });
+      }
+    };
+
     if (weddingId) {
       fetchAccountData();
+      fetchEmailRsvpAlerts();
     }
   }, [weddingId, apiBaseUrl]);
 
-  const handleDisplayNameUpdate = async (e) => {
+  // Unified save handler for display name and email alerts
+  const handleSaveAll = async (e) => {
     e.preventDefault();
-    setDisplayNameMessage({ text: '', type: '' });
-    setIsDisplayNameLoading(true);
-
+    let displayNameSuccess = false;
+    let emailAlertsSuccess = false;
+    setEmailAlertsMessage({ text: '', type: '' });
+    // Save display name
     try {
-      const response = await axios.put(`${apiBaseUrl}/weddings/${weddingId}/instance-display-name`, {
+      await axios.put(`${apiBaseUrl}/weddings/${weddingId}/instance-display-name`, {
         instanceDisplayName: instanceDisplayName.trim()
       });
-      setDisplayNameMessage({ text: response.data.message || 'Instance display name updated successfully!', type: 'success' });
+      displayNameSuccess = true;
     } catch (error) {
-      setDisplayNameMessage({ text: error.response?.data?.message || 'Error updating instance display name.', type: 'error' });
+      displayNameSuccess = false;
+      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error updating display name.', type: 'error' });
     }
-    setIsDisplayNameLoading(false);
+    // Save email RSVP alerts
+    try {
+      await axios.put(`${apiBaseUrl}/weddings/${weddingId}/email-rsvp-alerts`, {
+        enabled: emailRsvpAlertsEnabled,
+        emails: rsvpAlertEmails
+      });
+      emailAlertsSuccess = true;
+    } catch (error) {
+      emailAlertsSuccess = false;
+      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error updating email RSVP alerts.', type: 'error' });
+    }
+    if (displayNameSuccess && emailAlertsSuccess) {
+      setEmailAlertsMessage({ text: 'Settings saved successfully!', type: 'success' });
+    } else if (displayNameSuccess) {
+      setEmailAlertsMessage({ text: 'Display name saved, but there was an error saving email alerts.', type: 'error' });
+    } else if (emailAlertsSuccess) {
+      setEmailAlertsMessage({ text: 'Email alerts saved, but there was an error saving display name.', type: 'error' });
+    }
   };
 
-  const handlePasswordChange = async (e) => {
+  // Password modal handler
+  const handlePasswordChangeModal = async (e) => {
     e.preventDefault();
-    setMessage({ text: '', type: '' });
-    setIsLoading(true);
-
+    setPasswordModalMessage({ text: '', type: '' });
+    setIsPasswordModalLoading(true);
     if (newPassword !== confirmNewPassword) {
-      setMessage({ text: 'New passwords do not match.', type: 'error' });
-      setIsLoading(false);
+      setPasswordModalMessage({ text: 'New passwords do not match.', type: 'error' });
+      setIsPasswordModalLoading(false);
       return;
     }
-    if (newPassword.length < 1) { // Matching backend basic validation
-        setMessage({ text: 'New password is too short.', type: 'error' });
-        setIsLoading(false);
-        return;
+    if (newPassword.length < 1) {
+      setPasswordModalMessage({ text: 'New password is too short.', type: 'error' });
+      setIsPasswordModalLoading(false);
+      return;
     }
-
     try {
       const response = await axios.put(`${apiBaseUrl}/weddings/${weddingId}/change-password`, {
         currentPassword,
         newPassword,
         confirmNewPassword
       });
-      setMessage({ text: response.data.message, type: 'success' });
+      setPasswordModalMessage({ text: response.data.message, type: 'success' });
       setCurrentPassword('');
       setNewPassword('');
       setConfirmNewPassword('');
     } catch (error) {
-      setMessage({ text: error.response?.data?.message || 'Error changing password.', type: 'error' });
+      setPasswordModalMessage({ text: error.response?.data?.message || 'Error changing password.', type: 'error' });
     }
-    setIsLoading(false);
+    setIsPasswordModalLoading(false);
+  };
+
+  // Email RSVP Alerts functions
+  const addEmailToAlerts = (e) => {
+    e.preventDefault();
+    const email = newEmailInput.trim();
+    
+    if (!email) {
+      setEmailAlertsMessage({ text: 'Please enter an email address.', type: 'error' });
+      return;
+    }
+    
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setEmailAlertsMessage({ text: 'Please enter a valid email address.', type: 'error' });
+      return;
+    }
+    
+    const lowerCaseEmail = email.toLowerCase();
+    if (rsvpAlertEmails.includes(lowerCaseEmail)) {
+      setEmailAlertsMessage({ text: 'This email address is already in the list.', type: 'error' });
+      return;
+    }
+    
+    setRsvpAlertEmails([...rsvpAlertEmails, lowerCaseEmail]);
+    setNewEmailInput('');
+    setEmailAlertsMessage({ text: '', type: '' });
+  };
+
+  const removeEmailFromAlerts = (emailToRemove) => {
+    setRsvpAlertEmails(rsvpAlertEmails.filter(email => email !== emailToRemove));
+  };
+
+  const handleEmailAlertsSubmit = async (e) => {
+    e.preventDefault();
+    setEmailAlertsMessage({ text: '', type: '' });
+    setIsEmailAlertsLoading(true);
+
+    try {
+      const response = await axios.put(`${apiBaseUrl}/weddings/${weddingId}/email-rsvp-alerts`, {
+        enabled: emailRsvpAlertsEnabled,
+        emails: rsvpAlertEmails
+      });
+      
+      if (response.data && response.data.success) {
+        setEmailAlertsMessage({ text: 'Email RSVP alerts updated successfully!', type: 'success' });
+      } else {
+        setEmailAlertsMessage({ text: 'Error updating email RSVP alerts.', type: 'error' });
+      }
+    } catch (error) {
+      console.error("Error updating email RSVP alerts:", error);
+      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error updating email RSVP alerts.', type: 'error' });
+    }
+    setIsEmailAlertsLoading(false);
   };
 
   return (
@@ -116,72 +215,178 @@ const AccountSetupPage = () => {
           <br />
           Example: "Brooke & Stephen's Wedding" or "Erickson Wedding 2025"
         </p>
-        <form onSubmit={handleDisplayNameUpdate} className={styles.displayNameForm}>
-          <div className={styles.formGroup}>
-            <label htmlFor="instanceDisplayName">Display Name</label>
-            <input 
-              type="text" 
-              id="instanceDisplayName" 
-              value={instanceDisplayName} 
-              onChange={(e) => setInstanceDisplayName(e.target.value)} 
-              placeholder="Enter a display name for your wedding page"
-              maxLength="100"
-            />
-          </div>
-          <button type="submit" className={styles.submitButton} disabled={isDisplayNameLoading}>
-            {isDisplayNameLoading ? 'Updating...' : 'Update Display Name'}
-          </button>
-        </form>
-        {displayNameMessage.text && (
-          <p className={`${styles.message} ${displayNameMessage.type === 'success' ? styles.success : styles.error}`}>
-            {displayNameMessage.text}
-          </p>
-        )}
+        <div className={styles.formGroup}>
+          <label htmlFor="instanceDisplayName">Display Name</label>
+          <input 
+            type="text" 
+            id="instanceDisplayName" 
+            value={instanceDisplayName} 
+            onChange={(e) => setInstanceDisplayName(e.target.value)} 
+            placeholder="Enter a display name for your wedding page"
+            maxLength="100"
+          />
+        </div>
       </div>
 
-      <div className={styles.changePasswordSection}>
-        <h3>Change Setup Password</h3>
-        <form onSubmit={handlePasswordChange} className={styles.passwordForm}>
+      <div className={styles.emailAlertsSection}>
+        <h3>Email RSVP Alerts</h3>
+        <p className={styles.helpText}>
+          Get notified via email when guests RSVP to your wedding. You can add multiple email addresses to receive alerts.
+        </p>
+        <form onSubmit={(e) => e.preventDefault()} className={styles.emailAlertsForm}>
           <div className={styles.formGroup}>
-            <label htmlFor="currentPassword">Current Password</label>
-            <input 
-              type="password" 
-              id="currentPassword" 
-              value={currentPassword} 
-              onChange={(e) => setCurrentPassword(e.target.value)} 
-              required 
-            />
+            <label htmlFor="emailRsvpAlerts">
+              <input 
+                type="checkbox" 
+                id="emailRsvpAlerts" 
+                checked={emailRsvpAlertsEnabled}
+                onChange={(e) => setEmailRsvpAlertsEnabled(e.target.checked)}
+                className={styles.checkbox}
+              />
+              Enable Email RSVP Alerts
+            </label>
           </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="newPassword">New Password</label>
-            <input 
-              type="password" 
-              id="newPassword" 
-              value={newPassword} 
-              onChange={(e) => setNewPassword(e.target.value)} 
-              required 
-            />
-          </div>
-          <div className={styles.formGroup}>
-            <label htmlFor="confirmNewPassword">Confirm New Password</label>
-            <input 
-              type="password" 
-              id="confirmNewPassword" 
-              value={confirmNewPassword} 
-              onChange={(e) => setConfirmNewPassword(e.target.value)} 
-              required 
-            />
-          </div>
-          <button type="submit" className={styles.submitButton} disabled={isLoading}>
-            {isLoading ? 'Changing...' : 'Change Password'}
-          </button>
+          
+          {emailRsvpAlertsEnabled && (
+            <>
+              <div className={styles.formGroup}>
+                <label htmlFor="newEmailInput">Add Email Address</label>
+                <div className={styles.emailInputContainer}>
+                  <input 
+                    type="email" 
+                    id="newEmailInput" 
+                    value={newEmailInput} 
+                    onChange={(e) => setNewEmailInput(e.target.value)}
+                    placeholder="Enter email address"
+                    className={styles.emailInput}
+                  />
+                  <button 
+                    type="button" 
+                    onClick={addEmailToAlerts}
+                    className={styles.addEmailButton}
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+              
+              {rsvpAlertEmails.length > 0 && (
+                <div className={styles.formGroup}>
+                  <label>Alert Email Addresses:</label>
+                  <div className={styles.emailList}>
+                    {rsvpAlertEmails.map((email, index) => (
+                      <div key={index} className={styles.emailItem}>
+                        <span className={styles.emailText}>{email}</span>
+                        <button 
+                          type="button" 
+                          onClick={() => removeEmailFromAlerts(email)}
+                          className={styles.removeEmailButton}
+                          aria-label={`Remove ${email}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+          
         </form>
-        {message.text && (
-          <p className={`${styles.message} ${message.type === 'success' ? styles.success : styles.error}`}>
-            {message.text}
+        {emailAlertsMessage.text && (
+          <p className={`${styles.message} ${emailAlertsMessage.type === 'success' ? styles.success : styles.error}`}>
+            {emailAlertsMessage.text}
           </p>
         )}
       </div>
+      {/* Save Button */}
+      <button
+        type="button"
+        className={styles.submitButton}
+        onClick={handleSaveAll}
+        disabled={isEmailAlertsLoading}
+        style={{ marginTop: 24 }}
+      >
+        Save
+      </button>
+      {/* Change Password Section as Button/Modal */}
+      <div className={styles.changePasswordSection}>
+        <button
+          type="button"
+          className={styles.submitButton}
+          onClick={() => setShowPasswordModal(true)}
+          style={{ marginTop: 32 }}
+        >
+          Change Setup Password
+        </button>
+      </div>
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <h3>Change Setup Password</h3>
+            <form onSubmit={handlePasswordChangeModal} className={styles.passwordForm}>
+              <div className={styles.formGroup}>
+                <label htmlFor="currentPassword">Current Password</label>
+                <input 
+                  type="password" 
+                  id="currentPassword" 
+                  value={currentPassword} 
+                  onChange={(e) => setCurrentPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="newPassword">New Password</label>
+                <input 
+                  type="password" 
+                  id="newPassword" 
+                  value={newPassword} 
+                  onChange={(e) => setNewPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              <div className={styles.formGroup}>
+                <label htmlFor="confirmNewPassword">Confirm New Password</label>
+                <input 
+                  type="password" 
+                  id="confirmNewPassword" 
+                  value={confirmNewPassword} 
+                  onChange={(e) => setConfirmNewPassword(e.target.value)} 
+                  required 
+                />
+              </div>
+              <button
+                type="submit"
+                className={styles.submitButton}
+                disabled={isPasswordModalLoading}
+              >
+                {isPasswordModalLoading ? 'Changing...' : 'Save'}
+              </button>
+              <button
+                type="button"
+                className={styles.submitButton}
+                style={{ background: '#ccc', color: '#333', marginTop: 8 }}
+                onClick={() => {
+                  setShowPasswordModal(false);
+                  setPasswordModalMessage({ text: '', type: '' });
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                }}
+              >
+                Cancel
+              </button>
+              {passwordModalMessage.text && (
+                <p className={`${styles.message} ${passwordModalMessage.type === 'success' ? styles.success : styles.error}`}>
+                  {passwordModalMessage.text}
+                </p>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

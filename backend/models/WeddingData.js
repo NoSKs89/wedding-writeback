@@ -89,6 +89,11 @@ const WeddingDataSchema = new mongoose.Schema({
     // Production TODO: In a real application, this should be selected: false by default
     // and only populated/managed through secure, specific backend logic.
     // Passwords should ALWAYS be hashed before saving (e.g., using bcryptjs).
+  },
+  // Email RSVP Alerts settings
+  emailRsvpAlerts: {
+    enabled: { type: Boolean, default: false },
+    emails: [{ type: String }]
   }
 }, { timestamps: true }); // Adds createdAt and updatedAt automatically
 

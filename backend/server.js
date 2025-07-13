@@ -472,12 +472,16 @@ exports.handler = async (event, context) => {
           
           // Optionally send an email notification after successful submission
           // (Consider moving this to a separate, non-blocking process if it becomes slow)
-          if (RSVP_TO_EMAIL && RSVP_FROM_EMAIL) {
-            console.log(`[ROUTE /api/rsvp] Attempting to send email notification to ${RSVP_TO_EMAIL} from ${RSVP_FROM_EMAIL}`);
+          console.log(`[RSVP EMAIL DEBUG] RSVP_TO_EMAIL: ${RSVP_TO_EMAIL}`);
+          console.log(`[RSVP EMAIL DEBUG] RSVP_FROM_EMAIL: ${RSVP_FROM_EMAIL}`);
+          if (wedding.emailRsvpAlerts && wedding.emailRsvpAlerts.enabled && Array.isArray(wedding.emailRsvpAlerts.emails) && wedding.emailRsvpAlerts.emails.length > 0) {
+            // Remove duplicates and filter out empty emails
+            const uniqueRecipients = [...new Set(wedding.emailRsvpAlerts.emails.filter(email => email && email.trim()))];
+            console.log(`[RSVP EMAIL DEBUG] Intended recipients (from alert list):`, uniqueRecipients);
             try {
-              const eventName = wedding.eventName || 'Wedding Event'; // Add fallback
+              const eventName = wedding.eventName || 'Wedding Event';
               const emailParams = {
-                Destination: { ToAddresses: [RSVP_TO_EMAIL] },
+                Destination: { ToAddresses: uniqueRecipients },
                 Message: {
                   Body: {
                     Text: {
@@ -503,21 +507,27 @@ exports.handler = async (event, context) => {
                 },
                 Source: RSVP_FROM_EMAIL,
               };
-              await sesClient.send(new SendEmailCommand(emailParams));
-              console.log(`[ROUTE /api/rsvp] Email notification sent successfully to ${RSVP_TO_EMAIL}.`);
+              console.log(`[RSVP EMAIL DEBUG] SES emailParams:`, {
+                ToAddresses: emailParams.Destination.ToAddresses,
+                Subject: emailParams.Message.Subject.Data,
+                Source: emailParams.Source
+              });
+              const sesResponse = await sesClient.send(new SendEmailCommand(emailParams));
+              console.log(`[RSVP EMAIL DEBUG] SES response:`, sesResponse);
+              console.log(`[ROUTE /api/rsvp] Email notification sent successfully to ${uniqueRecipients.join(', ')}.`);
             } catch (emailError) {
               console.error("[ROUTE /api/rsvp] Error sending email notification:", emailError);
               console.error("[ROUTE /api/rsvp] Email error details:", {
                 errorMessage: emailError.message,
                 errorCode: emailError.Code,
                 errorType: emailError.name,
-                rsvpToEmail: RSVP_TO_EMAIL,
-                rsvpFromEmail: RSVP_FROM_EMAIL
+                rsvpFromEmail: RSVP_FROM_EMAIL,
+                emailRecipients: wedding.emailRsvpAlerts.emails
               });
               // Do not fail the whole request if email fails, just log it.
             }
           } else {
-            console.log(`[ROUTE /api/rsvp] Email notification skipped - RSVP_TO_EMAIL: ${RSVP_TO_EMAIL}, RSVP_FROM_EMAIL: ${RSVP_FROM_EMAIL}`);
+            console.log(`[RSVP EMAIL DEBUG] Email notification skipped - RSVP alerts are disabled or no alert emails are set.`);
           }
 
           return createResponse(201, newRsvp, requestOrigin);
@@ -1040,6 +1050,75 @@ exports.handler = async (event, context) => {
               success: true, 
               message: 'Instance display name updated successfully.', 
               instanceDisplayName: updatedWedding.instanceDisplayName 
+          }, requestOrigin);
+      }
+
+      // GET /api/weddings/:customId/email-rsvp-alerts
+      const getEmailRsvpAlertsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/email-rsvp-alerts$/);
+      if (httpMethod === 'GET' && getEmailRsvpAlertsMatch) {
+          const customId = getEmailRsvpAlertsMatch[1];
+          
+          console.log(`[GET /email-rsvp-alerts] Fetching email RSVP alerts for ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId }).select('emailRsvpAlerts customId');
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          // Return email RSVP alerts settings or default structure if not set
+          const emailRsvpAlerts = wedding.emailRsvpAlerts || {
+              enabled: false,
+              emails: []
+          };
+
+          return createResponse(200, { 
+              success: true, 
+              data: emailRsvpAlerts 
+          }, requestOrigin);
+      }
+
+      // PUT /api/weddings/:customId/email-rsvp-alerts
+      const putEmailRsvpAlertsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/email-rsvp-alerts$/);
+      if (httpMethod === 'PUT' && putEmailRsvpAlertsMatch) {
+          const customId = putEmailRsvpAlertsMatch[1];
+          const { enabled, emails } = body;
+
+          console.log(`[PUT /email-rsvp-alerts] Updating email RSVP alerts for ${customId}`, { enabled, emails });
+
+          // Validate the input
+          if (typeof enabled !== 'boolean') {
+              return createResponse(400, { message: 'Enabled must be a boolean.' }, requestOrigin);
+          }
+
+          if (!Array.isArray(emails)) {
+              return createResponse(400, { message: 'Emails must be an array.' }, requestOrigin);
+          }
+
+          // Validate each email
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          for (const email of emails) {
+              if (typeof email !== 'string' || !emailRegex.test(email.trim())) {
+                  return createResponse(400, { message: `Invalid email format: ${email}` }, requestOrigin);
+              }
+          }
+
+          // Clean and deduplicate emails
+          const cleanedEmails = [...new Set(emails.map(email => email.trim().toLowerCase()))];
+
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { $set: { emailRsvpAlerts: { enabled, emails: cleanedEmails } } },
+              { new: true, runValidators: true, select: 'emailRsvpAlerts customId' }
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { 
+              success: true, 
+              message: 'Email RSVP alerts updated successfully.', 
+              data: updatedWedding.emailRsvpAlerts 
           }, requestOrigin);
       }
 

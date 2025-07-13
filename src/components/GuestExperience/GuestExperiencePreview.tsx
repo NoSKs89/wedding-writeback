@@ -748,16 +748,37 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: `linear-gradient(135deg, ${background} 0%, ${primary} 100%)`,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 999999,
-          color: text,
-          fontFamily: 'Arial, sans-serif',
-          pointerEvents: 'none', // Allow interaction with content below when fading
-        }}>
+                background: '#fdf9f7', // Warm off-white to match logo background
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'flex-start',
+      paddingTop: '0px',
+      zIndex: 999999,
+      color: text,
+      fontFamily: 'Arial, sans-serif',
+      pointerEvents: 'none', // Allow interaction with content below when fading
+    }}>
+      {/* Wedding Logo */}
+      <div style={{
+        margin: '0 0 40px 0',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}>
+            <img 
+              src="/Logo.png" 
+              alt="Wedding Logo" 
+              style={{
+                maxWidth: '150px',
+                maxHeight: '150px',
+                objectFit: 'contain',
+                background: 'transparent',
+                mixBlendMode: 'multiply',
+              }}
+            />
+          </div>
+
           {/* Animated Loading Icon */}
           <div style={{
             width: '80px',
