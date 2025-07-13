@@ -61,7 +61,6 @@ export const scrapbookLayoutControlsSchema = {
   scrollSensitivityFactor: { value: 0.003, min: 0, max: 0.01, step: 0.0001, label: 'Scroll Sensitivity Factor' }, // Increased to 0.003 for more visible movement
   parallaxDepthFactor: { value: 0.08, min: 0, max: 0.5, step: 0.001, label: 'Parallax Depth Factor' }, // Increased to 0.08 for more visible parallax movement
   itemBaseScale: { value: 1, min: 0.5, max: 2, step: 0.01, label: 'Item Base Scale' },
-  movementScrollCap: { value: 5000, min: 1000, max: 10000, step: 100, label: 'Movement Scroll Cap' },
 };
 
 // --- Helper: Generate Initial Style for a Scrapbook Image ---
@@ -113,43 +112,6 @@ const generateInitialScrapbookStyle = (index: any, totalImages: any, windowDims:
   };
 };
 
-// --- Helper: Calculate Dynamic Parallax Values (renamed for clarity) ---
-// This function now returns values to be directly used by ScrapbookImageItem's spring
-const calculateScrollDependentValues = (displayIndex: any, scrollY: any, layoutValues: any, itemData: any) => {
-  const {
-    dynamicRotationRange, // From global layout controls
-    scrollSensitivityFactor, // From global layout controls
-    parallaxDepthFactor,     // From global layout controls
-    itemBaseScale,          // From global layout controls
-    movementScrollCap       // From global layout controls
-  } = layoutValues;
-
-  // Use item-specific sensitivities if available, otherwise global
-  // These would be part of itemData if we decide to make them per-item configurable
-  const currentScrollSensitivity = itemData.scrollSensitivityFactorOverride || scrollSensitivityFactor;
-  const currentDynamicRotationRange = itemData.dynamicRotationRangeOverride || dynamicRotationRange;
-  const currentParallaxDepthFactor = itemData.parallaxDepthFactorOverride || parallaxDepthFactor;
-  const currentItemBaseScale = itemData.itemBaseScaleOverride || itemBaseScale;
-
-  const cappedScrollYForMovement = Math.min(scrollY, movementScrollCap);
-  const indexFactor = Math.sin(displayIndex * 0.5); // Varies between -1 and 1
-
-  const dynamicAngleOffsetDeg = Math.sin(cappedScrollYForMovement * currentScrollSensitivity + displayIndex * 0.5) * currentDynamicRotationRange;
-  const parallaxTranslateX = cappedScrollYForMovement * currentParallaxDepthFactor * (1 + indexFactor * 0.2) * (itemData.parallaxXDirection || 1); 
-  const parallaxTranslateY = cappedScrollYForMovement * currentParallaxDepthFactor * (1 - indexFactor * 0.3) * (itemData.parallaxYDirection || 1); 
-  let parallaxScale = currentItemBaseScale + (cappedScrollYForMovement * (currentParallaxDepthFactor * 0.05)); // Example: make scale change less drastic
-  parallaxScale = Math.max(0.5, Math.min(parallaxScale, currentItemBaseScale * 1.5)); // Clamp scale relative to base
-
-  const result = {
-    dynamicAngleOffsetDeg, 
-    parallaxTranslateX,
-    parallaxTranslateY,
-    parallaxScale,
-  };
-
-  return result;
-};
-
 interface DisplayedImageData {
   src: string;
   originalIndex: number;
@@ -179,6 +141,7 @@ interface InteractiveScrapbookProps {
   windowHeight: number;
   layoutControlsFromProp: any;
   TOTAL_PAGES?: number; // Add TOTAL_PAGES for opacity calculations
+  elementSticky: { start: number; end: number };
 }
 
 const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProps>((props, ref) => {
@@ -196,7 +159,56 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
     windowHeight,
     layoutControlsFromProp,
     TOTAL_PAGES = 3,
+    elementSticky,
   } = props;
+
+  // --- Helper: Calculate Dynamic Parallax Values (renamed for clarity) ---
+  // This function now returns values to be directly used by ScrapbookImageItem's spring
+  const calculateScrollDependentValues = (displayIndex: any, scrollY: any, layoutValues: any, itemData: any) => {
+      const {
+        dynamicRotationRange, // From global layout controls
+        scrollSensitivityFactor, // From global layout controls
+        parallaxDepthFactor,     // From global layout controls
+        itemBaseScale,          // From global layout controls
+      } = layoutValues;
+
+      // Use item-specific sensitivities if available, otherwise global
+      // These would be part of itemData if we decide to make them per-item configurable
+      const currentScrollSensitivity = itemData.scrollSensitivityFactorOverride || scrollSensitivityFactor;
+      const currentDynamicRotationRange = itemData.dynamicRotationRangeOverride || dynamicRotationRange;
+      const currentParallaxDepthFactor = itemData.parallaxDepthFactorOverride || parallaxDepthFactor;
+      const currentItemBaseScale = itemData.itemBaseScaleOverride || itemBaseScale;
+
+      const elementStartPx = elementSticky.start * windowHeight;
+      const elementEndPx = elementSticky.end * windowHeight;
+      const elementDurationPx = Math.max(0, elementEndPx - elementStartPx);
+  
+      // Calculate the user's scroll position relative to the element's start
+      const scrollYWithinElement = scrollY - elementStartPx;
+  
+      // The scroll value used for animation is clamped between 0 and the element's duration
+      const scrollYForAnim = Math.max(0, Math.min(scrollYWithinElement, elementDurationPx));
+      
+      // The final value is further capped by the user-defined control
+      const cappedScrollYForMovement = scrollYForAnim;
+
+      const indexFactor = Math.sin(displayIndex * 0.5); // Varies between -1 and 1
+
+      const dynamicAngleOffsetDeg = Math.sin(cappedScrollYForMovement * currentScrollSensitivity + displayIndex * 0.5) * currentDynamicRotationRange;
+      const parallaxTranslateX = cappedScrollYForMovement * currentParallaxDepthFactor * (1 + indexFactor * 0.2) * (itemData.parallaxXDirection || 1); 
+      const parallaxTranslateY = cappedScrollYForMovement * currentParallaxDepthFactor * (1 - indexFactor * 0.3) * (itemData.parallaxYDirection || 1); 
+      let parallaxScale = currentItemBaseScale + (cappedScrollYForMovement * (currentParallaxDepthFactor * 0.05)); // Example: make scale change less drastic
+      parallaxScale = Math.max(0.5, Math.min(parallaxScale, currentItemBaseScale * 1.5)); // Clamp scale relative to base
+
+      const result = {
+        dynamicAngleOffsetDeg, 
+        parallaxTranslateX,
+        parallaxTranslateY,
+        parallaxScale,
+      };
+
+      return result;
+  };
 
   const { isSetupMode } = useSetupMode();
   const isMobile = useIsMobile();
@@ -222,7 +234,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
     baseRotationRange, baseSizeMin, baseSizeMax,
     borderWidth, borderColor, shadowOffsetX, shadowOffsetY, shadowBlur, shadowColor, baseOpacity,
     dynamicRotationRange, scrollSensitivityFactor, parallaxDepthFactor,
-    itemBaseScale, movementScrollCap
+    itemBaseScale,
   } = layoutValues;
 
   // --- Derived State & Memoizations ---

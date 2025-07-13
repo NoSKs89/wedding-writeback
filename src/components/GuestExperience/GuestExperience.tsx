@@ -1204,6 +1204,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       windowHeight={windowHeight} 
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
                       TOTAL_PAGES={TOTAL_PAGES}
+                      elementSticky={element.sticky}
                     />;
                   } else if (element.name === 'Bottom Navbar') {
                     // Bottom Navbar renders outside parallax but we need ElementWrapper for controls

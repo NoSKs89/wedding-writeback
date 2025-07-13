@@ -677,6 +677,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               windowHeight={windowHeight}
               layoutControlsFromProp={elementControls[scrapbookElementFolderName]}
               TOTAL_PAGES={TOTAL_PAGES}
+              elementSticky={el.sticky}
             />
           );
         } else if (el.name === 'Bottom Navbar') {
