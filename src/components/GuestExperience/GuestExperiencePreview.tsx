@@ -231,6 +231,48 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     return adjustedValue;
   }, [activeParallaxPhysicsGuest]);
 
+  const initialGradient = useMemo(() => {
+    const gradientControls = dynamicGradientControlsFromSettings || {};
+    const {
+      gradientMode = 'Scheme: Primary & Secondary',
+      gradientColorStart = '#ee0038',
+      gradientColorStop = '#00e1fe',
+      gradientAngleOffset = -160,
+    } = gradientControls;
+
+    let actualStartColor = gradientColorStart;
+    let actualEndColor = gradientColorStop;
+
+    const scheme = weddingColorSchemes.find(s => s.name === selectedColorSchemeName) || weddingColorSchemes[0];
+
+    if (scheme && gradientMode !== 'Override') {
+      switch (gradientMode) {
+        case 'Scheme: Primary & Secondary':
+          actualStartColor = scheme.colors.primary || gradientColorStart;
+          actualEndColor = scheme.colors.secondary || gradientColorStop;
+          break;
+        case 'Scheme: Primary & Accent':
+          actualStartColor = scheme.colors.primary || gradientColorStart;
+          actualEndColor = scheme.colors.accent || gradientColorStop;
+          break;
+        case 'Scheme: Secondary & Accent':
+          actualStartColor = scheme.colors.secondary || gradientColorStart;
+          actualEndColor = scheme.colors.accent || gradientColorStop;
+          break;
+        case 'Scheme: Text & Background':
+          actualStartColor = scheme.colors.text || gradientColorStart;
+          actualEndColor = scheme.colors.background || gradientColorStop;
+          break;
+        default:
+          actualStartColor = gradientColorStart;
+          actualEndColor = gradientColorStop;
+      }
+    }
+    
+    const angle = gradientAngleOffset || 0;
+    return `linear-gradient(${angle}deg, ${actualStartColor}, ${actualEndColor})`;
+  }, [dynamicGradientControlsFromSettings, selectedColorSchemeName]);
+
   const [scrollY, setScrollY] = useState(0);
   const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
@@ -244,6 +286,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [isPreloading, setIsPreloading] = useState(true);
   const [preloadProgress, setPreloadProgress] = useState(0);
   const [preloadTotal, setPreloadTotal] = useState(0);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
 
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
@@ -324,7 +367,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   // --- PRELOADING MANAGER INTEGRATION ---
   useEffect(() => {
     if (assetsToPreload.length === 0) {
-      setIsPreloading(false);
+      // Even with no assets, add delay and fade for consistency
+      setTimeout(() => {
+        setShowLoadingScreen(false);
+      }, 2000);
       return;
     }
 
@@ -335,7 +381,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     };
     
     const handleComplete = () => {
-      setIsPreloading(false);
+      // Add 2 second delay after assets load to allow DOM to finalize, then start fade
+      setTimeout(() => {
+        setShowLoadingScreen(false); // This triggers the fade animation
+      }, 2000);
     };
 
     // Simple preloading logic
@@ -414,6 +463,18 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const backdropSpring = useSpring({ opacity: focusedImage ? 1 : 0, pointerEvents: focusedImage ? 'auto' : 'none', config: activeSpringConfigGuest });
   const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ opacity: 0, top: '50%', left: '50%', width: '0px', height: '0px', transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)', config: activeSpringConfigGuest }));
   const infoBoxSpring = useSpring({ opacity: focusedImage ? 1 : 0, transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)', config: activeSpringConfigGuest, delay: focusedImage ? 300 : 0 });
+  
+  // Loading screen fade animation
+  const loadingScreenSpring = useSpring({ 
+    opacity: showLoadingScreen ? 1 : 0,
+    config: { tension: 200, friction: 25 }, // Smooth fade animation
+    onRest: () => {
+      // Only hide loading screen completely after fade animation completes
+      if (!showLoadingScreen) {
+        setIsPreloading(false);
+      }
+    }
+  });
   const bindFocusedImageDrag = useDrag(({ last, movement: [mx], velocity: [vx], direction: [dx], event }) => { event?.stopPropagation(); if (!focusedImage || !last) return; if (Math.abs(mx) > windowWidth / 4 || Math.abs(vx) > 0.3) { const syntheticEvent = { stopPropagation: () => {} }; if (dx > 0) handlePreviousImage(syntheticEvent); else if (dx < 0) handleNextImage(syntheticEvent); } }, { axis: 'x', filterTaps: true, enabled: !!focusedImage });
   
   useEffect(() => {
@@ -677,9 +738,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         {notification.text}
       </animated.div>
 
-      {/* Show loading screen during preloading */}
+      {/* Loading Screen Overlay - shows on top of main experience during preloading */}
       {isPreloading && (
-        <div style={{
+        <animated.div style={{
+          ...loadingScreenSpring,
           position: 'fixed',
           top: 0,
           left: 0,
@@ -693,6 +755,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
           zIndex: 999999,
           color: text,
           fontFamily: 'Arial, sans-serif',
+          pointerEvents: 'none', // Allow interaction with content below when fading
         }}>
           {/* Animated Loading Icon */}
           <div style={{
@@ -768,27 +831,14 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing preview...'}
           </p>
 
-          {/* Completion Animation */}
-          {preloadProgress >= preloadTotal && preloadTotal > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              fontSize: '4rem',
-              animation: 'pulse 0.5s ease-in-out',
-            }}>
-              ✨
-            </div>
-          )}
-        </div>
+          {/* Completion Animation - Removed star emoji */}
+        </animated.div>
       )}
 
-      {/* Main experience content - only show when not preloading */}
-      {!isPreloading && (
-        <>
+      {/* Main experience content - always rendered, loading screen overlays on top */}
+      <>
           <FontGrabber fonts={googleFontsToLoad} />
-          <div style={{ width: '100%', height: '100vh', background: background || '#1a1a1a' }}>
+          <div style={{ width: '100%', height: '100vh', background: initialGradient }}>
         <Parallax
           ref={parallaxRef}
           pages={TOTAL_PAGES}
@@ -798,7 +848,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             position: 'absolute',
             top: 0,
             left: 0,
-            backgroundColor: background || '#1a1a1a',
+            backgroundColor: 'transparent',
             // Enhanced hardware acceleration to prevent rendering glitches
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
@@ -808,25 +858,6 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
           }}
         >
-          {/* Safety background layer to prevent white flashes during scroll */}
-          <ParallaxLayer
-            offset={0}
-            speed={0}
-            sticky={{ start: 0, end: TOTAL_PAGES }}
-            style={{
-              zIndex: -15,
-              width: '100%',
-              height: '100%',
-              backgroundColor: '#1a1a1a', 
-              pointerEvents: 'none',
-              // Enhanced GPU acceleration for immediate rendering
-              transform: 'translateZ(0)',
-              willChange: 'transform',
-              backfaceVisibility: 'hidden'
-            }}
-          >
-          </ParallaxLayer>
-          
           {/* Dynamic gradient background */}
           <ParallaxLayer
             offset={0}
@@ -907,7 +938,6 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             )}
           </>
         </>
-      )}
     </>
   );
 };

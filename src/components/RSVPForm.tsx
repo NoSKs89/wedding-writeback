@@ -629,7 +629,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
             <>
               <div style={{marginTop: '1.5rem'}}>
                 <h2 style={{...h2Style, marginBottom: '0rem', textAlign: 'center'}}>How many guests in your party?</h2>
-                <animated.div style={singleStepperSpring}>
+                <animated.div style={singleStepperSpring as any}>
                   {!bringingKids && (
                     <>
                       <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0', textAlign: 'center'}}>(Including yourself)</p>
@@ -654,7 +654,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
                     </>
                   )}
                 </animated.div>
-                <animated.div style={doubleStepperSpring}>
+                <animated.div style={doubleStepperSpring as any}>
                   {bringingKids && (
                     <>
                       <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>
@@ -713,8 +713,8 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       return (
         <form onSubmit={handleSubmit} style={{ textAlign: 'center' }}>
           <h2 style={{...h2Style, marginBottom: '0rem'}}>How many guests in your party?</h2>
-          <animated.div style={singleStepperSpring}>
-            {!bringingKids && (
+                          <animated.div style={singleStepperSpring as any}>
+                  {!bringingKids && (
               <>
                 <p style={{fontSize: '0.8rem', opacity: 0.7, margin: '0 0 1rem 0'}}>(Including yourself)</p>
                 <div style={{...stepperStyle, marginBottom: '1.5rem'}}>
@@ -725,7 +725,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
               </>
             )}
           </animated.div>
-          <animated.div style={doubleStepperSpring}>
+          <animated.div style={doubleStepperSpring as any}>
             {bringingKids && (
               <>
                 <div style={{display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '1rem'}}>

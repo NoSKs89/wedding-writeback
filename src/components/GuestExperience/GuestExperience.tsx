@@ -378,6 +378,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [isPreloading, setIsPreloading] = useState(true);
   const [preloadProgress, setPreloadProgress] = useState(0);
   const [preloadTotal, setPreloadTotal] = useState(0);
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
 
   // --- SAVE LOGIC STATE ---
   const [currentSavingToSlot, setCurrentSavingToSlot] = useState(defaultLayoutSlotToLoad);
@@ -395,6 +396,48 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const imageReturningToScrapbookRef = useRef(imageReturningToScrapbook);
   const pendingImageToFocusRef = useRef(pendingImageToFocus);
   const scrapbookImageRefs = useRef<(HTMLImageElement | null)[]>([]);
+
+  const initialGradient = useMemo(() => {
+    const gradientControls = controlValues['Dynamic Background Gradient'] || {};
+    const {
+      gradientMode = 'Scheme: Primary & Secondary',
+      gradientColorStart = '#ee0038',
+      gradientColorStop = '#00e1fe',
+      gradientAngleOffset = -160,
+    } = gradientControls;
+
+    let actualStartColor = gradientColorStart;
+    let actualEndColor = gradientColorStop;
+
+    const scheme = weddingColorSchemes.find(s => s.name === selectedColorSchemeName) || weddingColorSchemes[0];
+
+    if (scheme && gradientMode !== 'Override') {
+      switch (gradientMode) {
+        case 'Scheme: Primary & Secondary':
+          actualStartColor = scheme.colors.primary || gradientColorStart;
+          actualEndColor = scheme.colors.secondary || gradientColorStop;
+          break;
+        case 'Scheme: Primary & Accent':
+          actualStartColor = scheme.colors.primary || gradientColorStart;
+          actualEndColor = scheme.colors.accent || gradientColorStop;
+          break;
+        case 'Scheme: Secondary & Accent':
+          actualStartColor = scheme.colors.secondary || gradientColorStart;
+          actualEndColor = scheme.colors.accent || gradientColorStop;
+          break;
+        case 'Scheme: Text & Background':
+          actualStartColor = scheme.colors.text || gradientColorStart;
+          actualEndColor = scheme.colors.background || gradientColorStop;
+          break;
+        default:
+          actualStartColor = gradientColorStart;
+          actualEndColor = gradientColorStop;
+      }
+    }
+    
+    const angle = gradientAngleOffset || 0;
+    return `linear-gradient(${angle}deg, ${actualStartColor}, ${actualEndColor})`;
+  }, [controlValues, selectedColorSchemeName]);
 
   useEffect(() => { imageReturningToScrapbookRef.current = imageReturningToScrapbook; }, [imageReturningToScrapbook]);
   useEffect(() => { pendingImageToFocusRef.current = pendingImageToFocus; }, [pendingImageToFocus]);
@@ -483,7 +526,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   // --- PRELOADING MANAGER INTEGRATION ---
   useEffect(() => {
     if (assetsToPreload.length === 0) {
-      setIsPreloading(false);
+      // Even with no assets, add delay and fade for consistency
+      setTimeout(() => {
+        setShowLoadingScreen(false);
+      }, 2000);
       return;
     }
 
@@ -494,7 +540,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     };
     
     const handleComplete = () => {
-      setIsPreloading(false);
+      // Add 2 second delay after assets load to allow DOM to finalize, then start fade
+      setTimeout(() => {
+        setShowLoadingScreen(false); // This triggers the fade animation
+      }, 2000);
     };
 
     // Simple preloading logic without separate component
@@ -593,6 +642,18 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const backdropSpring = useSpring({ opacity: focusedImage ? 1 : 0, pointerEvents: focusedImage ? 'auto' : 'none', config: activeSpringConfigGuest });
   const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ opacity: 0, top: '50%', left: '50%', width: '0px', height: '0px', transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)', config: activeSpringConfigGuest }));
   const infoBoxSpring = useSpring({ opacity: focusedImage ? 1 : 0, transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)', config: activeSpringConfigGuest, delay: focusedImage ? 300 : 0 });
+  
+  // Loading screen fade animation
+  const loadingScreenSpring = useSpring({ 
+    opacity: showLoadingScreen ? 1 : 0,
+    config: { tension: 200, friction: 25 }, // Smooth fade animation
+    onRest: () => {
+      // Only hide loading screen completely after fade animation completes
+      if (!showLoadingScreen) {
+        setIsPreloading(false);
+      }
+    }
+  });
 
   const bindFocusedImageDrag = useDrag(({ last, movement: [mx], velocity: [vx], direction: [dx], event }) => {
     event?.stopPropagation();
@@ -750,102 +811,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return null; 
   }
 
-  // --- SHOW LOADING SCREEN DURING PRELOADING ---
-  if (isPreloading) {
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '100vw',
-        height: '100vh',
-        background: `linear-gradient(135deg, ${selectedColorScheme.colors.background} 0%, ${selectedColorScheme.colors.primary} 100%)`,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 999999,
-        color: selectedColorScheme.colors.text,
-        fontFamily: 'Arial, sans-serif',
-      }}>
-        {/* Animated Loading Icon */}
-        <div style={{
-          width: '80px',
-          height: '80px',
-          margin: '0 0 30px 0',
-          position: 'relative',
-        }}>
-          <div style={{
-            width: '100%',
-            height: '100%',
-            border: `4px solid ${selectedColorScheme.colors.secondary}40`,
-            borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-          }} />
-          <style>
-            {`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-              @keyframes pulse {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.7; transform: scale(1.05); }
-              }
-              @keyframes shimmer {
-                0% { background-position: -200px 0; }
-                100% { background-position: 200px 0; }
-              }
-            `}
-          </style>
-        </div>
-
-        {/* Loading Text */}
-        <h2 style={{
-          margin: '0 0 20px 0',
-          fontSize: '2rem',
-          fontWeight: '300',
-          textAlign: 'center',
-          animation: 'pulse 2s ease-in-out infinite',
-        }}>
-          Loading Experience
-        </h2>
-
-        {/* Progress Bar */}
-        <div style={{
-          width: '300px',
-          height: '6px',
-          backgroundColor: `${selectedColorScheme.colors.secondary}20`,
-          borderRadius: '3px',
-          overflow: 'hidden',
-          margin: '0 0 15px 0',
-        }}>
-          <div style={{
-            width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
-            height: '100%',
-            background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
-            borderRadius: '3px',
-            transition: 'width 0.3s ease',
-            backgroundSize: '200px 100%',
-            animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
-          }} />
-        </div>
-
-        {/* Progress Text */}
-        <p style={{
-          margin: '0',
-          fontSize: '1rem',
-          opacity: 0.8,
-          textAlign: 'center',
-        }}>
-          {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing experience...'}
-        </p>
-
-        {/* Completion Animation - Removed star emoji */}
-      </div>
-    );
-  }
+  // --- RENDER MAIN EXPERIENCE (with loading screen overlay when preloading) ---
 
   // Add rsvpEndpoint to weddingDataFromApp if it doesn't exist
   const weddingDataWithEndpoint = {
@@ -860,6 +826,103 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   return (
     <>
       <FontGrabber fonts={googleFontsToLoad} />
+
+      {/* Loading Screen Overlay - shows on top of main experience during preloading */}
+      {isPreloading && (
+        <animated.div style={{
+          ...loadingScreenSpring,
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: `linear-gradient(135deg, ${selectedColorScheme.colors.background} 0%, ${selectedColorScheme.colors.primary} 100%)`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 999999,
+          color: selectedColorScheme.colors.text,
+          fontFamily: 'Arial, sans-serif',
+          pointerEvents: 'none', // Allow interaction with content below when fading
+        }}>
+          {/* Animated Loading Icon */}
+          <div style={{
+            width: '80px',
+            height: '80px',
+            margin: '0 0 30px 0',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              border: `4px solid ${selectedColorScheme.colors.secondary}40`,
+              borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <style>
+              {`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                @keyframes pulse {
+                  0%, 100% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.7; transform: scale(1.05); }
+                }
+                @keyframes shimmer {
+                  0% { background-position: -200px 0; }
+                  100% { background-position: 200px 0; }
+                }
+              `}
+            </style>
+          </div>
+
+          {/* Loading Text */}
+          <h2 style={{
+            margin: '0 0 20px 0',
+            fontSize: '2rem',
+            fontWeight: '300',
+            textAlign: 'center',
+            animation: 'pulse 2s ease-in-out infinite',
+          }}>
+            Loading Experience
+          </h2>
+
+          {/* Progress Bar */}
+          <div style={{
+            width: '300px',
+            height: '6px',
+            backgroundColor: `${selectedColorScheme.colors.secondary}20`,
+            borderRadius: '3px',
+            overflow: 'hidden',
+            margin: '0 0 15px 0',
+          }}>
+            <div style={{
+              width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
+              height: '100%',
+              background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
+              borderRadius: '3px',
+              transition: 'width 0.3s ease',
+              backgroundSize: '200px 100%',
+              animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
+            }} />
+          </div>
+
+          {/* Progress Text */}
+          <p style={{
+            margin: '0',
+            fontSize: '1rem',
+            opacity: 0.8,
+            textAlign: 'center',
+          }}>
+            {preloadTotal > 0 ? `Loading assets... ${preloadProgress}/${preloadTotal}` : 'Preparing experience...'}
+          </p>
+
+          {/* Completion Animation - Removed star emoji */}
+        </animated.div>
+      )}
 
       {isSetupMode && (
         <>
@@ -983,7 +1046,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         style={{ 
           width: '100%', 
           height: '100vh', 
-          background: selectedColorScheme?.colors?.background || '#1a1a1a',
+          background: initialGradient,
           // Hide scrollbars on mobile and all devices
           ...(isMobile ? {
             scrollbarWidth: 'none', // Firefox
@@ -999,7 +1062,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             top: '0', 
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
-            backgroundColor: selectedColorScheme?.colors?.background || '#1a1a1a',
+            backgroundColor: 'transparent',
             // Enhanced hardware acceleration to prevent rendering glitches
             backfaceVisibility: 'hidden',
             WebkitBackfaceVisibility: 'hidden',
@@ -1014,18 +1077,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             } : {})
           }}
         >
-          
-          {/* Safety background layer to prevent white flashes during scroll */}
-          <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ 
-            zIndex: -15, 
-            backgroundColor: '#1a1a1a', 
-            pointerEvents: 'none',
-            // Enhanced GPU acceleration for immediate rendering
-            transform: 'translateZ(0)',
-            willChange: 'transform',
-            backfaceVisibility: 'hidden'
-          }}>
-          </ParallaxLayer>
           
           {/* Dynamic gradient background */}
           <ParallaxLayer offset={0} speed={0} factor={TOTAL_PAGES} style={{ zIndex: -20 }}>

@@ -533,19 +533,19 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
     switch (gradientMode) {
       case 'Scheme: Primary & Secondary':
         actualStartColor = selectedColorScheme.colors.primary || gradientColorStart;
-        actualEndColor = selectedColorScheme.secondary || gradientColorStop;
+        actualEndColor = selectedColorScheme.colors.secondary || gradientColorStop;
         break;
       case 'Scheme: Primary & Accent':
-        actualStartColor = selectedColorScheme.primary || gradientColorStart;
-        actualEndColor = selectedColorScheme.accent || gradientColorStop;
+        actualStartColor = selectedColorScheme.colors.primary || gradientColorStart;
+        actualEndColor = selectedColorScheme.colors.accent || gradientColorStop;
         break;
       case 'Scheme: Secondary & Accent':
-        actualStartColor = selectedColorScheme.secondary || gradientColorStart;
-        actualEndColor = selectedColorScheme.accent || gradientColorStop;
+        actualStartColor = selectedColorScheme.colors.secondary || gradientColorStart;
+        actualEndColor = selectedColorScheme.colors.accent || gradientColorStop;
         break;
       case 'Scheme: Text & Background':
-        actualStartColor = selectedColorScheme.text || gradientColorStart;
-        actualEndColor = selectedColorScheme.background || gradientColorStop;
+        actualStartColor = selectedColorScheme.colors.text || gradientColorStart;
+        actualEndColor = selectedColorScheme.colors.background || gradientColorStop;
         break;
       default:
         // Fallback to override if mode is unknown, though options should prevent this
