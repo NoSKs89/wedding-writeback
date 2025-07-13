@@ -45,6 +45,7 @@ const WeddingDataSchema = new mongoose.Schema({
   brideName: String,
   groomName: String,
   weddingDate: Date,
+  instanceDisplayName: { type: String, default: null }, // For custom page titles
   // Adjusted field names to potentially align better with frontend usage if desired
   // Or keep original names from testData.json if frontend will adapt
   introBackground: String, // Was introBackgroundUrl in testData.json

@@ -93,6 +93,45 @@ const SetupLayout = () => {
     return storedAuth === 'true';
   });
 
+  // Update page title based on current route
+  useEffect(() => {
+    if (weddingId) {
+      const pathname = location.pathname;
+      const formattedWeddingId = weddingId.charAt(0).toUpperCase() + weddingId.slice(1);
+      
+      let pageTitle = `${formattedWeddingId} Setup`;
+      
+      if (pathname.includes('/setup/layout')) {
+        pageTitle = `${formattedWeddingId} - Desktop Layout Editor`;
+      } else if (pathname.includes('/setup/layoutmobile')) {
+        pageTitle = `${formattedWeddingId} - Mobile Layout Editor`;
+      } else if (pathname.includes('/setup/experience')) {
+        pageTitle = `${formattedWeddingId} - Experience Setup`;
+      } else if (pathname.includes('/setup/account')) {
+        pageTitle = `${formattedWeddingId} - Account Settings`;
+      } else if (pathname.includes('/setup/rsvp')) {
+        pageTitle = `${formattedWeddingId} - RSVP Setup`;
+      } else if (pathname.includes('/setup/navbar')) {
+        pageTitle = `${formattedWeddingId} - Navbar Setup`;
+      } else if (pathname.includes('/setup/images')) {
+        pageTitle = `${formattedWeddingId} - Image Management`;
+      } else if (pathname.includes('/setup/share-gallery')) {
+        pageTitle = `${formattedWeddingId} - Share Gallery`;
+      } else if (pathname.includes('/setup/post')) {
+        pageTitle = `${formattedWeddingId} - POST Utility`;
+      } else if (pathname.includes('/setup/how-to')) {
+        pageTitle = `${formattedWeddingId} - How To Guide`;
+      }
+      
+      document.title = pageTitle;
+    }
+    
+    // Cleanup function to reset title
+    return () => {
+      document.title = 'WeddingWriteback';
+    };
+  }, [weddingId, location.pathname]);
+
   useEffect(() => {
     // If weddingId changes, re-evaluate auth from sessionStorage
     const storedAuth = sessionStorage.getItem(`setupAuth_${weddingId}`);

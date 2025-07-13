@@ -177,6 +177,9 @@ exports.handler = async (event, context) => {
               weddingData.allowKids = true; // Default value
           }
           
+          // Log instanceDisplayName for debugging
+          console.log(`[ROUTE /api/weddings/:customId] instanceDisplayName for ${customId}: ${weddingData.instanceDisplayName}`);
+          
           return createResponse(200, weddingData, requestOrigin);
       }    
 
@@ -984,6 +987,62 @@ exports.handler = async (event, context) => {
           return createResponse(200, { success: true, message: 'Navbar settings updated successfully.', data: updatedWedding.navbarSettings }, requestOrigin);
       }
 
+      // GET /api/weddings/:customId/instance-display-name
+      const getInstanceDisplayNameMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/instance-display-name$/);
+      if (httpMethod === 'GET' && getInstanceDisplayNameMatch) {
+          const customId = getInstanceDisplayNameMatch[1];
+          
+          console.log(`[GET /instance-display-name] Fetching instance display name for ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId }).select('instanceDisplayName customId');
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { 
+              success: true, 
+              instanceDisplayName: wedding.instanceDisplayName || null 
+          }, requestOrigin);
+      }
+
+      // PUT /api/weddings/:customId/instance-display-name
+      const putInstanceDisplayNameMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/instance-display-name$/);
+      if (httpMethod === 'PUT' && putInstanceDisplayNameMatch) {
+          const customId = putInstanceDisplayNameMatch[1];
+          const { instanceDisplayName } = body;
+
+          console.log(`[PUT /instance-display-name] Updating instance display name for ${customId}`, { instanceDisplayName });
+
+          // Validate the input
+          if (instanceDisplayName !== null && (typeof instanceDisplayName !== 'string' || instanceDisplayName.trim().length === 0)) {
+              return createResponse(400, { message: 'Instance display name must be a non-empty string or null.' }, requestOrigin);
+          }
+
+          // Trim the string if it's not null
+          const trimmedDisplayName = instanceDisplayName !== null ? instanceDisplayName.trim() : null;
+
+          // Validate length (optional - adjust max length as needed)
+          if (trimmedDisplayName && trimmedDisplayName.length > 100) {
+              return createResponse(400, { message: 'Instance display name must be 100 characters or less.' }, requestOrigin);
+          }
+
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { $set: { instanceDisplayName: trimmedDisplayName } },
+              { new: true, runValidators: true, select: 'instanceDisplayName customId' }
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { 
+              success: true, 
+              message: 'Instance display name updated successfully.', 
+              instanceDisplayName: updatedWedding.instanceDisplayName 
+          }, requestOrigin);
+      }
+
       // Fallback for unhandled API routes
       console.log(`[HANDLER] API Route not found for ${httpMethod} ${routePath}`);
       return createResponse(404, { message: `The requested API resource for ${httpMethod} ${routePath} was not found.` }, requestOrigin);
@@ -1013,7 +1072,8 @@ exports.handler = async (event, context) => {
 
       if (weddingIdForMeta) {
         console.log(`[HTML_SERVE] Attempting to fetch wedding data for meta tags: ${weddingIdForMeta}`);
-        weddingDataForMeta = await WeddingData.findOne({ customId: weddingIdForMeta });
+        weddingDataForMeta = await WeddingData.findOne({ customId: weddingIdForMeta })
+          .select('customId eventName brideName groomName instanceDisplayName');
         console.log('[HTML_SERVE] weddingDataForMeta value after findOne:', JSON.stringify(weddingDataForMeta));
       } else {
         console.log('[HTML_SERVE] No weddingIdForMeta to use for fetching data.');
@@ -1035,16 +1095,27 @@ exports.handler = async (event, context) => {
 
       if (weddingDataForMeta) {
         console.log('[HTML_SERVE] weddingDataForMeta IS TRUTHY. Preparing dynamic tags.'); // New log
-        const eventName = weddingDataForMeta.eventName || weddingDataForMeta.customId;
-        pageTitle = `${eventName} - Wedding WriteBack`;
-        ogTitle = eventName; // For the format "Erickson 2025"
+        
+        // Use instanceDisplayName if available, otherwise fall back to eventName or customId
+        let displayName;
+        if (weddingDataForMeta.instanceDisplayName) {
+          displayName = weddingDataForMeta.instanceDisplayName;
+          console.log(`[HTML_SERVE] Using instanceDisplayName: ${displayName}`);
+        } else {
+          displayName = weddingDataForMeta.eventName || weddingDataForMeta.customId;
+          console.log(`[HTML_SERVE] Using fallback display name: ${displayName}`);
+        }
+        
+        pageTitle = displayName;
+        ogTitle = displayName;
         ogDescription = `View details and RSVP for the wedding of ${weddingDataForMeta.brideName || 'the couple'} and ${weddingDataForMeta.groomName || ''}.`;
         metaDescription = ogDescription;
         ogUrl = `${siteUrl}/${weddingDataForMeta.customId}`;
       } else if (weddingIdForMeta) { // Wedding ID in URL but no data found
         console.log("[HTML_SERVE] weddingDataForMeta IS FALSY, but weddingIdForMeta was present. Using 'Not Found' tags."); // New log
-        pageTitle = `Wedding ${weddingIdForMeta} - Not Found`;
-        ogTitle = `Wedding ${weddingIdForMeta}`;
+        const fallbackDisplayName = weddingIdForMeta.charAt(0).toUpperCase() + weddingIdForMeta.slice(1);
+        pageTitle = `${fallbackDisplayName} Wedding`;
+        ogTitle = `${fallbackDisplayName} Wedding`;
         ogDescription = `Details for wedding ${weddingIdForMeta} could not be found.`;
         metaDescription = ogDescription;
         ogUrl = `${siteUrl}/${weddingIdForMeta}`;

@@ -41,6 +41,25 @@ const useWeddingData = (weddingId) => {
     fetchData();
   }, [weddingId]);
 
+  // Update document title when wedding data is loaded
+  useEffect(() => {
+    if (weddingData && weddingId) {
+      const displayName = weddingData.instanceDisplayName;
+      if (displayName && displayName.trim()) {
+        document.title = displayName.trim();
+      } else {
+        // Fallback to a formatted version of the wedding ID
+        const formattedId = weddingId.charAt(0).toUpperCase() + weddingId.slice(1);
+        document.title = `${formattedId} Wedding`;
+      }
+    }
+    
+    // Cleanup function to reset title when component unmounts
+    return () => {
+      document.title = 'WeddingWriteback';
+    };
+  }, [weddingData, weddingId]);
+
   return { weddingData, experienceSettings, loading, error };
 };
 
