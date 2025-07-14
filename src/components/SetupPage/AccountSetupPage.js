@@ -32,6 +32,10 @@ const AccountSetupPage = () => {
   const [passwordModalMessage, setPasswordModalMessage] = useState({ text: '', type: '' });
   const [isPasswordModalLoading, setIsPasswordModalLoading] = useState(false);
 
+  // Add state for RSVP Cutoff Date and Allow Continued Communications
+  const [rsvpCutoffDate, setRsvpCutoffDate] = useState(''); // ISO string (yyyy-mm-dd)
+  const [allowContinuedCommunications, setAllowContinuedCommunications] = useState(false);
+
   useEffect(() => {
     const fetchAccountData = async () => {
       setIsFetchingAccountData(true);
@@ -41,6 +45,9 @@ const AccountSetupPage = () => {
           setEmail(response.data.email || 'Not set');
           setAccountStatus(response.data.accountStatus || 'free');
           setInstanceDisplayName(response.data.instanceDisplayName || '');
+          // Populate RSVP cutoff and continued comms
+          setRsvpCutoffDate(response.data.rsvpCutoffDate ? response.data.rsvpCutoffDate.substring(0, 10) : '');
+          setAllowContinuedCommunications(!!response.data.allowContinuedCommunications);
         }
       } catch (error) {
         console.error("Error fetching account data:", error);
@@ -70,40 +77,32 @@ const AccountSetupPage = () => {
     }
   }, [weddingId, apiBaseUrl]);
 
-  // Unified save handler for display name and email alerts
+  // Unified save handler for display name, RSVP cutoff, continued comms, and email alerts
   const handleSaveAll = async (e) => {
     e.preventDefault();
-    let displayNameSuccess = false;
-    let emailAlertsSuccess = false;
     setEmailAlertsMessage({ text: '', type: '' });
-    // Save display name
+    let success = false;
     try {
-      await axios.put(`${apiBaseUrl}/weddings/${weddingId}/instance-display-name`, {
-        instanceDisplayName: instanceDisplayName.trim()
-      });
-      displayNameSuccess = true;
+      const payload = {
+        instanceDisplayName: instanceDisplayName.trim(),
+        rsvpCutoffDate: rsvpCutoffDate ? rsvpCutoffDate : null,
+        allowContinuedCommunications,
+        emailRsvpAlerts: {
+          enabled: emailRsvpAlertsEnabled,
+          emails: rsvpAlertEmails
+        }
+      };
+      const response = await axios.put(`${apiBaseUrl}/weddings/${weddingId}/account-settings`, payload);
+      if (response.data && response.data.message) {
+        setEmailAlertsMessage({ text: 'Settings saved successfully!', type: 'success' });
+        success = true;
+      } else {
+        setEmailAlertsMessage({ text: 'Error saving settings.', type: 'error' });
+      }
     } catch (error) {
-      displayNameSuccess = false;
-      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error updating display name.', type: 'error' });
+      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error saving settings.', type: 'error' });
     }
-    // Save email RSVP alerts
-    try {
-      await axios.put(`${apiBaseUrl}/weddings/${weddingId}/email-rsvp-alerts`, {
-        enabled: emailRsvpAlertsEnabled,
-        emails: rsvpAlertEmails
-      });
-      emailAlertsSuccess = true;
-    } catch (error) {
-      emailAlertsSuccess = false;
-      setEmailAlertsMessage({ text: error.response?.data?.message || 'Error updating email RSVP alerts.', type: 'error' });
-    }
-    if (displayNameSuccess && emailAlertsSuccess) {
-      setEmailAlertsMessage({ text: 'Settings saved successfully!', type: 'success' });
-    } else if (displayNameSuccess) {
-      setEmailAlertsMessage({ text: 'Display name saved, but there was an error saving email alerts.', type: 'error' });
-    } else if (emailAlertsSuccess) {
-      setEmailAlertsMessage({ text: 'Email alerts saved, but there was an error saving display name.', type: 'error' });
-    }
+    return success;
   };
 
   // Password modal handler
@@ -225,6 +224,36 @@ const AccountSetupPage = () => {
             placeholder="Enter a display name for your wedding page"
             maxLength="100"
           />
+        </div>
+      </div>
+
+      {/* RSVP Cutoff Date and Continued Communications Section */}
+      <div className={styles.rsvpCutoffSection}>
+        <h3>RSVP Cutoff Date</h3>
+        <p className={styles.helpText}>
+          After this date, guests will not be able to submit new RSVPs. You can still allow guests to send messages if you wish.
+        </p>
+        <div className={styles.formGroup}>
+          <label htmlFor="rsvpCutoffDate">RSVP Cutoff Date</label>
+          <input
+            type="date"
+            id="rsvpCutoffDate"
+            value={rsvpCutoffDate}
+            onChange={e => setRsvpCutoffDate(e.target.value)}
+            className={styles.dateInput}
+          />
+        </div>
+        <div className={styles.formGroup}>
+          <label htmlFor="allowContinuedCommunications" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              id="allowContinuedCommunications"
+              checked={allowContinuedCommunications}
+              onChange={e => setAllowContinuedCommunications(e.target.checked)}
+              className={styles.checkbox}
+            />
+            Allow Continued Communications (guests can still send messages after cutoff)
+          </label>
         </div>
       </div>
 

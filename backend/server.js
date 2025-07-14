@@ -170,16 +170,20 @@ exports.handler = async (event, context) => {
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           }
-          
           // Ensure allowKids field is present with default value if missing
           const weddingData = wedding.toObject();
           if (weddingData.allowKids === undefined) {
               weddingData.allowKids = true; // Default value
           }
-          
+          // Add RSVP cutoff and continued comms fields if missing
+          if (weddingData.rsvpCutoffDate === undefined) {
+              weddingData.rsvpCutoffDate = null;
+          }
+          if (weddingData.allowContinuedCommunications === undefined) {
+              weddingData.allowContinuedCommunications = false;
+          }
           // Log instanceDisplayName for debugging
           console.log(`[ROUTE /api/weddings/:customId] instanceDisplayName for ${customId}: ${weddingData.instanceDisplayName}`);
-          
           return createResponse(200, weddingData, requestOrigin);
       }    
 
@@ -1120,6 +1124,27 @@ exports.handler = async (event, context) => {
               message: 'Email RSVP alerts updated successfully.', 
               data: updatedWedding.emailRsvpAlerts 
           }, requestOrigin);
+      }
+
+      // PUT /api/weddings/:customId/account-settings
+      const putAccountSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/account-settings$/);
+      if (httpMethod === 'PUT' && putAccountSettingsMatch) {
+          const customId = putAccountSettingsMatch[1];
+          const { instanceDisplayName, rsvpCutoffDate, allowContinuedCommunications, emailRsvpAlerts } = body;
+          const updateFields = {};
+          if (instanceDisplayName !== undefined) updateFields.instanceDisplayName = instanceDisplayName;
+          if (rsvpCutoffDate !== undefined) updateFields.rsvpCutoffDate = rsvpCutoffDate;
+          if (allowContinuedCommunications !== undefined) updateFields.allowContinuedCommunications = allowContinuedCommunications;
+          if (emailRsvpAlerts !== undefined) updateFields.emailRsvpAlerts = emailRsvpAlerts;
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId },
+              { $set: updateFields },
+              { new: true, runValidators: true }
+          );
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+          return createResponse(200, { message: 'Account settings updated successfully.', wedding: updatedWedding }, requestOrigin);
       }
 
       // Fallback for unhandled API routes

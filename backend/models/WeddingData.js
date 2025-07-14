@@ -94,7 +94,10 @@ const WeddingDataSchema = new mongoose.Schema({
   emailRsvpAlerts: {
     enabled: { type: Boolean, default: false },
     emails: [{ type: String }]
-  }
+  },
+  // RSVP Cutoff Date and Continued Communications
+  rsvpCutoffDate: { type: Date, default: null },
+  allowContinuedCommunications: { type: Boolean, default: false },
 }, { timestamps: true }); // Adds createdAt and updatedAt automatically
 
 module.exports = mongoose.model('WeddingData', WeddingDataSchema); 

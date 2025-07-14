@@ -217,8 +217,8 @@ const LoadingScreen: React.FC<{
         <div style={{
           width: '100%',
           height: '100%',
-          border: `4px solid ${selectedColorScheme.colors.secondary}40`,
-          borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
+          border: `4px solid #B07A8C40`, // Use logo pink color with alpha
+          borderTop: `4px solid #B07A8C`, // Use logo pink color
           borderRadius: '50%',
           animation: 'spin 1s linear infinite',
         }} />
@@ -255,7 +255,7 @@ const LoadingScreen: React.FC<{
       <div style={{
         width: '300px',
         height: '6px',
-        backgroundColor: `${selectedColorScheme.colors.secondary}20`,
+        backgroundColor: '#B07A8C20', // Use logo pink color with alpha for background
         borderRadius: '3px',
         overflow: 'hidden',
         margin: '0 0 15px 0',
@@ -263,7 +263,7 @@ const LoadingScreen: React.FC<{
         <div style={{
           width: `${progressPercentage}%`,
           height: '100%',
-          background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
+          background: `#B07A8C`, // Use logo pink color for progress
           borderRadius: '3px',
           transition: 'width 0.3s ease',
           backgroundSize: '200px 100%',
@@ -854,82 +854,82 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         justifyContent: 'center',
         alignItems: 'center',
       }}>
-            <img 
-              src="/Logo.png" 
-              alt="Wedding Logo" 
-              style={{
-                maxWidth: '150px',
-                maxHeight: '150px',
-                objectFit: 'contain',
-                background: 'transparent',
-                mixBlendMode: 'multiply',
-              }}
-            />
-          </div>
+        <img 
+          src="/Logo.png" 
+          alt="Wedding Logo" 
+          style={{
+            maxWidth: '112.5px', // 25% smaller than 150px
+            maxHeight: '112.5px',
+            objectFit: 'contain',
+            background: 'transparent',
+            mixBlendMode: 'multiply',
+          }}
+        />
+      </div>
 
-          {/* Animated Loading Icon */}
-          <div style={{
-            width: '80px',
-            height: '80px',
-            margin: '0 0 30px 0',
-            position: 'relative',
-          }}>
-            <div style={{
-              width: '100%',
-              height: '100%',
-              border: `4px solid ${selectedColorScheme.colors.secondary}40`,
-              borderTop: `4px solid ${selectedColorScheme.colors.secondary}`,
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-            }} />
-            <style>
-              {`
-                @keyframes spin {
-                  0% { transform: rotate(0deg); }
-                  100% { transform: rotate(360deg); }
-                }
-                @keyframes pulse {
-                  0%, 100% { opacity: 1; transform: scale(1); }
-                  50% { opacity: 0.7; transform: scale(1.05); }
-                }
-                @keyframes shimmer {
-                  0% { background-position: -200px 0; }
-                  100% { background-position: 200px 0; }
-                }
-              `}
-            </style>
-          </div>
+      {/* Animated Loading Icon */}
+      <div style={{
+        width: '80px',
+        height: '80px',
+        margin: '0 0 30px 0',
+        position: 'relative',
+      }}>
+        <div style={{
+          width: '100%',
+          height: '100%',
+          border: `4px solid #B07A8C40`, // Use logo pink color with alpha
+          borderTop: `4px solid #B07A8C`, // Use logo pink color
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }} />
+        <style>
+          {`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+            @keyframes pulse {
+              0%, 100% { opacity: 1; transform: scale(1); }
+              50% { opacity: 0.7; transform: scale(1.05); }
+            }
+            @keyframes shimmer {
+              0% { background-position: -200px 0; }
+              100% { background-position: 200px 0; }
+            }
+          `}
+        </style>
+      </div>
 
-          {/* Loading Text */}
-          <h2 style={{
-            margin: '0 0 20px 0',
-            fontSize: '2rem',
-            fontWeight: '300',
-            textAlign: 'center',
-            animation: 'pulse 2s ease-in-out infinite',
-          }}>
-            Loading Experience
-          </h2>
+      {/* Loading Text */}
+      <h2 style={{
+        margin: '0 0 20px 0',
+        fontSize: '2rem',
+        fontWeight: '300',
+        textAlign: 'center',
+        animation: 'pulse 2s ease-in-out infinite',
+      }}>
+        Loading Experience
+      </h2>
 
-          {/* Progress Bar */}
-          <div style={{
-            width: '300px',
-            height: '6px',
-            backgroundColor: `${selectedColorScheme.colors.secondary}20`,
-            borderRadius: '3px',
-            overflow: 'hidden',
-            margin: '0 0 15px 0',
-          }}>
-            <div style={{
-              width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
-              height: '100%',
-              background: `linear-gradient(90deg, ${selectedColorScheme.colors.secondary}, ${selectedColorScheme.colors.accent})`,
-              borderRadius: '3px',
-              transition: 'width 0.3s ease',
-              backgroundSize: '200px 100%',
-              animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
-            }} />
-          </div>
+      {/* Progress Bar */}
+      <div style={{
+        width: '300px',
+        height: '6px',
+        backgroundColor: '#B07A8C20', // Use logo pink color with alpha for background
+        borderRadius: '3px',
+        overflow: 'hidden',
+        margin: '0 0 15px 0',
+      }}>
+        <div style={{
+          width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
+          height: '100%',
+          background: `#B07A8C`, // Use logo pink color for progress
+          borderRadius: '3px',
+          transition: 'width 0.3s ease',
+          backgroundSize: '200px 100%',
+          animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
+        }} />
+      </div>
 
           {/* Progress Text */}
           <p style={{
