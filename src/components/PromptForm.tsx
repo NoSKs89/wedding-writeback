@@ -306,13 +306,13 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
   // Spring animations for responsive form changes
   const formWidthSpring = useSpring({
     width: overwriteFlexWidth 
-      ? `${formWidth}px`
-      : '90%',
+      ? formWidth // Use number value directly for React Spring
+      : 'auto', // Use auto instead of percentage for better compatibility
     maxWidth: overwriteFlexWidth 
-      ? '100%'
-      : '90%',
-    marginLeft: overwriteFlexWidth ? '0px' : 'auto',
-    marginRight: overwriteFlexWidth ? '0px' : 'auto',
+      ? formWidth // Use number value directly  
+      : 'none', // Use none instead of percentage
+    marginLeft: overwriteFlexWidth ? 0 : 'auto', // Use number instead of '0px'
+    marginRight: overwriteFlexWidth ? 0 : 'auto', // Use number instead of '0px'
     config: config.gentle,
   });
 
@@ -387,29 +387,6 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     isClosed
   });
 
-  // DEBUG: Always render this div to see if component is being called
-  if (isSetupMode) {
-    return (
-      <div style={{
-        background: 'red',
-        color: 'white',
-        padding: '20px',
-        border: '2px solid yellow',
-        fontSize: '16px',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        zIndex: 9999,
-        position: 'relative'
-      }}>
-        🚨 PROMPT FORM DEBUG (Setup Mode) 🚨
-        <br />Loading: {isLoading ? 'YES' : 'NO'}
-        <br />Settings: {promptFormSettings ? 'YES' : 'NO'}
-        <br />Questions: {promptFormSettings?.questions?.length || 0}
-        <br />Closed: {isClosed ? 'YES' : 'NO'}
-      </div>
-    );
-  }
-
   // Don't render if loading
   if (isLoading) {
     console.log('[PROMPT FORM DEBUG] Not rendering: still loading');
@@ -419,22 +396,29 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
   // Only render if there are questions configured
   if (!promptFormSettings || promptFormSettings.questions.length === 0) {
     console.log('[PROMPT FORM DEBUG] Not rendering: no settings or questions');
-    return (
-      <div style={{
-        background: 'orange',
-        color: 'black',
-        padding: '20px',
-        border: '2px solid red',
-        fontSize: '16px',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        zIndex: 9999,
-        position: 'relative'
-      }}>
-        🚨 PROMPT FORM: NO QUESTIONS CONFIGURED 🚨
-        <br />Go to setup page to add questions!
-      </div>
-    );
+    
+    // In setup mode, show a styled debug message
+    if (isSetupMode) {
+      return (
+        <div style={{
+          background: 'orange',
+          color: 'black',
+          padding: '20px',
+          border: '2px solid red',
+          fontSize: '16px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          zIndex: 9999,
+          position: 'relative',
+          borderRadius: '8px',
+        }}>
+          🚨 PROMPT FORM: NO QUESTIONS CONFIGURED 🚨
+          <br />Go to setup page to add questions!
+        </div>
+      );
+    }
+    
+    return null;
   }
 
   console.log('[PROMPT FORM DEBUG] Rendering prompt form with', promptFormSettings.questions.length, 'questions');
