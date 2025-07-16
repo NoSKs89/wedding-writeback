@@ -290,6 +290,10 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [preloadTotal, setPreloadTotal] = useState(0);
   const [showLoadingScreen, setShowLoadingScreen] = useState(true);
 
+  // --- PRE-RENDERING STATE ---
+  const [scrapbookImagesPreRendered, setScrapbookImagesPreRendered] = useState(false);
+  const preRenderContainerRef = useRef<HTMLDivElement | null>(null);
+
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
@@ -319,6 +323,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       return { ...element, key: `ge-el-${element.id}`, sticky: { start: pageOffset, end: actualEndPage }, pageOffset };
     }).filter((el): el is ElementDefinition => el !== null);
   }, [elementsFromBlueprint, markersFromBlueprint, TOTAL_PAGES]);
+
+  const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
+  const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
   const googleFontsToLoad = useMemo<FontObject[]>(() => {
     const fonts = new Set<string>();
@@ -434,6 +441,119 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
     preloadAssets();
   }, [assetsToPreload]);
+
+  // --- SCRAPBOOK PRE-RENDERING ---
+  useEffect(() => {
+    if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length || scrapbookImagesPreRendered) {
+      return;
+    }
+
+    // Pre-render scrapbook images off-screen to reduce viewport entry stutter
+    const preRenderScrapbookImages = async () => {
+      console.log('[SCRAPBOOK PRE-RENDER PREVIEW] Starting pre-render of scrapbook images...');
+      
+      // Get scrapbook image sources
+      const scrapbookImages = weddingDataFromApp.scrapbookImages || [];
+      const imageSources = scrapbookImages.map((img: any) => 
+        img.fileName?.startsWith('http') 
+          ? img.fileName 
+          : `${weddingDataFromApp.scrapbookImageFolder?.replace(/\/$/, '') || ''}/${img.fileName?.replace(/^\//, '') || ''}`
+      ).filter(Boolean);
+
+      if (imageSources.length === 0) {
+        setScrapbookImagesPreRendered(true);
+        return;
+      }
+
+      // Create off-screen container if it doesn't exist
+      let preRenderContainer = preRenderContainerRef.current;
+      if (!preRenderContainer) {
+        preRenderContainer = document.createElement('div');
+        preRenderContainer.style.cssText = `
+          position: fixed;
+          top: -9999px;
+          left: -9999px;
+          width: ${windowWidth}px;
+          height: ${windowHeight}px;
+          opacity: 0;
+          pointer-events: none;
+          overflow: hidden;
+          z-index: -9999;
+        `;
+        document.body.appendChild(preRenderContainer);
+        preRenderContainerRef.current = preRenderContainer;
+      }
+
+      // Create promise for all images to be pre-rendered
+      const preRenderPromises = imageSources.slice(0, 15).map((src: string, index: number) => {
+        return new Promise<void>((resolve) => {
+          const img = document.createElement('img');
+          
+          // Apply similar styles to actual scrapbook images
+          img.style.cssText = `
+            position: absolute;
+            width: 150px;
+            height: auto;
+            border: 7px solid #FFFFFF;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.25);
+            transform: rotate(${Math.random() * 30 - 15}deg);
+            opacity: 0.85;
+            left: ${Math.random() * (windowWidth - 200)}px;
+            top: ${Math.random() * (windowHeight - 200)}px;
+          `;
+          
+          img.onload = () => {
+            // Force a layout calculation
+            void img.offsetHeight;
+            setTimeout(resolve, 10); // Small delay to ensure rendering
+          };
+          
+          img.onerror = () => {
+            console.warn('[SCRAPBOOK PRE-RENDER PREVIEW] Failed to pre-render:', src);
+            resolve();
+          };
+          
+          img.src = src;
+          img.alt = `Pre-render ${index}`;
+          
+          if (preRenderContainer) {
+            preRenderContainer.appendChild(img);
+          }
+        });
+      });
+
+      try {
+        await Promise.allSettled(preRenderPromises);
+        console.log('[SCRAPBOOK PRE-RENDER PREVIEW] Completed pre-rendering scrapbook images');
+        
+        // Small delay to ensure all layout calculations are complete
+        setTimeout(() => {
+          setScrapbookImagesPreRendered(true);
+        }, 100);
+        
+      } catch (error) {
+        console.error('[SCRAPBOOK PRE-RENDER PREVIEW] Error during pre-rendering:', error);
+        setScrapbookImagesPreRendered(true);
+      }
+    };
+
+    // Start pre-rendering after a small delay to allow other loading to complete
+    const preRenderTimeout = setTimeout(preRenderScrapbookImages, 500);
+    
+    return () => {
+      clearTimeout(preRenderTimeout);
+    };
+  }, [isScrapbookEnabled, weddingDataFromApp, windowWidth, windowHeight, scrapbookImagesPreRendered]);
+
+  // Cleanup pre-render container when component unmounts
+  useEffect(() => {
+    return () => {
+      if (preRenderContainerRef.current) {
+        document.body.removeChild(preRenderContainerRef.current);
+        preRenderContainerRef.current = null;
+      }
+    };
+  }, []);
   
   // Calculate scroll values with parallax physics applied
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
@@ -451,9 +571,6 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     textOnSecondary, 
     textOnAccent 
   } = selectedColorScheme?.colors || weddingColorSchemes[0].colors;
-
-  const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
-  const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
   // Get the scrapbook element to determine its folder name
   const scrapbookElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
