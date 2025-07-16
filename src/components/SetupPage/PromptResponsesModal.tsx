@@ -96,6 +96,64 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
     return response.email;
   };
 
+  const exportToCSV = () => {
+    if (!data?.responses.length || !data?.questions.length) {
+      alert('No data to export');
+      return;
+    }
+
+    // Create CSV headers
+    const headers = [
+      'Response ID',
+      'User Name', 
+      'Email',
+      'Submission Date',
+      'Anonymous',
+      ...data.questions.map(q => `"${q.question.replace(/"/g, '""')}"`)
+    ];
+
+    // Create CSV rows
+    const rows = data.responses.map(response => {
+      const row = [
+        response.responseId,
+        getUserDisplayName(response),
+        getUserEmail(response),
+        formatDate(response.submittedAt),
+        response.isAnonymous ? 'Yes' : 'No',
+        ...data.questions.map(question => {
+          const answer = response.responses[question.id] || '';
+          // Escape quotes and wrap in quotes if contains comma, newline, or quote
+          const escapedAnswer = answer.replace(/"/g, '""');
+          return answer.includes(',') || answer.includes('\n') || answer.includes('"') 
+            ? `"${escapedAnswer}"` 
+            : escapedAnswer;
+        })
+      ];
+      return row;
+    });
+
+    // Combine headers and rows
+    const csvContent = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    
+    // Generate filename with current date
+    const now = new Date();
+    const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const filename = `prompt-responses-${weddingId}-${dateStr}.csv`;
+    
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -131,7 +189,19 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
           justifyContent: 'space-between',
           alignItems: 'center',
         }}>
-          <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Prompt Form Responses</h2>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '1.5rem' }}>Prompt Form Responses</h2>
+            {data && (
+              <p style={{ 
+                margin: '5px 0 0 0', 
+                fontSize: '0.9rem', 
+                color: '#666',
+                fontWeight: '500'
+              }}>
+                Total Responses: {data.totalResponses}
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             style={{
@@ -151,45 +221,55 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
           padding: '15px 20px',
           borderBottom: '1px solid #eee',
           display: 'flex',
-          gap: '10px',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={() => setViewMode('user')}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                background: viewMode === 'user' ? '#007bff' : 'white',
+                color: viewMode === 'user' ? 'white' : '#333',
+                cursor: 'pointer',
+              }}
+            >
+              View By User
+            </button>
+            <button
+              onClick={() => setViewMode('prompt')}
+              style={{
+                padding: '8px 16px',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                background: viewMode === 'prompt' ? '#007bff' : 'white',
+                color: viewMode === 'prompt' ? 'white' : '#333',
+                cursor: 'pointer',
+              }}
+            >
+              View By Prompt
+            </button>
+          </div>
+          
+          {/* Export Button */}
           <button
-            onClick={() => setViewMode('user')}
+            onClick={exportToCSV}
+            disabled={isLoading || !data?.responses.length}
             style={{
               padding: '8px 16px',
-              border: '1px solid #ddd',
+              border: '1px solid #28a745',
               borderRadius: '4px',
-              background: viewMode === 'user' ? '#007bff' : 'white',
-              color: viewMode === 'user' ? 'white' : '#333',
-              cursor: 'pointer',
-            }}
-          >
-            View By User
-          </button>
-          <button
-            onClick={() => setViewMode('prompt')}
-            style={{
-              padding: '8px 16px',
-              border: '1px solid #ddd',
-              borderRadius: '4px',
-              background: viewMode === 'prompt' ? '#007bff' : 'white',
-              color: viewMode === 'prompt' ? 'white' : '#333',
-              cursor: 'pointer',
-            }}
-          >
-            View By Prompt
-          </button>
-          {data && (
-            <div style={{
-              marginLeft: 'auto',
-              display: 'flex',
-              alignItems: 'center',
+              background: isLoading || !data?.responses.length ? '#f8f9fa' : '#28a745',
+              color: isLoading || !data?.responses.length ? '#6c757d' : 'white',
+              cursor: isLoading || !data?.responses.length ? 'not-allowed' : 'pointer',
               fontSize: '0.9rem',
-              color: '#666',
-            }}>
-              Total Responses: {data.totalResponses}
-            </div>
-          )}
+              fontWeight: '500',
+            }}
+          >
+            📥 Export Answers
+          </button>
         </div>
 
         {/* Content */}
