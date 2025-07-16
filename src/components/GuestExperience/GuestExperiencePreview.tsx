@@ -18,6 +18,7 @@ import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontCo
 import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingColorScheme, parallaxPhysicsPresets, ParallaxPhysicsPreset, animationCurves } from '../../config/levaSchemas';
 import { generateElementFolderName } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
+import { getApiBaseUrl } from '../../config/apiConfig';
 import '../../App.css';
 
 // --- TYPE DEFINITIONS ---
@@ -784,7 +785,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
           componentToRender = (
             <PromptForm
               weddingData={weddingDataFromApp}
-              backendUrl={weddingDataFromApp.rsvpEndpoint}
+              backendUrl={getApiBaseUrl()}
               elementName={promptFolderName}
               styleControlsFromProp={elementControls[promptFolderName]}
             />
@@ -820,6 +821,11 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     return (
       <ParallaxLayer key={el.key} sticky={el.sticky as ParallaxLayerProps['sticky']} style={{ 
           ...centerStyle, 
+          // Fix for scrapbook pointer events - simplified since container handles positioning
+          ...(el.type === 'component' && el.name === 'Scrapbook' ? {
+            overflow: 'visible',
+            pointerEvents: 'auto',
+          } : {}),
           zIndex: 
             el.type === 'background-image' || el.type === 'background-video'
               ? -5

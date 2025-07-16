@@ -380,7 +380,14 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
           (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }
       }} 
-      style={{ position: 'relative', width: '100%', minHeight: containerHeight ? `${containerHeight}px` : '100vh' }}
+      style={{ 
+        position: 'relative', // Changed back to relative for proper centering
+        width: '100%', // Use 100% instead of 100vw
+        height: '100%', // Use 100% instead of 100vh
+        minHeight: containerHeight ? `${containerHeight}px` : '100vh',
+        overflow: 'visible', // Allow content to extend beyond boundaries
+        pointerEvents: 'auto', // Ensure pointer events are enabled
+      }}
     >
       {/* Scrapbook Disabled Message */}
       {scrapbookDisabled && (

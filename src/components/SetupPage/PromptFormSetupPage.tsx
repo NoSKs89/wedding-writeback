@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import PromptResponsesModal from './PromptResponsesModal';
 
 // Define the structure for prompt questions
 interface PromptQuestion {
@@ -43,6 +44,7 @@ const PromptFormSetupPage: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [showResponsesModal, setShowResponsesModal] = useState(false);
 
   // Derive editingQuestion from promptFormSettings instead of keeping separate state
   const editingQuestion = useMemo(() => {
@@ -184,6 +186,19 @@ const PromptFormSetupPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
         <h1>Prompt Form Setup</h1>
         <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <button
+            onClick={() => setShowResponsesModal(true)}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: 'pointer',
+            }}
+          >
+            View Answers
+          </button>
           <button
             onClick={savePromptFormSettings}
             disabled={isSaving}
@@ -540,6 +555,13 @@ const PromptFormSetupPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Prompt Responses Modal */}
+      <PromptResponsesModal
+        isOpen={showResponsesModal}
+        onClose={() => setShowResponsesModal(false)}
+        weddingId={weddingId || ''}
+      />
     </div>
   );
 };

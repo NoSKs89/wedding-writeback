@@ -1331,7 +1331,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[rsvpFolderName]} /></div>;
                   } else if (element.name === 'Prompt Form') {
                     const promptFolderName = generateElementFolderName(element);
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><PromptForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[promptFolderName]} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><PromptForm weddingData={weddingDataWithEndpoint} backendUrl={getApiBaseUrl()} styleControlsFromProp={controlValues[promptFolderName]} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     const scrapbookElementFolderName = generateElementFolderName(element);
                     contentToRender = <InteractiveScrapbook 
@@ -1361,6 +1361,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               return (
                 <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
                   ...centerStyle, 
+                  // Fix for scrapbook pointer events - simplified since container handles positioning
+                  ...(element.type === 'component' && element.name === 'Scrapbook' ? {
+                    overflow: 'visible',
+                    pointerEvents: 'auto',
+                  } : {}),
                   zIndex: 
                     element.type === 'background-image' || element.type === 'background-video'
                       ? -5 

@@ -33,7 +33,6 @@ interface PromptQuestion {
 
 // Interface for prompt form settings
 interface PromptFormSettings {
-  isEnabled: boolean;
   questions: PromptQuestion[];
   formTitle: string;
   formDescription: string;
@@ -85,9 +84,23 @@ export const promptFormControlsSchema = {
 };
 
 const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, backendUrl, elementName = 'Prompt Form', styleControlsFromProp = {} }, ref) => {
+  console.log('[PROMPT FORM DEBUG] Component called with:', {
+    weddingData: weddingData ? 'present' : 'missing',
+    weddingId: weddingData?.customId || weddingData?.id,
+    backendUrl,
+    elementName,
+    styleControlsFromProp: Object.keys(styleControlsFromProp || {})
+  });
+
   const weddingId = weddingData.customId || weddingData.id;
   const { isSetupMode } = useSetupMode();
   const { userInfo } = useUserInfo();
+  
+  console.log('[PROMPT FORM DEBUG] Initial state:', {
+    weddingId,
+    isSetupMode,
+    userInfo: userInfo ? 'present' : 'missing'
+  });
   
   // Create a default set of values from the schema
   const defaultStyleValues = useMemo(() => Object.entries(promptFormControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
@@ -144,17 +157,23 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
 
   // Load prompt form settings
   useEffect(() => {
+    console.log('[PROMPT FORM DEBUG] Loading settings useEffect triggered for weddingId:', weddingId);
+    
     const loadPromptFormSettings = async () => {
       try {
+        console.log('[PROMPT FORM DEBUG] Making API call to:', `${backendUrl}/weddings/${weddingId}/prompt-form-settings`);
         const response = await axios.get(`${backendUrl}/weddings/${weddingId}/prompt-form-settings`);
+        console.log('[PROMPT FORM DEBUG] API response:', response.data);
+        
         if (response.data && response.data.data) {
+          console.log('[PROMPT FORM DEBUG] Setting prompt form settings:', response.data.data);
           setPromptFormSettings(response.data.data);
         }
       } catch (error) {
-        console.warn('No prompt form settings found');
+        console.warn('[PROMPT FORM DEBUG] API call failed:', error);
+        console.log('[PROMPT FORM DEBUG] Using default settings');
         // Use default settings if none found
         setPromptFormSettings({
-          isEnabled: false,
           questions: [],
           formTitle: 'Share Your Thoughts',
           formDescription: 'We\'d love to hear from you!',
@@ -166,11 +185,15 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
           buttonTextColor: '#ffffff',
         });
       }
+      console.log('[PROMPT FORM DEBUG] Setting isLoading to false');
       setIsLoading(false);
     };
 
     if (weddingId) {
       loadPromptFormSettings();
+    } else {
+      console.log('[PROMPT FORM DEBUG] No weddingId, setting isLoading to false');
+      setIsLoading(false);
     }
   }, [weddingId, backendUrl]);
 
@@ -357,14 +380,64 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     fontFamily: formTextFontFamily,
   };
 
-  // Don't render if loading or prompt form is disabled
+  console.log('[PROMPT FORM DEBUG] About to render. State:', {
+    isLoading,
+    promptFormSettings: promptFormSettings ? 'present' : 'missing',
+    questionsLength: promptFormSettings?.questions?.length || 0,
+    isClosed
+  });
+
+  // DEBUG: Always render this div to see if component is being called
+  if (isSetupMode) {
+    return (
+      <div style={{
+        background: 'red',
+        color: 'white',
+        padding: '20px',
+        border: '2px solid yellow',
+        fontSize: '16px',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        zIndex: 9999,
+        position: 'relative'
+      }}>
+        🚨 PROMPT FORM DEBUG (Setup Mode) 🚨
+        <br />Loading: {isLoading ? 'YES' : 'NO'}
+        <br />Settings: {promptFormSettings ? 'YES' : 'NO'}
+        <br />Questions: {promptFormSettings?.questions?.length || 0}
+        <br />Closed: {isClosed ? 'YES' : 'NO'}
+      </div>
+    );
+  }
+
+  // Don't render if loading
   if (isLoading) {
+    console.log('[PROMPT FORM DEBUG] Not rendering: still loading');
     return null;
   }
 
-  if (!promptFormSettings?.isEnabled || promptFormSettings.questions.length === 0) {
-    return null;
+  // Only render if there are questions configured
+  if (!promptFormSettings || promptFormSettings.questions.length === 0) {
+    console.log('[PROMPT FORM DEBUG] Not rendering: no settings or questions');
+    return (
+      <div style={{
+        background: 'orange',
+        color: 'black',
+        padding: '20px',
+        border: '2px solid red',
+        fontSize: '16px',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        zIndex: 9999,
+        position: 'relative'
+      }}>
+        🚨 PROMPT FORM: NO QUESTIONS CONFIGURED 🚨
+        <br />Go to setup page to add questions!
+      </div>
+    );
   }
+
+  console.log('[PROMPT FORM DEBUG] Rendering prompt form with', promptFormSettings.questions.length, 'questions');
 
   const renderContent = () => {
     if (submissionStatus === 'submitted') {

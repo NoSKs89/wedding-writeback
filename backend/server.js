@@ -1283,6 +1283,32 @@ exports.handler = async (event, context) => {
           }, requestOrigin);
       }
 
+      // GET /api/weddings/:customId/prompt-responses
+      const getPromptResponsesMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/prompt-responses$/);
+      if (httpMethod === 'GET' && getPromptResponsesMatch) {
+          const customId = getPromptResponsesMatch[1];
+          
+          console.log(`[GET /prompt-responses] Fetching prompt responses for ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId }).select('promptResponses promptFormSettings customId');
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          // Return prompt responses along with the questions for context
+          const responses = wedding.promptResponses || [];
+          const questions = wedding.promptFormSettings?.questions || [];
+          
+          return createResponse(200, { 
+              success: true, 
+              data: {
+                  responses,
+                  questions,
+                  totalResponses: responses.length
+              }
+          }, requestOrigin);
+      }
+
       // PUT /api/weddings/:customId/account-settings
       const putAccountSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/account-settings$/);
       if (httpMethod === 'PUT' && putAccountSettingsMatch) {

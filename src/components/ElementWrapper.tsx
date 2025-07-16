@@ -394,21 +394,21 @@ const ElementWrapper: React.FC<ElementWrapperProps> = ({
           return type; // Fallback for other types
         };
         
-        console.log(`🔄 RotateIn Animation [${folderName}]:`, {
-          rotateInType,
-          description: getRotationTypeDescription(rotateInType),
-          rotateProgress: rotateProgress.toFixed(3),
-          easedProgress: easedRotateProgress.toFixed(3),
-          targetRotation,
-          currentRotation: {
-            x: currentRotateX.toFixed(1),
-            y: currentRotateY.toFixed(1),
-            z: currentRotateZ.toFixed(1)
-          },
-          scrollY: scrollY.toFixed(0),
-          elementStartScroll: elementStartScroll.toFixed(0),
-          rotateAnimationEndScrollPoint: rotateAnimationEndScrollPoint.toFixed(0)
-        });
+        // console.log(`🔄 RotateIn Animation [${folderName}]:`, {
+        //   rotateInType,
+        //   description: getRotationTypeDescription(rotateInType),
+        //   rotateProgress: rotateProgress.toFixed(3),
+        //   easedProgress: easedRotateProgress.toFixed(3),
+        //   targetRotation,
+        //   currentRotation: {
+        //     x: currentRotateX.toFixed(1),
+        //     y: currentRotateY.toFixed(1),
+        //     z: currentRotateZ.toFixed(1)
+        //   },
+        //   scrollY: scrollY.toFixed(0),
+        //   elementStartScroll: elementStartScroll.toFixed(0),
+        //   rotateAnimationEndScrollPoint: rotateAnimationEndScrollPoint.toFixed(0)
+        // });
       }
     } else {
       // No curve - just use linear progress
