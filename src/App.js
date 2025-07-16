@@ -30,6 +30,7 @@ import useWeddingData from './hooks/useWeddingData'; // Import the new hook
 import ShareGallerySetupPage from './components/ShareGallery/ShareGallerySetupPage'; // ADDED
 import ShareGalleryGuestPage from './components/ShareGallery/ShareGalleryGuestPage'; // ADDED
 import RsvpSetupPage from './components/SetupPage/RsvpSetupPage'; // ADDED
+import PromptFormSetupPage from './components/SetupPage/PromptFormSetupPage'; // ADDED
 import NavbarSetupPage from './components/SetupPage/NavbarSetupPage'; // ADDED
 
 // --- Backend Configuration --- MOVED TO src/config/apiConfig.js ---
@@ -232,6 +233,7 @@ const MainAppContent = () => {
           <Route index element={<Navigate to="images" replace />} />
           <Route path="images" element={<ImageUploadSetup />} />
           <Route path="rsvp" element={<RsvpSetupPage />} />
+          <Route path="promptform" element={<PromptFormSetupPage />} />
           <Route path="navbar" element={<NavbarSetupPage />} />
           <Route path="share-gallery" element={<ShareGallerySetupPage />} />
                           <Route path="layout" element={<DesktopLayoutEditor />} />

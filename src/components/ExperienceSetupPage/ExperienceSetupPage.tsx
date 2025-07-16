@@ -151,7 +151,7 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
         const fullText = el.content.trim();
         textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
       } else if (el.type === 'component') {
-        previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+        previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Prompt Form' ? '📝' : el.name === 'Scrapbook' ? '📚' : '⚙️';
       } else if (el.type === 'photo' && typeof el.content === 'string') {
         previewImageUrl = el.content;
       } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
@@ -301,7 +301,7 @@ const ExperienceSetupPage: React.FC = () => {
           const fullText = el.content.trim();
           textPreviewContent = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
         } else if (el.type === 'component') {
-          iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+          iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Prompt Form' ? '📝' : el.name === 'Scrapbook' ? '📚' : '⚙️';
         } else if (el.type === 'photo' && typeof el.content === 'string') {
           previewImageUrl = el.content;
         } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview
@@ -388,7 +388,7 @@ const ExperienceSetupPage: React.FC = () => {
                 const fullText = el.content.trim();
                 textPreview = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
             } else if (el.type === 'component') {
-                previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+                previewIcon = el.name === 'RSVP Form' ? '📅' : el.name === 'Prompt Form' ? '📝' : el.name === 'Scrapbook' ? '📚' : '⚙️';
             } else if (el.type === 'photo' && typeof el.content === 'string') {
                 previewImageUrl = el.content;
             } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview

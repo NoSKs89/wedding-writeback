@@ -18,6 +18,7 @@ const navLinks = [
   { label: 'Mobile Layout Editor', path: '/setup/layoutmobile' },
   { label: 'Account Settings', path: '/setup/account' },
   { label: 'RSVP Setup', path: '/setup/rsvp' },
+  { label: 'Prompt Form Setup', path: '/setup/promptform' },
   { label: 'Navbar Setup', path: '/setup/navbar' },
 ];
 

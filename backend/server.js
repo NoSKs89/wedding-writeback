@@ -1126,6 +1126,163 @@ exports.handler = async (event, context) => {
           }, requestOrigin);
       }
 
+      // GET /api/weddings/:customId/prompt-form-settings
+      const getPromptFormSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/prompt-form-settings$/);
+      if (httpMethod === 'GET' && getPromptFormSettingsMatch) {
+          const customId = getPromptFormSettingsMatch[1];
+          
+          console.log(`[GET /prompt-form-settings] Fetching prompt form settings for ${customId}`);
+          
+          const wedding = await WeddingData.findOne({ customId }).select('promptFormSettings customId');
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          // Return prompt form settings or default structure if not set
+          const promptFormSettings = wedding.promptFormSettings || {
+              questions: [],
+              formTitle: 'Share Your Thoughts',
+              formDescription: 'We\'d love to hear from you!',
+              submitButtonText: 'Submit',
+              allowAnonymous: false,
+              backgroundColor: '#ffffff',
+              textColor: '#333333',
+              buttonColor: '#007bff',
+              buttonTextColor: '#ffffff',
+          };
+
+          return createResponse(200, { success: true, data: promptFormSettings }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/prompt-form-settings
+      const postPromptFormSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/prompt-form-settings$/);
+      if (httpMethod === 'POST' && postPromptFormSettingsMatch) {
+          const customId = postPromptFormSettingsMatch[1];
+          const promptFormSettings = body;
+
+          console.log(`[POST /prompt-form-settings] Updating prompt form settings for ${customId}`, promptFormSettings);
+
+          // Basic validation
+          if (!promptFormSettings || typeof promptFormSettings !== 'object') {
+              return createResponse(400, { message: 'Invalid prompt form settings data.' }, requestOrigin);
+          }
+
+          if (!Array.isArray(promptFormSettings.questions)) {
+              return createResponse(400, { message: 'Questions must be an array.' }, requestOrigin);
+          }
+
+          // Validate questions
+          for (const question of promptFormSettings.questions) {
+              if (!question.id || !question.question || typeof question.required !== 'boolean') {
+                  return createResponse(400, { message: 'Invalid question format.' }, requestOrigin);
+              }
+              if (question.maxLength && (question.maxLength < 10 || question.maxLength > 5000)) {
+                  return createResponse(400, { message: 'Question maxLength must be between 10 and 5000 characters.' }, requestOrigin);
+              }
+          }
+
+          const updatedWedding = await WeddingData.findOneAndUpdate(
+              { customId: customId },
+              { $set: { promptFormSettings: promptFormSettings } },
+              { new: true, runValidators: true, select: 'promptFormSettings customId' }
+          );
+
+          if (!updatedWedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          return createResponse(200, { 
+              success: true, 
+              message: 'Prompt form settings updated successfully.', 
+              data: updatedWedding.promptFormSettings 
+          }, requestOrigin);
+      }
+
+      // POST /api/prompt-responses
+      if (httpMethod === 'POST' && routePath === '/api/prompt-responses') {
+          console.log('[ROUTE /api/prompt-responses] Received prompt response submission:', body);
+          const { weddingId, firstName, lastName, email, responses, isAnonymous } = body;
+          
+          if (!weddingId) {
+              return createResponse(400, { message: 'Missing required field: weddingId.' }, requestOrigin);
+          }
+          
+          if (!responses || typeof responses !== 'object') {
+              return createResponse(400, { message: 'Missing or invalid responses.' }, requestOrigin);
+          }
+          
+          const wedding = await WeddingData.findOne({ customId: weddingId });
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found for this prompt response.' }, requestOrigin);
+          }
+
+          // Note: Prompt form is enabled/disabled based on whether it's added as an element to the guest experience
+          // No need to check isEnabled field since it's now controlled by element presence
+
+          // Validate required fields if not anonymous
+          if (!wedding.promptFormSettings.allowAnonymous || !isAnonymous) {
+              if (!firstName || !firstName.trim()) {
+                  return createResponse(400, { message: 'First name is required.' }, requestOrigin);
+              }
+              if (!lastName || !lastName.trim()) {
+                  return createResponse(400, { message: 'Last name is required.' }, requestOrigin);
+              }
+          }
+
+          // Validate responses against configured questions
+          const configuredQuestions = wedding.promptFormSettings.questions || [];
+          for (const question of configuredQuestions) {
+              if (question.required && (!responses[question.id] || !responses[question.id].trim())) {
+                  return createResponse(400, { message: `Response required for: ${question.question}` }, requestOrigin);
+              }
+              if (responses[question.id] && responses[question.id].length > question.maxLength) {
+                  return createResponse(400, { message: `Response too long for: ${question.question}` }, requestOrigin);
+              }
+          }
+
+          const newPromptResponse = {
+              responseId: uuidv4(),
+              firstName: firstName || 'Anonymous',
+              lastName: lastName || 'User',
+              email: email || null,
+              responses,
+              isAnonymous: isAnonymous || false,
+              submittedAt: new Date(),
+          };
+
+          // Add the prompt response to the wedding
+          console.log(`[ROUTE /api/prompt-responses] Attempting to add prompt response for wedding ${weddingId}`);
+          
+          const updateResult = await WeddingData.updateOne(
+              { customId: weddingId },
+              { 
+                  $push: { 
+                      promptResponses: newPromptResponse,
+                  } 
+              }
+          );
+
+          console.log(`[ROUTE /api/prompt-responses] Update result:`, {
+            matchedCount: updateResult.matchedCount,
+            modifiedCount: updateResult.modifiedCount,
+            acknowledged: updateResult.acknowledged
+          });
+
+          if (updateResult.modifiedCount === 0) {
+              console.error(`[ROUTE /api/prompt-responses] Failed to add prompt response for weddingId: ${weddingId}`);
+              return createResponse(500, { message: "An internal error occurred while saving your response." }, requestOrigin);
+          }
+
+          console.log(`[ROUTE /api/prompt-responses] Successfully added prompt response for ${firstName} ${lastName} to wedding ${weddingId}.`);
+          
+          return createResponse(201, {
+              success: true,
+              message: 'Prompt response submitted successfully.',
+              responseId: newPromptResponse.responseId,
+              firstName: newPromptResponse.firstName
+          }, requestOrigin);
+      }
+
       // PUT /api/weddings/:customId/account-settings
       const putAccountSettingsMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/account-settings$/);
       if (httpMethod === 'PUT' && putAccountSettingsMatch) {

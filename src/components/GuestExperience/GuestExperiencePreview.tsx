@@ -5,6 +5,7 @@ import { useDrag } from '@use-gesture/react';
 import { useControls, folder } from 'leva';
 
 import RSVPForm from '../RSVPForm';
+import PromptForm from '../PromptForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import BottomNavbar from './BottomNavbar';
@@ -12,6 +13,7 @@ import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
 
 import { useIsMobile } from '../../utils/deviceDetect';
+import { UserInfoProvider } from '../../contexts/UserInfoContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingColorScheme, parallaxPhysicsPresets, ParallaxPhysicsPreset, animationCurves } from '../../config/levaSchemas';
 import { generateElementFolderName } from './levaSchemas';
@@ -660,6 +662,16 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               styleControlsFromProp={elementControls[rsvpFolderName]}
             />
           );
+        } else if (el.name === 'Prompt Form') {
+          const promptFolderName = generateElementFolderName(el);
+          componentToRender = (
+            <PromptForm
+              weddingData={weddingDataFromApp}
+              backendUrl={weddingDataFromApp.rsvpEndpoint}
+              elementName={promptFolderName}
+              styleControlsFromProp={elementControls[promptFolderName]}
+            />
+          );
         } else if (el.name === 'Scrapbook') {
           const scrapbookElementFolderName = generateElementFolderName(el);
           componentToRender = (
@@ -698,10 +710,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 100
               : el.type === 'component' && el.name === 'RSVP Form'
               ? 150
+              : el.type === 'component' && el.name === 'Prompt Form'
+              ? 140
               : el.type === 'component' && el.name === 'Bottom Navbar'
               ? 125
               : (renderableElements.length - index) + 10,
-          pointerEvents: el.type === 'component' && el.name === 'RSVP Form' ? 'none' : 'auto',
+          pointerEvents: el.type === 'component' && (el.name === 'RSVP Form' || el.name === 'Prompt Form') ? 'none' : 'auto',
           backgroundColor: (el.type === 'background-image' || el.type === 'background-video') 
             ? '#000000' 
             : 'transparent', // Background layers get black background, others transparent
@@ -722,7 +736,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   };
 
   return (
-    <>
+    <UserInfoProvider>
       <animated.div style={{
         position: 'fixed',
         top: '10px',
@@ -960,7 +974,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             )}
           </>
         </>
-    </>
+    </UserInfoProvider>
   );
 };
 

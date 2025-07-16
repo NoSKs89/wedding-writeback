@@ -32,6 +32,21 @@ const getScrapbookLayoutControlsSchema = () => {
     return scrapbookLayoutControlsSchema;
 };
 
+// Helper to safely import Prompt Form schema
+let promptFormControlsSchema = null; // Cache the schema
+const getPromptFormControlsSchema = () => {
+    if (!promptFormControlsSchema) {
+        try {
+            const promptFormModule = require('../PromptForm');
+            promptFormControlsSchema = promptFormModule.promptFormControlsSchema;
+        } catch (error) {
+            console.warn('Could not import Prompt Form controls schema:', error);
+            promptFormControlsSchema = {};
+        }
+    }
+    return promptFormControlsSchema;
+};
+
 // Helper to generate element-specific RSVP controls with correct render paths
 const getElementSpecificRsvpControls = (element) => {
     const baseSchema = getRsvpFormControlsSchema();
@@ -47,6 +62,36 @@ const getElementSpecificRsvpControls = (element) => {
                     // For useThemeButtonColors dependency
                     if (key === 'cantMakeItColor' || key === 'canMakeItColor') {
                         return !get(`${folderName}.useThemeButtonColors`);
+                    }
+                    // For formHeight dependency on overwriteFlexHeight
+                    if (key === 'formHeight') {
+                        return get(`${folderName}.overwriteFlexHeight`);
+                    }
+                    return value.render(get);
+                }
+            };
+        } else {
+            acc[key] = value;
+        }
+        return acc;
+    }, {});
+};
+
+// Helper to generate element-specific Prompt Form controls with correct render paths
+const getElementSpecificPromptFormControls = (element) => {
+    const baseSchema = getPromptFormControlsSchema();
+    const folderName = generateElementFolderName(element);
+    
+    // Update render paths to use the element folder name
+    return Object.entries(baseSchema).reduce((acc, [key, value]) => {
+        if (value.render && typeof value.render === 'function') {
+            // Update the render function to use the element folder name
+            acc[key] = {
+                ...value,
+                render: (get) => {
+                    // For formWidth dependency on overwriteFlexWidth
+                    if (key === 'formWidth') {
+                        return get(`${folderName}.overwriteFlexWidth`);
                     }
                     // For formHeight dependency on overwriteFlexHeight
                     if (key === 'formHeight') {
@@ -832,6 +877,30 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
                 textShadowYEnd: { value: 2, step: 1, label: 'Shadow Y End (px)' },
                 textShadowBlurEnd: { value: 3, min:0, step: 1, label: 'Shadow Blur End (px)' },
                 textShadowColor: { value: 'rgba(0,0,0,0.5)', label: 'Text Shadow Color' },
+            };
+        } else if (element.name === 'Prompt Form') {
+            componentSpecificControls = getElementSpecificPromptFormControls(element);
+            // Prompt Form needs some basic text controls for form styling
+            return {
+                ...controlsSchema,
+                ...baseComponentControls,
+                ...componentSpecificControls,
+                textColor: { value: '#333333', label: 'Text Color' },
+                fontFamily: { value: globalFontFamilyFromStore, options: fontFamilyOptions, label: 'Font Family' },
+                fontSizeAtStart: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ Start (px)' },
+                fontSizeAtEnd: { value: 16, min: 8, max: 120, step: 1, label: 'Font Size @ End (px)' },
+                fontSizeAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Font Size Curve' },
+                lineHeight: { value: 1.5, min: 0.8, max: 3, step: 0.01, label: 'Line Height' },
+                paddingLeft: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Left (px)' },
+                paddingRight: { value: 0, min: 0, max: 200, step: 1, label: 'Padding Right (px)' },
+                enableParentContainer: { value: false, label: 'Enable Parent Container' },
+                containerSize: { value: 400, min: 100, max: 1200, step: 10, label: 'Container Size (px)', render: (get) => {
+                    const folderName = generateElementFolderName(element);
+                    return get(`${folderName}.enableParentContainer`);
+                }},
+                spreadAnimationCurve: { value: 'linear', options: ['disabled', ...Object.keys(animationCurves)], label: 'Spread Curve' },
+                yOffsetAtAnimStart: { value: 20, step: 1, label: 'Y Offset @ Anim Start (px)' },
+                yOffsetAtAnimEnd: { value: 0, step: 1, label: 'Y Offset @ Anim End (px)' },
             };
         } else if (element.name === 'Scrapbook') {
             componentSpecificControls = getScrapbookLayoutControlsSchema();

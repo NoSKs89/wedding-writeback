@@ -97,6 +97,7 @@
 
 .mainContent {
     padding: 1rem;
+    background-color: #c5c4c4;
     /* flex-grow: 1; If this class is used, ensure it grows too */
 }
 
@@ -104,7 +105,7 @@
     padding: 0;
     /* flex-grow: 1; This is now handled inline in SetupLayout.js */
     /* display: flex; This is now handled inline in SetupLayout.js */
-    background-color: #E9ecce; /* Moved background color here */
+    background-color: #c5c4c4; /* Light off-white for better readability */
 }
 
 .dropdown {

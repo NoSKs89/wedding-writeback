@@ -98,6 +98,36 @@ const WeddingDataSchema = new mongoose.Schema({
   // RSVP Cutoff Date and Continued Communications
   rsvpCutoffDate: { type: Date, default: null },
   allowContinuedCommunications: { type: Boolean, default: false },
+  // Prompt Form Settings
+  promptFormSettings: {
+    isEnabled: { type: Boolean, default: false },
+    questions: [{
+      id: String,
+      question: String,
+      placeholder: String,
+      maxLength: { type: Number, default: 500 },
+      required: { type: Boolean, default: false },
+      position: { type: Number, default: 0 }
+    }],
+    formTitle: { type: String, default: 'Share Your Thoughts' },
+    formDescription: { type: String, default: 'We\'d love to hear from you!' },
+    submitButtonText: { type: String, default: 'Submit' },
+    allowAnonymous: { type: Boolean, default: false },
+    backgroundColor: { type: String, default: '#ffffff' },
+    textColor: { type: String, default: '#333333' },
+    buttonColor: { type: String, default: '#007bff' },
+    buttonTextColor: { type: String, default: '#ffffff' }
+  },
+  // Prompt Form Responses
+  promptResponses: [{
+    responseId: String,
+    firstName: String,
+    lastName: String,
+    email: String,
+    responses: mongoose.Schema.Types.Mixed, // Object with questionId: response pairs
+    isAnonymous: { type: Boolean, default: false },
+    submittedAt: { type: Date, default: Date.now }
+  }],
 }, { timestamps: true }); // Adds createdAt and updatedAt automatically
 
 module.exports = mongoose.model('WeddingData', WeddingDataSchema); 

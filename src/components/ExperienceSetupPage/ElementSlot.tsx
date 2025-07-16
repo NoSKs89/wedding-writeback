@@ -181,6 +181,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         onRemove();
     } else if (newTypeValue === 'component-rsvp') {
         onUpdate({ type: 'component', content: 'RSVP Form', name: 'RSVP Form' });
+    } else if (newTypeValue === 'component-prompt') {
+        onUpdate({ type: 'component', content: 'Prompt Form', name: 'Prompt Form' });
     } else if (newTypeValue === 'component-scrapbook') {
         // For scrapbook, content could be an object { maxImages: number }
         // Initialize with a default or existing value if switching to scrapbook
@@ -350,6 +352,8 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   if (element.type === 'component') {
     if (element.name === 'RSVP Form') {
       dropdownValue = 'component-rsvp';
+    } else if (element.name === 'Prompt Form') {
+      dropdownValue = 'component-prompt';
     } else if (element.name === 'Scrapbook') {
       dropdownValue = 'component-scrapbook';
     } else if (element.name === 'Bottom Navbar') {
@@ -405,6 +409,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
               <option value="video">Video</option>
               <option value="text">Text</option>
               <option value="component-rsvp">RSVP Form</option>
+              <option value="component-prompt">Prompt Form</option>
               <option value="component-scrapbook">Scrapbook</option>
               <option value="component-bottom-navbar">Bottom Navbar</option>
               <option value="background-image">Background Image</option>

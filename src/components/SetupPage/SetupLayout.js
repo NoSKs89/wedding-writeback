@@ -111,6 +111,8 @@ const SetupLayout = () => {
         pageTitle = `${formattedWeddingId} - Account Settings`;
       } else if (pathname.includes('/setup/rsvp')) {
         pageTitle = `${formattedWeddingId} - RSVP Setup`;
+      } else if (pathname.includes('/setup/promptform')) {
+        pageTitle = `${formattedWeddingId} - Prompt Form Setup`;
       } else if (pathname.includes('/setup/navbar')) {
         pageTitle = `${formattedWeddingId} - Navbar Setup`;
       } else if (pathname.includes('/setup/images')) {
@@ -287,6 +289,7 @@ const SetupLayout = () => {
                     <hr style={{margin: '15px 0', width: '100%' }} />
                     <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px', textAlign: 'center' }}>Components</div>
                     <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/promptform`)} className={styles.navButton}>Prompt Form Setup</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/navbar`)} className={styles.navButton}>Navbar Setup</button>
                     <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                   </>
@@ -333,6 +336,7 @@ const SetupLayout = () => {
                     <hr style={{margin: '15px 0', width: '100%' }} />
                     <div style={{ fontSize: '0.9em', color: '#666', marginBottom: '10px', textAlign: 'center' }}>Components</div>
                     <button onClick={() => navigate(`/${weddingId}/setup/rsvp`)} className={styles.navButton}>RSVP Setup</button>
+                    <button onClick={() => navigate(`/${weddingId}/setup/promptform`)} className={styles.navButton}>Prompt Form Setup</button>
                     <button onClick={() => navigate(`/${weddingId}/setup/navbar`)} className={styles.navButton}>Navbar Setup</button>
                     <hr style={{margin: '15px 0', width: '100%' }} /> {/* Ensure hr takes full width when visible */}
                   </>

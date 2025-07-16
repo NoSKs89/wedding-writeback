@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useControls, folder } from 'leva';
 import { useSpring, animated, config } from 'react-spring';
 import { useSetupMode } from '../contexts/SetupModeContext';
+import { useUserInfo } from '../contexts/UserInfoContext';
 import { formThemes, defaultThemeName, getThemeByName, FormTheme } from '../config/formThemes';
 import { googleFontNames, systemFontStack, fontFamilyOptions } from '../config/fontConfig';
 
@@ -91,6 +92,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const weddingId = weddingData.customId || weddingData.id;
   const { isPlated = false, allowKids = true, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
+  const { updateUserInfo } = useUserInfo();
   
   // ADDED: Create a default set of values from the schema
   const defaultStyleValues = useMemo(() => Object.entries(rsvpFormControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
@@ -246,6 +248,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     }
   }, [getTotalGuestCount(), isAttending, isPlated]);
 
+  // Update user info context when form data changes
+  useEffect(() => {
+    updateUserInfo({ firstName, lastName, email });
+  }, [firstName, lastName, email, updateUserInfo]);
+
   const handleAttendanceChoice = (attendingValue: boolean) => {
     setFormError(null);
     setSubmissionStatus('idle'); // Reset status on new choice
@@ -294,6 +301,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     const newEmail = e.target.value;
     setEmail(newEmail);
     validateEmail(newEmail);
+    updateUserInfo({ email: newEmail });
   };
 
   const handleGuestCountChange = (newCount: number) => {

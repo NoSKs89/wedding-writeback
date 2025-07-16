@@ -5,6 +5,7 @@ import { useSpring, animated } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
 
 import RSVPForm from '../RSVPForm';
+import PromptForm from '../PromptForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import BottomNavbar from './BottomNavbar';
@@ -13,6 +14,7 @@ import ElementWrapper from '../ElementWrapper';
 import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
 import { useSetupMode } from '../../contexts/SetupModeContext';
+import { UserInfoProvider } from '../../contexts/UserInfoContext';
 import { fontFamilyOptions, isGoogleFont, FontObject } from '../../config/fontConfig';
 import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefinitionGuest, SpringConfigPreset, WeddingColorScheme, parallaxPhysicsPresets, ParallaxPhysicsPreset, animationCurves } from '../../config/levaSchemas';
 import { generateElementFolderName, getElementSchema } from './levaSchemas';
@@ -824,7 +826,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- MAIN RENDER ---
   return (
-    <>
+    <UserInfoProvider>
       <FontGrabber fonts={googleFontsToLoad} />
 
       {/* Loading Screen Overlay - shows on top of main experience during preloading */}
@@ -1066,7 +1068,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         className={isMobile ? 'guest-experience-mobile-container' : ''}
         style={{ 
           width: '100%', 
-          height: '100vh', 
+          height: '100dvh', 
           background: initialGradient,
           // Hide scrollbars on mobile and all devices
           ...(isMobile ? {
@@ -1081,6 +1083,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           className={isMobile ? 'guest-experience-mobile-parallax' : ''}
           style={{ 
             top: '0', 
+            height: '100dvh',
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
             backgroundColor: 'transparent',
@@ -1209,6 +1212,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                   if (element.name === 'RSVP Form') {
                     const rsvpFolderName = generateElementFolderName(element);
                     contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[rsvpFolderName]} /></div>;
+                  } else if (element.name === 'Prompt Form') {
+                    const promptFolderName = generateElementFolderName(element);
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><PromptForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[promptFolderName]} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     const scrapbookElementFolderName = generateElementFolderName(element);
                     contentToRender = <InteractiveScrapbook 
@@ -1245,10 +1251,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 100 
                       : element.type === 'component' && element.name === 'RSVP Form'
                       ? 150
+                      : element.type === 'component' && element.name === 'Prompt Form'
+                      ? 140
                       : element.type === 'component' && element.name === 'Bottom Navbar'
                       ? 125
                       : (elementsFromBlueprint.length - (element.id || 0) + 1),
-                  pointerEvents: element.type === 'component' && element.name === 'RSVP Form' ? 'none' : 'auto',
+                  pointerEvents: element.type === 'component' && (element.name === 'RSVP Form' || element.name === 'Prompt Form') ? 'none' : 'auto',
                   backgroundColor: (element.type === 'background-image' || element.type === 'background-video') 
                     ? '#000000' 
                     : 'transparent', // Background layers get black background, others transparent
@@ -1319,7 +1327,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           </animated.div>
         )}
       </>
-    </>
+    </UserInfoProvider>
   );
 };
 
