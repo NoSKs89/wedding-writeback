@@ -19,6 +19,7 @@ import { springConfigPresets, weddingColorSchemes, SpringConfigPreset, WeddingCo
 import { generateElementFolderName } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
 
 // --- TYPE DEFINITIONS ---
@@ -539,6 +540,22 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     textOnAccent 
   } = selectedColorScheme?.colors || weddingColorSchemes[0].colors;
 
+  // Update theme color dynamically based on gradient start color
+  useEffect(() => {
+    if (isMobile) {
+      const actualStartColor = getActualGradientStartColor(dynamicGradientControlsFromSettings, selectedColorScheme);
+      const darkenedColor = darkenColorForStatusBar(actualStartColor, 0.3); // Darken by 30% for better contrast
+      updateThemeColor(darkenedColor);
+    }
+    
+    // Cleanup function to reset theme color when component unmounts
+    return () => {
+      if (isMobile) {
+        resetThemeColor();
+      }
+    };
+  }, [dynamicGradientControlsFromSettings, selectedColorScheme, isMobile]);
+
   // Get the scrapbook element to determine its folder name
   const scrapbookElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
   const scrapbookFolderName = useMemo(() => scrapbookElement ? generateElementFolderName(scrapbookElement) : null, [scrapbookElement]);
@@ -963,10 +980,23 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       {/* Main experience content - always rendered, loading screen overlays on top */}
       <>
           <FontGrabber fonts={googleFontsToLoad} />
-          <div style={{ width: '100%', height: '100vh', background: initialGradient }}>
+          <div 
+            className={isMobile ? 'guest-experience-mobile-container' : ''}
+            style={{ 
+              width: '100%', 
+              height: '100vh', 
+              background: initialGradient,
+              // Hide scrollbars on mobile
+              ...(isMobile ? {
+                scrollbarWidth: 'none', // Firefox
+                msOverflowStyle: 'none', // IE and Edge
+              } : {})
+            }}
+          >
         <Parallax
           ref={parallaxRef}
           pages={TOTAL_PAGES}
+          className={isMobile ? 'guest-experience-mobile-parallax' : ''}
           style={{
             width: '100%',
             height: '100%',
@@ -980,7 +1010,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             transform: 'translateZ(0)', // Force GPU acceleration
             WebkitTransform: 'translateZ(0)',
             willChange: 'scroll-position, transform',
-            WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+            // Hide scrollbars for webkit browsers (Chrome, Safari, most mobile browsers)
+            ...(isMobile ? {
+              scrollbarWidth: 'none', // Firefox
+              msOverflowStyle: 'none', // IE and Edge
+              WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+            } : {})
           }}
         >
           {/* Dynamic gradient background */}

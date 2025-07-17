@@ -20,6 +20,7 @@ import { springConfigPresets, weddingColorSchemes, overallControlsSchemaDefiniti
 import { generateElementFolderName, getElementSchema } from './levaSchemas';
 import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMarker } from '../../types';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
 
 
@@ -708,6 +709,23 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
   
+  // Update theme color dynamically based on gradient start color
+  useEffect(() => {
+    if (isMobile) {
+      const gradientControls = controlValues['Dynamic Background Gradient'] || {};
+      const actualStartColor = getActualGradientStartColor(gradientControls, selectedColorScheme);
+      const darkenedColor = darkenColorForStatusBar(actualStartColor, 0.3); // Darken by 30% for better contrast
+      updateThemeColor(darkenedColor);
+    }
+    
+    // Cleanup function to reset theme color when component unmounts
+    return () => {
+      if (isMobile) {
+        resetThemeColor();
+      }
+    };
+  }, [controlValues, selectedColorScheme, isMobile]);
+  
   // Calculate scroll values with parallax physics applied
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
   const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
@@ -1151,7 +1169,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         className={isMobile ? 'guest-experience-mobile-container' : ''}
         style={{ 
           width: '100%', 
-          height: '100dvh', 
+          height: '100vh', 
           background: initialGradient,
           // Hide scrollbars on mobile and all devices
           ...(isMobile ? {
@@ -1166,7 +1184,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           className={isMobile ? 'guest-experience-mobile-parallax' : ''}
           style={{ 
             top: '0', 
-            height: '100dvh',
+            height: '100vh',
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
             backgroundColor: 'transparent',
