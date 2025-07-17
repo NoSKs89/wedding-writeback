@@ -9,6 +9,18 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
+// Security utilities
+const {
+  sanitizeMongoQuery,
+  sanitizeTextInput,
+  sanitizeEmail,
+  validateCustomId,
+  sanitizeFileName,
+  checkRateLimit,
+  validateRSVPData,
+  validatePromptResponseData
+} = require('./utils/validation');
+
 // Models (ensure paths are correct if handler.js is in a different location than server.js was)
 const Item = require('./models/Item');
 const WeddingData = require('./models/WeddingData');
@@ -63,30 +75,42 @@ const connectToDatabase = async () => {
   }
 };
 
-// --- Helper for API Gateway Responses ---
+// --- Helper for API Gateway Responses with Security Headers ---
 const createResponse = (statusCode, body, requestOrigin, additionalHeaders = {}) => {
   const baseHeaders = {
-    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent", // Added X-Amz-User-Agent
-    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE,PATCH", // Added PATCH
+    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Amz-User-Agent",
+    "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE,PATCH",
+    // Security headers
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "X-XSS-Protection": "1; mode=block",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
+    "Content-Security-Policy": "default-src 'self'",
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+    "Permissions-Policy": "geolocation=(), microphone=(), camera=()",
     ...additionalHeaders,
   };
 
   if (requestOrigin && ALLOWED_ORIGINS.includes(requestOrigin)) {
     baseHeaders["Access-Control-Allow-Origin"] = requestOrigin;
-    baseHeaders["Access-Control-Allow-Credentials"] = "true"; // Must be a string "true"
+    baseHeaders["Access-Control-Allow-Credentials"] = "true";
   } else {
-    // For non-whitelisted origins or if no origin is present, use a wildcard.
-    // Credentials cannot be true with a wildcard origin.
     baseHeaders["Access-Control-Allow-Origin"] = "*";
-    // If "Access-Control-Allow-Credentials" was true by default from additionalHeaders, ensure it's removed or false for wildcard.
-    // For simplicity, we ensure it's not true. If it's in additionalHeaders as true, this logic doesn't override, which could be an edge case.
-    // However, standard calls won't put it there.
+  }
+
+  // Ensure response body is properly structured
+  let responseBody;
+  try {
+    responseBody = typeof body === 'string' ? body : JSON.stringify(body);
+  } catch (error) {
+    console.error('[SECURITY] Error serializing response body:', error);
+    responseBody = JSON.stringify({ message: 'Internal server error' });
   }
 
   return {
     statusCode,
     headers: baseHeaders,
-    body: JSON.stringify(body),
+    body: responseBody,
   };
 };
 
@@ -165,11 +189,20 @@ exports.handler = async (event, context) => {
       const getWeddingByIdMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)$/);
       if (httpMethod === "GET" && getWeddingByIdMatch) {
           const customId = getWeddingByIdMatch[1];
+          
+          // Validate custom ID format
+          if (!validateCustomId(customId)) {
+              console.warn(`[SECURITY] Invalid wedding ID format in GET request: ${customId}`);
+              return createResponse(400, { message: 'Invalid wedding ID format.' }, requestOrigin);
+          }
+          
           console.log(`[ROUTE /api/weddings/:customId] Request for ${customId}. Mongoose readyState: ${mongoose.connection.readyState}`);
-          const wedding = await WeddingData.findOne({ customId });
+          
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId }));
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           }
+          
           // Ensure allowKids field is present with default value if missing
           const weddingData = wedding.toObject();
           if (weddingData.allowKids === undefined) {
@@ -182,6 +215,11 @@ exports.handler = async (event, context) => {
           if (weddingData.allowContinuedCommunications === undefined) {
               weddingData.allowContinuedCommunications = false;
           }
+          
+          // Remove sensitive data from public response
+          delete weddingData.setupPassword;
+          delete weddingData.emailRsvpAlerts;
+          
           // Log instanceDisplayName for debugging
           console.log(`[ROUTE /api/weddings/:customId] instanceDisplayName for ${customId}: ${weddingData.instanceDisplayName}`);
           return createResponse(200, weddingData, requestOrigin);
@@ -388,13 +426,34 @@ exports.handler = async (event, context) => {
       // POST /api/rsvp
       if (httpMethod === "POST" && routePath === "/api/rsvp") {
           console.log('[ROUTE /api/rsvp] Received RSVP submission:', body);
-          const { weddingId, firstName, lastName, email, attending, guestCount, adultCount, kidsCount, bringingKids, message, mealChoices, isPlated, platedOptions } = body;
           
-          if (!weddingId || !firstName || !lastName || typeof attending !== 'boolean') {
-              return createResponse(400, { message: 'Missing required RSVP fields.' }, requestOrigin);
+          // Rate limiting check
+          const clientIp = event.requestContext?.http?.sourceIp || 'unknown';
+          if (!checkRateLimit(`rsvp_${clientIp}`, 5, 300000)) { // 5 requests per 5 minutes
+              console.warn(`[SECURITY] Rate limit exceeded for RSVP submission from IP: ${clientIp}`);
+              return createResponse(429, { message: 'Too many RSVP submissions. Please try again later.' }, requestOrigin);
           }
           
-          const wedding = await WeddingData.findOne({ customId: weddingId });
+          // Validate and sanitize RSVP data
+          const validation = validateRSVPData(body);
+          if (!validation.isValid) {
+              console.warn(`[SECURITY] Invalid RSVP data:`, validation.errors);
+              return createResponse(400, { message: 'Invalid RSVP data: ' + validation.errors.join(', ') }, requestOrigin);
+          }
+          
+          const { weddingId, firstName, lastName, email, attending, guestCount, message, mealChoices } = validation.sanitized;
+          
+          // Additional server-side validation
+          if (typeof attending !== 'boolean') {
+              return createResponse(400, { message: 'Invalid attending value.' }, requestOrigin);
+          }
+          
+          if (guestCount < 0 || guestCount > 20) {
+              return createResponse(400, { message: 'Guest count must be between 0 and 20.' }, requestOrigin);
+          }
+          
+          // Secure database query using sanitized wedding ID
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId }));
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found for this RSVP.' }, requestOrigin);
           }
@@ -415,18 +474,19 @@ exports.handler = async (event, context) => {
           }
           // --- End Duplicate Check ---
 
+          // Create sanitized RSVP object
           const newRsvp = {
             rsvpId: uuidv4(),
             firstName,
             lastName,
-            email: email || null, // Ensure email is saved
+            email: email || null,
             attending,
             guestCount: attending ? guestCount : 0,
-            adultCount: attending && bringingKids ? adultCount : (attending ? guestCount : 0),
-            kidsCount: attending && bringingKids ? kidsCount : 0,
-            bringingKids: attending ? bringingKids : false,
-            message,
-            mealChoices: attending ? mealChoices : {},
+            adultCount: attending && validation.sanitized.adultCount ? validation.sanitized.adultCount : (attending ? guestCount : 0),
+            kidsCount: attending && validation.sanitized.kidsCount ? validation.sanitized.kidsCount : 0,
+            bringingKids: attending ? (validation.sanitized.bringingKids || false) : false,
+            message: message || '',
+            mealChoices: attending ? (mealChoices || {}) : {},
             submittedAt: new Date(),
             isModified: false,
             lastModifiedAt: new Date(),
@@ -438,20 +498,17 @@ exports.handler = async (event, context) => {
             firstName: newRsvp.firstName,
             lastName: newRsvp.lastName,
             attending: newRsvp.attending,
-            guestCount: newRsvp.guestCount,
-            adultCount: newRsvp.adultCount,
-            kidsCount: newRsvp.kidsCount,
-            bringingKids: newRsvp.bringingKids
+            guestCount: newRsvp.guestCount
           });
           
           const updateResult = await WeddingData.updateOne(
-              { customId: weddingId },
+              sanitizeMongoQuery({ customId: weddingId }),
               { 
                   $push: { 
                       rsvps: newRsvp,
                       rsvpHistory: {
                           event: 'RSVP Submitted',
-                          details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})${attending && bringingKids ? ` - ${adultCount} adults, ${kidsCount} kids` : attending ? ` - ${guestCount} guests` : ''}`
+                          details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})${attending && newRsvp.bringingKids ? ` - ${newRsvp.adultCount} adults, ${newRsvp.kidsCount} kids` : attending ? ` - ${guestCount} guests` : ''}`
                       }
                   } 
               }
@@ -460,37 +517,31 @@ exports.handler = async (event, context) => {
           console.log(`[ROUTE /api/rsvp] Update result:`, {
             matchedCount: updateResult.matchedCount,
             modifiedCount: updateResult.modifiedCount,
-            upsertedCount: updateResult.upsertedCount,
             acknowledged: updateResult.acknowledged
           });
 
           if (updateResult.modifiedCount === 0) {
-              // This could happen if the document was not found, but we already checked for that.
-              // More likely, there was an issue with the update operation itself.
               console.error(`[ROUTE /api/rsvp] Failed to add RSVP for weddingId: ${weddingId}`);
-              console.error(`[ROUTE /api/rsvp] Update result details:`, updateResult);
               return createResponse(500, { message: "An internal error occurred while saving your RSVP." }, requestOrigin);
           }
 
           console.log(`[ROUTE /api/rsvp] Successfully added RSVP for ${firstName} ${lastName} to wedding ${weddingId}.`);
           
-          // Optionally send an email notification after successful submission
-          // (Consider moving this to a separate, non-blocking process if it becomes slow)
+          // Email notification logic (unchanged but using sanitized data)
           console.log(`[RSVP EMAIL DEBUG] RSVP_TO_EMAIL: ${RSVP_TO_EMAIL}`);
           console.log(`[RSVP EMAIL DEBUG] RSVP_FROM_EMAIL: ${RSVP_FROM_EMAIL}`);
           if (wedding.emailRsvpAlerts && wedding.emailRsvpAlerts.enabled && Array.isArray(wedding.emailRsvpAlerts.emails) && wedding.emailRsvpAlerts.emails.length > 0) {
-            // Remove duplicates and filter out empty emails
             const uniqueRecipients = [...new Set(wedding.emailRsvpAlerts.emails.filter(email => email && email.trim()))];
             console.log(`[RSVP EMAIL DEBUG] Intended recipients (from alert list):`, uniqueRecipients);
             try {
-              const eventName = wedding.eventName || 'Wedding Event';
+              const eventName = sanitizeTextInput(wedding.eventName || 'Wedding Event', { maxLength: 100 });
               const emailParams = {
                 Destination: { ToAddresses: uniqueRecipients },
                 Message: {
                   Body: {
                     Text: {
                       Charset: "UTF-8",
-                      Data: `New RSVP for ${eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}${bringingKids && attending ? ` (${adultCount} adults, ${kidsCount} kids)` : ''}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
+                      Data: `New RSVP for ${eventName}:\n\nName: ${firstName} ${lastName}\nEmail: ${email || 'Not provided'}\nAttending: ${attending ? 'Yes' : 'No'}\nGuests: ${guestCount}${newRsvp.bringingKids && attending ? ` (${newRsvp.adultCount} adults, ${newRsvp.kidsCount} kids)` : ''}\nMessage: ${message || 'None'}\nMeal Choices: ${JSON.stringify(mealChoices, null, 2)}`
                     },
                     Html: {
                       Charset: "UTF-8",
@@ -498,7 +549,7 @@ exports.handler = async (event, context) => {
                              <p><strong>Name:</strong> ${firstName} ${lastName}</p>
                              <p><strong>Email:</strong> ${email || 'Not provided'}</p>
                              <p><strong>Attending:</strong> ${attending ? 'Yes' : 'No'}</p>
-                             <p><strong>Guests:</strong> ${guestCount}${bringingKids && attending ? ` (${adultCount} adults, ${kidsCount} kids)` : ''}</p>
+                             <p><strong>Guests:</strong> ${guestCount}${newRsvp.bringingKids && attending ? ` (${newRsvp.adultCount} adults, ${newRsvp.kidsCount} kids)` : ''}</p>
                              <p><strong>Message:</strong> ${message || 'None'}</p>
                              <p><strong>Meal Choices:</strong></p>
                              <pre>${JSON.stringify(mealChoices, null, 2)}</pre>`
@@ -528,7 +579,6 @@ exports.handler = async (event, context) => {
                 rsvpFromEmail: RSVP_FROM_EMAIL,
                 emailRecipients: wedding.emailRsvpAlerts.emails
               });
-              // Do not fail the whole request if email fails, just log it.
             }
           } else {
             console.log(`[RSVP EMAIL DEBUG] Email notification skipped - RSVP alerts are disabled or no alert emails are set.`);
@@ -580,10 +630,50 @@ exports.handler = async (event, context) => {
       // POST /api/s3/presigned-url
       const presignedUrlMatch = routePath.match(/^\/api\/s3\/presigned-url$/);
       if (httpMethod === "POST" && presignedUrlMatch) {
+          // Rate limiting for file uploads
+          const clientIp = event.requestContext?.http?.sourceIp || 'unknown';
+          if (!checkRateLimit(`upload_${clientIp}`, 10, 300000)) { // 10 uploads per 5 minutes
+              console.warn(`[SECURITY] Rate limit exceeded for file upload from IP: ${clientIp}`);
+              return createResponse(429, { message: 'Too many upload requests. Please try again later.' }, requestOrigin);
+          }
+          
           const { fileName, fileType, weddingId, imageType } = body;
+          
+          // Validate required fields
           if (!fileName || !fileType || !weddingId || !imageType) {
               return createResponse(400, { message: 'fileName, fileType, weddingId, and imageType are required.' }, requestOrigin);
           }
+          
+          // Validate wedding ID format
+          if (!validateCustomId(weddingId)) {
+              console.warn(`[SECURITY] Invalid wedding ID format in file upload: ${weddingId}`);
+              return createResponse(400, { message: 'Invalid wedding ID format.' }, requestOrigin);
+          }
+          
+          // Validate and sanitize file name
+          const sanitizedFileName = sanitizeFileName(fileName);
+          if (!sanitizedFileName || sanitizedFileName === 'unnamed_file') {
+              return createResponse(400, { message: 'Invalid file name provided.' }, requestOrigin);
+          }
+          
+          // Validate file type (whitelist approach)
+          const allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+          const allowedVideoTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/webm'];
+          const allowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
+          
+          if (!allowedTypes.includes(fileType.toLowerCase())) {
+              console.warn(`[SECURITY] Disallowed file type attempted: ${fileType}`);
+              return createResponse(400, { message: 'File type not allowed. Only images and videos are permitted.' }, requestOrigin);
+          }
+          
+          // Validate image type category
+          const allowedImageTypeCategories = ['introCouple', 'introBackground', 'scrapbook', 'shareGallery', 'navbar', 'video', 'backgroundVideo'];
+          if (!allowedImageTypeCategories.includes(imageType)) {
+              console.warn(`[SECURITY] Invalid image type category: ${imageType}`);
+              return createResponse(400, { message: 'Invalid image type category.' }, requestOrigin);
+          }
+          
+          // Generate S3 key prefix based on image type
           let s3KeyPrefix = '';
           switch (imageType) {
               case 'introCouple': case 'introBackground': s3KeyPrefix = `${weddingId}/main/`; break;
@@ -594,7 +684,8 @@ exports.handler = async (event, context) => {
               case 'backgroundVideo': s3KeyPrefix = `${weddingId}/background-videos/`; break;
               default: return createResponse(400, { message: 'Invalid imageType.' }, requestOrigin);
           }
-          const sanitizedFileName = fileName.replace(/\s+/g, '_').replace(/[\/\\]/g, '').replace(/[^a-zA-Z0-9._-]/g, '_');
+          
+          // Create unique file name with UUID prefix
           const uniqueFileName = `${s3KeyPrefix}${uuidv4()}-${sanitizedFileName}`;
           
           console.log(`📁 S3 Upload Debug:`, {
@@ -603,13 +694,31 @@ exports.handler = async (event, context) => {
               s3KeyPrefix: s3KeyPrefix,
               uniqueFileName: uniqueFileName,
               imageType: imageType,
-              weddingId: weddingId
+              weddingId: weddingId,
+              fileType: fileType
           });
           
-          const command = new PutObjectCommand({ Bucket: AWS_S3_BUCKET_NAME, Key: uniqueFileName, ContentType: fileType });
-          const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-          const publicUrl = `https://${AWS_S3_BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${uniqueFileName}`;
-          return createResponse(200, { presignedUrl, publicUrl, key: uniqueFileName }, requestOrigin);
+          try {
+              const command = new PutObjectCommand({ 
+                  Bucket: AWS_S3_BUCKET_NAME, 
+                  Key: uniqueFileName, 
+                  ContentType: fileType,
+                  // Add additional security headers
+                  Metadata: {
+                      'uploaded-by': 'wedding-app',
+                      'wedding-id': weddingId,
+                      'image-type': imageType
+                  }
+              });
+              
+              const presignedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+              const publicUrl = `https://${AWS_S3_BUCKET_NAME}.s3.${S3_REGION}.amazonaws.com/${uniqueFileName}`;
+              
+              return createResponse(200, { presignedUrl, publicUrl, key: uniqueFileName }, requestOrigin);
+          } catch (error) {
+              console.error('[S3] Error generating presigned URL:', error);
+              return createResponse(500, { message: 'Failed to generate upload URL.' }, requestOrigin);
+          }
       }
 
       // POST /api/weddings/:customId/images
@@ -1201,26 +1310,31 @@ exports.handler = async (event, context) => {
       // POST /api/prompt-responses
       if (httpMethod === 'POST' && routePath === '/api/prompt-responses') {
           console.log('[ROUTE /api/prompt-responses] Received prompt response submission:', body);
-          const { weddingId, firstName, lastName, email, responses, isAnonymous } = body;
           
-          if (!weddingId) {
-              return createResponse(400, { message: 'Missing required field: weddingId.' }, requestOrigin);
+          // Rate limiting check
+          const clientIp = event.requestContext?.http?.sourceIp || 'unknown';
+          if (!checkRateLimit(`prompt_${clientIp}`, 3, 300000)) { // 3 requests per 5 minutes
+              console.warn(`[SECURITY] Rate limit exceeded for prompt response from IP: ${clientIp}`);
+              return createResponse(429, { message: 'Too many prompt submissions. Please try again later.' }, requestOrigin);
           }
           
-          if (!responses || typeof responses !== 'object') {
-              return createResponse(400, { message: 'Missing or invalid responses.' }, requestOrigin);
+          // Validate and sanitize prompt response data
+          const validation = validatePromptResponseData(body);
+          if (!validation.isValid) {
+              console.warn(`[SECURITY] Invalid prompt response data:`, validation.errors);
+              return createResponse(400, { message: 'Invalid prompt response data: ' + validation.errors.join(', ') }, requestOrigin);
           }
           
-          const wedding = await WeddingData.findOne({ customId: weddingId });
+          const { weddingId, firstName, lastName, email, responses, isAnonymous } = validation.sanitized;
+          
+          // Secure database query using sanitized wedding ID
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId }));
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found for this prompt response.' }, requestOrigin);
           }
 
-          // Note: Prompt form is enabled/disabled based on whether it's added as an element to the guest experience
-          // No need to check isEnabled field since it's now controlled by element presence
-
           // Validate required fields if not anonymous
-          if (!wedding.promptFormSettings.allowAnonymous || !isAnonymous) {
+          if (!wedding.promptFormSettings?.allowAnonymous || !isAnonymous) {
               if (!firstName || !firstName.trim()) {
                   return createResponse(400, { message: 'First name is required.' }, requestOrigin);
               }
@@ -1230,16 +1344,17 @@ exports.handler = async (event, context) => {
           }
 
           // Validate responses against configured questions
-          const configuredQuestions = wedding.promptFormSettings.questions || [];
+          const configuredQuestions = wedding.promptFormSettings?.questions || [];
           for (const question of configuredQuestions) {
               if (question.required && (!responses[question.id] || !responses[question.id].trim())) {
-                  return createResponse(400, { message: `Response required for: ${question.question}` }, requestOrigin);
+                  return createResponse(400, { message: `Response required for: ${sanitizeTextInput(question.question, { maxLength: 100 })}` }, requestOrigin);
               }
               if (responses[question.id] && responses[question.id].length > question.maxLength) {
-                  return createResponse(400, { message: `Response too long for: ${question.question}` }, requestOrigin);
+                  return createResponse(400, { message: `Response too long for: ${sanitizeTextInput(question.question, { maxLength: 100 })}` }, requestOrigin);
               }
           }
 
+          // Create sanitized prompt response object
           const newPromptResponse = {
               responseId: uuidv4(),
               firstName: firstName || 'Anonymous',
@@ -1250,11 +1365,10 @@ exports.handler = async (event, context) => {
               submittedAt: new Date(),
           };
 
-          // Add the prompt response to the wedding
           console.log(`[ROUTE /api/prompt-responses] Attempting to add prompt response for wedding ${weddingId}`);
           
           const updateResult = await WeddingData.updateOne(
-              { customId: weddingId },
+              sanitizeMongoQuery({ customId: weddingId }),
               { 
                   $push: { 
                       promptResponses: newPromptResponse,
@@ -1273,7 +1387,7 @@ exports.handler = async (event, context) => {
               return createResponse(500, { message: "An internal error occurred while saving your response." }, requestOrigin);
           }
 
-          console.log(`[ROUTE /api/prompt-responses] Successfully added prompt response for ${firstName} ${lastName} to wedding ${weddingId}.`);
+          console.log(`[ROUTE /api/prompt-responses] Successfully added prompt response for ${firstName || 'Anonymous'} ${lastName || 'User'} to wedding ${weddingId}.`);
           
           return createResponse(201, {
               success: true,

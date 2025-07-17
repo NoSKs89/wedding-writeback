@@ -449,9 +449,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       return;
     }
 
-    // Pre-render scrapbook images off-screen to reduce viewport entry stutter
-    const preRenderScrapbookImages = async () => {
-      console.log('[SCRAPBOOK PRE-RENDER PREVIEW] Starting pre-render of scrapbook images...');
+    // Lightweight image preloading instead of heavy pre-rendering with DOM elements
+    const preloadScrapbookImages = async () => {
+      console.log('[SCRAPBOOK PRELOAD PREVIEW] Starting lightweight preload of scrapbook images...');
       
       // Get scrapbook image sources
       const scrapbookImages = weddingDataFromApp.scrapbookImages || [];
@@ -466,87 +466,53 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         return;
       }
 
-      // Create off-screen container if it doesn't exist
-      let preRenderContainer = preRenderContainerRef.current;
-      if (!preRenderContainer) {
-        preRenderContainer = document.createElement('div');
-        preRenderContainer.style.cssText = `
-          position: fixed;
-          top: -9999px;
-          left: -9999px;
-          width: ${windowWidth}px;
-          height: ${windowHeight}px;
-          opacity: 0;
-          pointer-events: none;
-          overflow: hidden;
-          z-index: -9999;
-        `;
-        document.body.appendChild(preRenderContainer);
-        preRenderContainerRef.current = preRenderContainer;
-      }
-
-      // Create promise for all images to be pre-rendered
-      const preRenderPromises = imageSources.slice(0, 15).map((src: string, index: number) => {
+      // Simple image preloading without DOM manipulation
+      const preloadPromises = imageSources.slice(0, 15).map((src: string) => {
         return new Promise<void>((resolve) => {
-          const img = document.createElement('img');
-          
-          // Apply similar styles to actual scrapbook images
-          img.style.cssText = `
-            position: absolute;
-            width: 150px;
-            height: auto;
-            border: 7px solid #FFFFFF;
-            box-shadow: 5px 5px 15px rgba(0,0,0,0.25);
-            transform: rotate(${Math.random() * 30 - 15}deg);
-            opacity: 0.85;
-            left: ${Math.random() * (windowWidth - 200)}px;
-            top: ${Math.random() * (windowHeight - 200)}px;
-          `;
+          const img = new Image();
           
           img.onload = () => {
-            // Force a layout calculation
-            void img.offsetHeight;
-            setTimeout(resolve, 10); // Small delay to ensure rendering
+            // Force decode for better performance when images actually render
+            if ('decode' in img) {
+              img.decode().then(() => resolve()).catch(() => resolve());
+            } else {
+              resolve();
+            }
           };
           
           img.onerror = () => {
-            console.warn('[SCRAPBOOK PRE-RENDER PREVIEW] Failed to pre-render:', src);
+            console.warn('[SCRAPBOOK PRELOAD PREVIEW] Failed to preload:', src);
             resolve();
           };
           
           img.src = src;
-          img.alt = `Pre-render ${index}`;
-          
-          if (preRenderContainer) {
-            preRenderContainer.appendChild(img);
-          }
         });
       });
 
       try {
-        await Promise.allSettled(preRenderPromises);
-        console.log('[SCRAPBOOK PRE-RENDER PREVIEW] Completed pre-rendering scrapbook images');
+        await Promise.allSettled(preloadPromises);
+        console.log('[SCRAPBOOK PRELOAD PREVIEW] Completed lightweight preload of scrapbook images');
         
-        // Small delay to ensure all layout calculations are complete
+        // Small delay to ensure all decoding is complete
         setTimeout(() => {
           setScrapbookImagesPreRendered(true);
         }, 100);
         
       } catch (error) {
-        console.error('[SCRAPBOOK PRE-RENDER PREVIEW] Error during pre-rendering:', error);
+        console.error('[SCRAPBOOK PRELOAD PREVIEW] Error during preloading:', error);
         setScrapbookImagesPreRendered(true);
       }
     };
 
-    // Start pre-rendering after a small delay to allow other loading to complete
-    const preRenderTimeout = setTimeout(preRenderScrapbookImages, 500);
+    // Start preloading after a small delay to allow other loading to complete
+    const preloadTimeout = setTimeout(preloadScrapbookImages, 500);
     
     return () => {
-      clearTimeout(preRenderTimeout);
+      clearTimeout(preloadTimeout);
     };
-  }, [isScrapbookEnabled, weddingDataFromApp, windowWidth, windowHeight, scrapbookImagesPreRendered]);
+  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookImagesPreRendered]);
 
-  // Cleanup pre-render container when component unmounts
+  // Cleanup pre-render container when component unmounts (no longer needed)
   useEffect(() => {
     return () => {
       if (preRenderContainerRef.current) {

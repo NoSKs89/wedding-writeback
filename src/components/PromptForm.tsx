@@ -353,7 +353,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     marginBottom: '15px',
     borderRadius: '4px',
     border: `1px solid ${selectedTheme.borderColor || '#ccc'}`,
-    background: hexToRgba(selectedTheme.backgroundColor || '#ffffff', 0.8),
+    background: selectedTheme.backgroundColor || '#ffffff', // Use full theme background color like RSVPForm
     color: promptFormSettings?.textColor || selectedTheme.textColor || '#000000',
     fontFamily: formTextFontFamily,
     boxSizing: 'border-box',
