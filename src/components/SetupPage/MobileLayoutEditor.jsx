@@ -145,6 +145,9 @@ const MobileLayoutEditor = () => {
 
     // Get the entire controlValues object from the store
     const allControlValues = useLevaStore(state => state.controlValues);
+    
+    // Debug state for showing save status
+    const [autoSaveStatus, setAutoSaveStatus] = useState('');
 
     // Set setup mode to true when this component mounts
     useEffect(() => {
@@ -152,16 +155,35 @@ const MobileLayoutEditor = () => {
         return () => setIsSetupMode(false);
     }, [setIsSetupMode]);
 
-    // Debounced function to save the entire layout state to the preview endpoint
-    const debouncedSave = useCallback(debounce((settings) => {
+    // Debounced function to save the entire layout state to BOTH preview and main endpoints
+    const debouncedSave = useCallback(debounce(async (settings) => {
         if (!settings || Object.keys(settings).length === 0) {
             console.log('Auto-save skipped: No settings to save.');
             return;
         }
-        const apiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/mobile`;
-        axios.post(apiUrl, { settings })
-            .then(response => console.log('Mobile preview auto-saved.', response.data.message))
-            .catch(err => console.error('Error auto-saving mobile preview:', err.response?.data?.message || err.message));
+        
+        setAutoSaveStatus('Saving...');
+        
+        // Save to BOTH endpoints so mobile-preview and actual mobile experience stay in sync
+        const previewApiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/preview/mobile`;
+        const mainApiUrl = `${getApiBaseUrl()}/weddings/${weddingId}/layoutSettings/mobile`;
+        
+        try {
+            // Save to preview endpoint for mobile-preview route
+            await axios.post(previewApiUrl, { settings });
+            console.log('Mobile preview auto-saved.');
+            
+            // Save to main mobile slot 1 for actual mobile experience
+            await axios.post(mainApiUrl, { settings, slotNumber: 1 });
+            console.log('Mobile slot 1 auto-saved.');
+            
+            setAutoSaveStatus('✓ Synced');
+            setTimeout(() => setAutoSaveStatus(''), 2000);
+        } catch (err) {
+            console.error('Error auto-saving mobile layout:', err.response?.data?.message || err.message);
+            setAutoSaveStatus('✗ Error');
+            setTimeout(() => setAutoSaveStatus(''), 3000);
+        }
     }, 500), [weddingId]);
     
     // This effect now listens to the control values from the store
@@ -271,10 +293,26 @@ const MobileLayoutEditor = () => {
                         boxSizing: 'border-box' // Include padding in width calculation
                     }}>
                         <h2 style={{marginTop: 0}}>Mobile Layout Editor</h2>
-                        <p>Changes auto-save. Use the link below to see them on your phone.</p>
+                        <p>Changes auto-save to both preview and live mobile experience.</p>
                         <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={{color: '#87cefa'}}>
                             Open Live Preview in New Tab
                         </a>
+                        {autoSaveStatus && (
+                            <div style={{
+                                marginTop: '10px',
+                                padding: '5px 10px',
+                                borderRadius: '4px',
+                                fontSize: '0.9em',
+                                backgroundColor: autoSaveStatus.includes('✓') ? '#d4edda' : 
+                                               autoSaveStatus.includes('✗') ? '#f8d7da' : '#fff3cd',
+                                color: autoSaveStatus.includes('✓') ? '#155724' : 
+                                       autoSaveStatus.includes('✗') ? '#721c24' : '#856404',
+                                border: `1px solid ${autoSaveStatus.includes('✓') ? '#c3e6cb' : 
+                                                    autoSaveStatus.includes('✗') ? '#f5c6cb' : '#ffeeba'}`
+                            }}>
+                                {autoSaveStatus}
+                            </div>
+                        )}
                         
                         {/* Preview Mode Toggle */}
                         <div style={{ marginTop: '1rem', padding: '0.5rem 0', borderTop: '1px solid #555' }}>

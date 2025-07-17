@@ -1169,7 +1169,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         className={isMobile ? 'guest-experience-mobile-container' : ''}
         style={{ 
           width: '100%', 
-          height: '100vh', 
+          height: '100dvh', 
           background: initialGradient,
           // Hide scrollbars on mobile and all devices
           ...(isMobile ? {
@@ -1184,7 +1184,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           className={isMobile ? 'guest-experience-mobile-parallax' : ''}
           style={{ 
             top: '0', 
-            height: '100vh',
+            height: '100dvh',
             left: '0', 
             pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'none' : 'auto',
             backgroundColor: 'transparent',
@@ -1373,6 +1373,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     scrollY={scrollYWithPhysics} 
                     windowHeight={windowHeight} 
                     TOTAL_PAGES={TOTAL_PAGES}
+                    layoutSettingsFromPreview={isSetupMode ? undefined : controlValues}
                     overallFontFamily={overallFontFamily}
                   >
                     {contentToRender}
