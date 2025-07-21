@@ -10,6 +10,7 @@ import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
+import ScrollHint from '../ScrollHint';
 import ElementWrapper from '../ElementWrapper';
 import { useLevaStore } from '../../stores/levaStore';
 import { useIsMobile } from '../../utils/deviceDetect';
@@ -353,8 +354,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- OVERALL CONTROLS ---
   const [overallControls, setOverallControls] = useControls(() => ({
-    'Overall Controls (Guest)': folder({
-        showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
+        'Overall Controls (Guest)': folder({
+      showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
+      showScrollHint: { value: true, label: 'Show Scroll Hint Arrow' },
+      scrollHintDuration: { value: 20, min: 5, max: 50, step: 5, label: 'Scroll Hint Duration (%)' },
+      fadeOnceDetected: { value: true, label: 'Fade Once Detected' },
         springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Scrapbook Image Physics (Guest)' },
         parallaxPhysicsPreset: { value: 'default', options: Object.keys(parallaxPhysicsPresets), label: 'Parallax Physics Preset (Guest)' },
         colorScheme: { value: weddingColorSchemes[0].name, options: weddingColorSchemes.map(scheme => scheme.name), label: 'Color Scheme' },
@@ -383,6 +387,244 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [scrollVelocity, setScrollVelocity] = useState(0);
   const lastScrollY = useRef(0);
   const lastScrollTime = useRef(Date.now());
+
+  // --- SCROLL HINT STATE ---
+  const [showScrollHintVisible, setShowScrollHintVisible] = useState(true);
+  const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  const [shouldFadeHint, setShouldFadeHint] = useState(false);
+
+  // Destructure scroll hint controls
+  const { 
+    showScrollHint, 
+    scrollHintDuration, 
+    fadeOnceDetected 
+  } = (overallControls as any) || {};
+
+  // Simple scroll detection for hint
+  useEffect(() => {
+    console.log('[GUEST_EXP] 🔧 SCROLL HANDLER SETUP - Starting with:', {
+      'parallaxRef.current': !!parallaxRef.current,
+      'parallaxRef.current?.container': !!parallaxRef.current?.container,
+      'parallaxRef.current?.container.current': !!parallaxRef.current?.container.current,
+      hasUserScrolled,
+      fadeOnceDetected,
+      scrollHintDuration,
+      showScrollHint,
+      TOTAL_PAGES,
+      windowHeight
+    });
+
+    // Function to set up scroll detection
+    const setupScrollDetection = () => {
+      const parallaxContainer = parallaxRef.current?.container.current;
+      
+      if (parallaxContainer) {
+        console.log('[GUEST_EXP] ✅ Parallax container found:', {
+          tagName: parallaxContainer.tagName,
+          className: parallaxContainer.className,
+          id: parallaxContainer.id,
+          scrollTop: parallaxContainer.scrollTop,
+          scrollHeight: parallaxContainer.scrollHeight,
+          clientHeight: parallaxContainer.clientHeight
+        });
+
+        const handleScrollForHint = () => {
+          const currentScrollY = parallaxContainer.scrollTop;
+          const maxScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+          const scrollProgress = maxScrollableHeight > 0 ? (currentScrollY / maxScrollableHeight) * 100 : 0;
+
+          console.log('[GUEST_EXP] 🔍 SCROLL EVENT DETAILED:', { 
+            currentScrollY, 
+            maxScrollableHeight, 
+            scrollProgress: scrollProgress.toFixed(2) + '%', 
+            scrollHintDuration: scrollHintDuration + '%',
+            hasUserScrolled,
+            showScrollHint,
+            fadeOnceDetected,
+            TOTAL_PAGES,
+            windowHeight,
+            scrolledMoreThan5px: currentScrollY > 5,
+            progressExceedsDuration: scrollProgress > scrollHintDuration,
+            willSetHasUserScrolled: !hasUserScrolled && currentScrollY > 5,
+            willSetShouldFadeHint: (!hasUserScrolled && currentScrollY > 5) && fadeOnceDetected,
+            timestamp: Date.now()
+          });
+
+          if (!hasUserScrolled && currentScrollY > 5) {
+            console.log('[GUEST_EXP] 🚨 User started scrolling! Setting hasUserScrolled to TRUE');
+            setHasUserScrolled(true);
+            if (fadeOnceDetected) {
+              console.log('[GUEST_EXP] 🚨 fadeOnceDetected is TRUE - Setting shouldFadeHint to TRUE');
+              setShouldFadeHint(true);
+            } else {
+              console.log('[GUEST_EXP] ❌ fadeOnceDetected is FALSE - NOT setting shouldFadeHint');
+            }
+          } else if (hasUserScrolled) {
+            console.log('[GUEST_EXP] User has already scrolled (hasUserScrolled=true), currentScrollY:', currentScrollY);
+          } else {
+            console.log('[GUEST_EXP] User has not scrolled enough yet (currentScrollY <= 5):', currentScrollY);
+          }
+
+          if (scrollProgress > scrollHintDuration) {
+            console.log(`[GUEST_EXP] 📊 Scroll progress exceeded duration, hiding hint. Progress: ${scrollProgress.toFixed(2)}% > Duration: ${scrollHintDuration}%`);
+            setShowScrollHintVisible(false);
+          } else if (showScrollHint && scrollProgress <= scrollHintDuration) {
+            console.log(`[GUEST_EXP] 📊 Scroll progress within duration. Progress: ${scrollProgress.toFixed(2)}% <= Duration: ${scrollHintDuration}%`);
+            if (!hasUserScrolled || !fadeOnceDetected) {
+              console.log('[GUEST_EXP] Conditions met to keep hint visible');
+              setShowScrollHintVisible(true);
+            } else {
+              console.log('[GUEST_EXP] User scrolled and fade detected - hint should remain hidden/faded');
+            }
+          }
+        };
+
+        // Test the handler immediately to see current scroll position
+        console.log('[GUEST_EXP] 🧪 Testing scroll handler immediately...');
+        handleScrollForHint();
+
+        console.log('[GUEST_EXP] 🎯 Adding scroll event listener to parallax container');
+        parallaxContainer.addEventListener('scroll', handleScrollForHint);
+        
+        return () => {
+          console.log('[GUEST_EXP] 🧹 Cleaning up scroll listeners');
+          parallaxContainer.removeEventListener('scroll', handleScrollForHint);
+        };
+      } else {
+        console.log('[GUEST_EXP] ❌ No parallax container found, using fallback scroll detection');
+        
+        // Fallback: Use document body scroll detection
+        const handleFallbackScroll = () => {
+          const currentScrollY = window.scrollY || document.documentElement.scrollTop;
+          const maxScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+          const scrollProgress = maxScrollableHeight > 0 ? (currentScrollY / maxScrollableHeight) * 100 : 0;
+
+          console.log('[GUEST_EXP] 🔄 FALLBACK SCROLL EVENT:', { 
+            currentScrollY, 
+            maxScrollableHeight, 
+            scrollProgress: scrollProgress.toFixed(2) + '%', 
+            scrollHintDuration: scrollHintDuration + '%',
+            hasUserScrolled,
+            fadeOnceDetected,
+            source: 'window/document',
+            windowScrollY: window.scrollY,
+            docElementScrollTop: document.documentElement.scrollTop,
+            bodyScrollTop: document.body.scrollTop
+          });
+
+          if (!hasUserScrolled && currentScrollY > 5) {
+            console.log('[GUEST_EXP] 🚨 FALLBACK: User started scrolling! Setting hasUserScrolled to TRUE');
+            setHasUserScrolled(true);
+            if (fadeOnceDetected) {
+              console.log('[GUEST_EXP] 🚨 FALLBACK: fadeOnceDetected is TRUE - Setting shouldFadeHint to TRUE');
+              setShouldFadeHint(true);
+            }
+          }
+
+          if (scrollProgress > scrollHintDuration) {
+            console.log(`[GUEST_EXP] 📊 FALLBACK: Scroll progress exceeded duration, hiding hint. Progress: ${scrollProgress.toFixed(2)}%`);
+            setShowScrollHintVisible(false);
+          }
+        };
+
+        // Multiple fallback event types
+        const handleAnyInteraction = (eventType: string) => {
+          console.log(`[GUEST_EXP] 🎭 ANY INTERACTION DETECTED: ${eventType}`);
+          if (!hasUserScrolled) {
+            console.log('[GUEST_EXP] 🚨 ANY INTERACTION: Setting hasUserScrolled to TRUE (any interaction)');
+            setHasUserScrolled(true);
+            if (fadeOnceDetected) {
+              console.log('[GUEST_EXP] 🚨 ANY INTERACTION: Setting shouldFadeHint to TRUE');
+              setShouldFadeHint(true);
+            }
+          }
+        };
+
+        // Properly typed event handlers
+        const handleWheel = () => handleAnyInteraction('wheel');
+        const handleTouchmove = () => handleAnyInteraction('touchmove');
+        const handleKeydown = (e: KeyboardEvent) => {
+          if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(e.key)) {
+            handleAnyInteraction(`keydown:${e.key}`);
+          }
+        };
+
+        console.log('[GUEST_EXP] 🪟 Adding fallback window scroll listener');
+        window.addEventListener('scroll', handleFallbackScroll);
+        
+        // Create wrapper functions for document scroll events
+        const handleDocumentScroll = () => handleFallbackScroll();
+        const handleBodyScroll = () => handleFallbackScroll();
+        
+        // Add more event listeners to catch any scroll-like behavior
+        console.log('[GUEST_EXP] 🎭 Adding additional interaction listeners');
+        document.addEventListener('scroll', handleDocumentScroll);
+        document.body.addEventListener('scroll', handleBodyScroll);
+        window.addEventListener('wheel', handleWheel);
+        window.addEventListener('touchmove', handleTouchmove);
+        window.addEventListener('keydown', handleKeydown);
+        
+        // Test fallback handler immediately
+        console.log('[GUEST_EXP] 🧪 Testing fallback scroll handler immediately...');
+        handleFallbackScroll();
+        
+        return () => {
+          console.log('[GUEST_EXP] 🧹 Cleaning up fallback scroll listener');
+          window.removeEventListener('scroll', handleFallbackScroll);
+          document.removeEventListener('scroll', handleDocumentScroll);
+          document.body.removeEventListener('scroll', handleBodyScroll);
+          window.removeEventListener('wheel', handleWheel);
+          window.removeEventListener('touchmove', handleTouchmove);
+          window.removeEventListener('keydown', handleKeydown);
+        };
+      }
+    };
+
+    // Try to set up immediately
+    const cleanup = setupScrollDetection();
+    
+    // If no parallax container found, try again after a delay
+    if (!parallaxRef.current?.container.current) {
+      console.log('[GUEST_EXP] ⏰ Parallax container not ready, retrying in 100ms...');
+      const retryTimeout = setTimeout(() => {
+        console.log('[GUEST_EXP] 🔁 Retrying scroll handler setup...');
+        const retryCleanup = setupScrollDetection();
+        if (retryCleanup) {
+          // If we got a cleanup function from retry, use it
+          return retryCleanup;
+        }
+      }, 100);
+      
+      return () => {
+        clearTimeout(retryTimeout);
+        if (cleanup) cleanup();
+      };
+    }
+    
+    return cleanup;
+  }, [hasUserScrolled, fadeOnceDetected, scrollHintDuration, TOTAL_PAGES, windowHeight, showScrollHint, parallaxRef]);
+
+  // Update hint visibility when showScrollHint control changes
+  useEffect(() => {
+    console.log('[GUEST_EXP] 🎛️ Control change effect triggered:', { 
+      showScrollHint, 
+      hasUserScrolled, 
+      currentShouldFadeHint: shouldFadeHint,
+      willHideHint: !showScrollHint,
+      willShowHint: showScrollHint && !hasUserScrolled 
+    });
+    
+    if (!showScrollHint) {
+      console.log('[GUEST_EXP] 🎛️ CONTROL: Hiding hint (control disabled)');
+      setShowScrollHintVisible(false);
+    } else if (!hasUserScrolled) {
+      console.log('[GUEST_EXP] 🎛️ CONTROL: Showing hint (control enabled, no scroll yet) and resetting fade');
+      setShowScrollHintVisible(true);
+      setShouldFadeHint(false); // Reset fade state when re-enabling
+    } else {
+      console.log('[GUEST_EXP] 🎛️ CONTROL: showScrollHint enabled but user has already scrolled');
+    }
+  }, [showScrollHint, hasUserScrolled]);
 
   // --- PRELOADING STATE ---
   const [isPreloading, setIsPreloading] = useState(true);
@@ -431,17 +673,17 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           actualStartColor = scheme.colors.primary || gradientColorStart;
           actualEndColor = scheme.colors.accent || gradientColorStop;
           break;
-        case 'Scheme: Secondary & Accent':
-          actualStartColor = scheme.colors.secondary || gradientColorStart;
-          actualEndColor = scheme.colors.accent || gradientColorStop;
-          break;
-        case 'Scheme: Text & Background':
-          actualStartColor = scheme.colors.text || gradientColorStart;
-          actualEndColor = scheme.colors.background || gradientColorStop;
-          break;
-        default:
-          actualStartColor = gradientColorStart;
-          actualEndColor = gradientColorStop;
+                  case 'Scheme: Secondary & Accent':
+            actualStartColor = scheme.colors.secondary || gradientColorStart;
+            actualEndColor = scheme.colors.accent || gradientColorStop;
+            break;
+          case 'Scheme: Text & Background':
+            actualStartColor = scheme.colors.text || gradientColorStart;
+            actualEndColor = scheme.colors.background || gradientColorStop;
+            break;
+          default:
+            actualStartColor = gradientColorStart;
+            actualEndColor = gradientColorStop;
       }
     }
     
@@ -469,7 +711,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       console.log(`📂 GuestExperience: Calling loadLayoutSettingsFromDB with:`, weddingDataFromApp.initialElementLayouts);
       loadLayoutSettingsFromDB(weddingDataFromApp.initialElementLayouts, defaultLayoutSlotToLoad);
     } else if (weddingIdFromApp) {
-      console.log(`🔄 GuestExperience: Calling switchPreviewingSlotInStore for ${isMobile ? 'mobile' : 'desktop'} slot ${defaultLayoutSlotToLoad}`);
+      // console.log(`🔄 GuestExperience: Calling switchPreviewingSlotInStore for ${isMobile ? 'mobile' : 'desktop'} slot ${defaultLayoutSlotToLoad}`);
       switchPreviewingSlotInStore(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', defaultLayoutSlotToLoad);
     }
   }, [weddingDataFromApp?.initialElementLayouts, weddingIdFromApp, isMobile, defaultLayoutSlotToLoad, loadLayoutSettingsFromDB, switchPreviewingSlotInStore]);
@@ -1433,6 +1675,34 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             )}
           </animated.div>
         )}
+
+        {/* Scroll Hint */}
+        {(() => {
+          console.log('[GUEST_EXP] 🎯 About to render ScrollHint with props:', {
+            isVisible: showScrollHintVisible,
+            shouldFade: shouldFadeHint,
+            fadeOnceDetected: fadeOnceDetected,
+            currentState: {
+              hasUserScrolled,
+              showScrollHint,
+              scrollHintDuration
+            },
+            controlValues: {
+              showScrollHint: overallControls.showScrollHint,
+              scrollHintDuration: overallControls.scrollHintDuration,
+              fadeOnceDetected: overallControls.fadeOnceDetected
+            },
+            timestamp: Date.now()
+          });
+          return (
+            <ScrollHint 
+              isVisible={showScrollHintVisible}
+              selectedColorScheme={{ colors: { primary: '#007bff', text: '#333333', accent: '#6c757d' } }}
+              shouldFade={shouldFadeHint}
+              fadeOnceDetected={fadeOnceDetected}
+            />
+          );
+        })()}
       </>
     </UserInfoProvider>
   );

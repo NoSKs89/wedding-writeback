@@ -11,6 +11,7 @@ import ShiftingBackgroundColors from './ShiftingBackgroundColors';
 import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
+import ScrollHint from '../ScrollHint';
 
 import { useIsMobile } from '../../utils/deviceDetect';
 import { UserInfoProvider } from '../../contexts/UserInfoContext';
@@ -202,12 +203,31 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     ...elementControls
   } = layoutSettingsFromPreview || {};
 
+  console.log('[GUEST_EXP_PREVIEW] 🎛️ Layout Settings Destructured:', {
+    layoutSettingsFromPreview: !!layoutSettingsFromPreview,
+    overallControls: overallControls,
+    overallControlsKeys: overallControls ? Object.keys(overallControls) : 'null',
+    timestamp: Date.now()
+  });
+
   const {
     springPreset: selectedSpringPresetKeyGuest = 'default',
     parallaxPhysicsPreset: selectedParallaxPhysicsPresetKey = 'default',
     colorScheme: selectedColorSchemeName = weddingColorSchemes[0].name,
     overallFontFamily = fontFamilyOptions[0],
+    showScrollHint = true,
+    scrollHintDuration = 20,
+    fadeOnceDetected = true,
   } = overallControls || {};
+
+  console.log('[GUEST_EXP_PREVIEW] 🎛️ Overall Controls Destructured:', {
+    showScrollHint,
+    scrollHintDuration,
+    fadeOnceDetected,
+    selectedColorSchemeName,
+    overallControlsSource: overallControls ? 'from layout settings' : 'using defaults',
+    timestamp: Date.now()
+  });
 
   const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
   const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default;
@@ -280,6 +300,21 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [scrollY, setScrollY] = useState(0);
   const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
   const [windowWidth, setWindowWidth] = useState(() => typeof window !== 'undefined' ? window.innerWidth : 1200);
+
+  // --- SCROLL HINT STATE ---
+  const [showScrollHintVisible, setShowScrollHintVisible] = useState(true);
+  const [hasUserScrolled, setHasUserScrolled] = useState(false);
+  const [shouldFadeHint, setShouldFadeHint] = useState(false);
+
+  console.log('[GUEST_EXP_PREVIEW] layoutSettingsFromPreview structure:', layoutSettingsFromPreview);
+  console.log('[GUEST_EXP_PREVIEW] overallControls:', overallControls);
+  console.log('[GUEST_EXP_PREVIEW] Scroll hint state:', { 
+    showScrollHint, 
+    showScrollHintVisible, 
+    hasUserScrolled, 
+    shouldFadeHint, 
+    scrollHintDuration 
+  });
   const parallaxRef = useRef<IParallax>(null);
 
   // Natural scroll handling
@@ -580,6 +615,96 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   });
   const bindFocusedImageDrag = useDrag(({ last, movement: [mx], velocity: [vx], direction: [dx], event }) => { event?.stopPropagation(); if (!focusedImage || !last) return; if (Math.abs(mx) > windowWidth / 4 || Math.abs(vx) > 0.3) { const syntheticEvent = { stopPropagation: () => {} }; if (dx > 0) handlePreviousImage(syntheticEvent); else if (dx < 0) handleNextImage(syntheticEvent); } }, { axis: 'x', filterTaps: true, enabled: !!focusedImage });
   
+  // Simple scroll detection for hint
+  useEffect(() => {
+    const parallaxContainer = parallaxRef.current?.container.current;
+    if (!parallaxContainer) {
+      console.log('[GUEST_EXP_PREVIEW] No parallax container found for scroll detection');
+      return;
+    }
+
+    console.log('[GUEST_EXP_PREVIEW] Setting up scroll handler with current state:', {
+      hasUserScrolled,
+      fadeOnceDetected,
+      scrollHintDuration,
+      showScrollHint,
+      TOTAL_PAGES,
+      windowHeight
+    });
+
+    const handleScrollForHint = () => {
+      const currentScrollY = parallaxContainer.scrollTop;
+      const maxScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
+      const scrollProgress = maxScrollableHeight > 0 ? (currentScrollY / maxScrollableHeight) * 100 : 0;
+      
+      console.log('[GUEST_EXP_PREVIEW] 🔍 SCROLL EVENT DETAILED:', { 
+        currentScrollY, 
+        maxScrollableHeight, 
+        scrollProgress: scrollProgress.toFixed(2) + '%', 
+        scrollHintDuration: scrollHintDuration + '%',
+        hasUserScrolled,
+        showScrollHint,
+        fadeOnceDetected,
+        TOTAL_PAGES,
+        windowHeight,
+        scrolledMoreThan5px: currentScrollY > 5,
+        progressExceedsDuration: scrollProgress > scrollHintDuration,
+        willSetHasUserScrolled: !hasUserScrolled && currentScrollY > 5,
+        willSetShouldFadeHint: (!hasUserScrolled && currentScrollY > 5) && fadeOnceDetected,
+        timestamp: Date.now()
+      });
+      
+      // Simple logic: if user has scrolled more than 5px, they've started scrolling
+      if (!hasUserScrolled && currentScrollY > 5) {
+        console.log('[GUEST_EXP_PREVIEW] 🚨 User started scrolling! Setting hasUserScrolled to TRUE');
+        setHasUserScrolled(true);
+        if (fadeOnceDetected) {
+          console.log('[GUEST_EXP_PREVIEW] 🚨 fadeOnceDetected is TRUE - Setting shouldFadeHint to TRUE');
+          setShouldFadeHint(true);
+        } else {
+          console.log('[GUEST_EXP_PREVIEW] ❌ fadeOnceDetected is FALSE - NOT setting shouldFadeHint');
+        }
+      } else if (hasUserScrolled) {
+        console.log('[GUEST_EXP_PREVIEW] User has already scrolled (hasUserScrolled=true), currentScrollY:', currentScrollY);
+      } else {
+        console.log('[GUEST_EXP_PREVIEW] User has not scrolled enough yet (currentScrollY <= 5):', currentScrollY);
+      }
+
+      // Hide hint if past duration percentage
+      if (scrollProgress > scrollHintDuration) {
+        console.log('[GUEST_EXP_PREVIEW] 📊 Scroll progress exceeded duration, hiding hint. Progress:', scrollProgress.toFixed(2) + '% > Duration:', scrollHintDuration + '%');
+        setShowScrollHintVisible(false);
+      } else {
+        console.log('[GUEST_EXP_PREVIEW] 📊 Scroll progress within duration. Progress:', scrollProgress.toFixed(2) + '% <= Duration:', scrollHintDuration + '%');
+      }
+    };
+
+    parallaxContainer.addEventListener('scroll', handleScrollForHint);
+    return () => parallaxContainer.removeEventListener('scroll', handleScrollForHint);
+  }, [hasUserScrolled, fadeOnceDetected, scrollHintDuration, TOTAL_PAGES, windowHeight]);
+
+  // Update hint visibility when showScrollHint control changes
+  useEffect(() => {
+    console.log('[GUEST_EXP_PREVIEW] 🎛️ Control change effect triggered:', { 
+      showScrollHint, 
+      hasUserScrolled, 
+      currentShouldFadeHint: shouldFadeHint,
+      willHideHint: !showScrollHint,
+      willShowHint: showScrollHint && !hasUserScrolled 
+    });
+    
+    if (!showScrollHint) {
+      console.log('[GUEST_EXP_PREVIEW] 🎛️ showScrollHint is FALSE, hiding hint');
+      setShowScrollHintVisible(false);
+    } else if (!hasUserScrolled) {
+      console.log('[GUEST_EXP_PREVIEW] 🎛️ showScrollHint is TRUE and user hasnt scrolled, showing hint and resetting fade');
+      setShowScrollHintVisible(true);
+      setShouldFadeHint(false); // Reset fade state when re-enabling
+    } else {
+      console.log('[GUEST_EXP_PREVIEW] 🎛️ showScrollHint is TRUE but user has already scrolled');
+    }
+  }, [showScrollHint, hasUserScrolled]);
+
   useEffect(() => {
     const parallaxContainer = parallaxRef.current?.container.current;
     if (parallaxContainer) {
@@ -1097,6 +1222,30 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               </animated.div>
             )}
           </>
+
+        {/* Scroll Hint */}
+        {(() => {
+          console.log('[GUEST_EXP_PREVIEW] 🎯 About to render ScrollHint with props:', {
+            isVisible: showScrollHintVisible,
+            shouldFade: shouldFadeHint,
+            fadeOnceDetected: fadeOnceDetected,
+            selectedColorScheme: selectedColorScheme?.name,
+            currentState: {
+              hasUserScrolled,
+              showScrollHint,
+              scrollHintDuration
+            },
+            timestamp: Date.now()
+          });
+          return (
+            <ScrollHint 
+              isVisible={showScrollHintVisible}
+              selectedColorScheme={selectedColorScheme}
+              shouldFade={shouldFadeHint}
+              fadeOnceDetected={fadeOnceDetected}
+            />
+          );
+        })()}
         </>
     </UserInfoProvider>
   );

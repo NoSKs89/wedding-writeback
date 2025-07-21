@@ -88,11 +88,11 @@ export const useLevaStore = create<LevaStoreState>()(
     },
 
     updateControlValues: (folderName, newValues) => {
-      console.log(`🔄 LevaStore: updateControlValues called for ${folderName}`, {
-        timestamp: Date.now(),
-        newValues,
-        previousValues: get().controlValues[folderName]
-      });
+      // console.log(`🔄 LevaStore: updateControlValues called for ${folderName}`, {
+      //   timestamp: Date.now(),
+      //   newValues,
+      //   previousValues: get().controlValues[folderName]
+      // });
       set(state => {
         state.controlValues = {
           ...state.controlValues,
@@ -106,12 +106,12 @@ export const useLevaStore = create<LevaStoreState>()(
     },
 
     loadSettingsFromDB: (settings, slotNumber) => {
-      console.log(`🔄 LevaStore: loadSettingsFromDB called for slot ${slotNumber}. Setting isSwitchingSlots: true.`, {
-        timestamp: Date.now(),
-        settingsCount: Object.keys(settings).length,
-        settingsPreview: Object.fromEntries(Object.entries(settings).slice(0, 2)),
-        currentControlValues: Object.keys(get().controlValues)
-      });
+      // console.log(`🔄 LevaStore: loadSettingsFromDB called for slot ${slotNumber}. Setting isSwitchingSlots: true.`, {
+      //   timestamp: Date.now(),
+      //   settingsCount: Object.keys(settings).length,
+      //   settingsPreview: Object.fromEntries(Object.entries(settings).slice(0, 2)),
+      //   currentControlValues: Object.keys(get().controlValues)
+      // });
       set({ isSwitchingSlots: true });
     
       setTimeout(() => {

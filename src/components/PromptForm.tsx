@@ -84,23 +84,23 @@ export const promptFormControlsSchema = {
 };
 
 const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, backendUrl, elementName = 'Prompt Form', styleControlsFromProp = {} }, ref) => {
-  console.log('[PROMPT FORM DEBUG] Component called with:', {
-    weddingData: weddingData ? 'present' : 'missing',
-    weddingId: weddingData?.customId || weddingData?.id,
-    backendUrl,
-    elementName,
-    styleControlsFromProp: Object.keys(styleControlsFromProp || {})
-  });
+  // console.log('[PROMPT FORM DEBUG] Component called with:', {
+  //   weddingData: weddingData ? 'present' : 'missing',
+  //   weddingId: weddingData?.customId || weddingData?.id,
+  //   backendUrl,
+  //   elementName,
+  //   styleControlsFromProp: Object.keys(styleControlsFromProp || {})
+  // });
 
   const weddingId = weddingData.customId || weddingData.id;
   const { isSetupMode } = useSetupMode();
   const { userInfo } = useUserInfo();
   
-  console.log('[PROMPT FORM DEBUG] Initial state:', {
-    weddingId,
-    isSetupMode,
-    userInfo: userInfo ? 'present' : 'missing'
-  });
+  // console.log('[PROMPT FORM DEBUG] Initial state:', {
+  //   weddingId,
+  //   isSetupMode,
+  //   userInfo: userInfo ? 'present' : 'missing'
+  // });
   
   // Create a default set of values from the schema
   const defaultStyleValues = useMemo(() => Object.entries(promptFormControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
@@ -157,21 +157,21 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
 
   // Load prompt form settings
   useEffect(() => {
-    console.log('[PROMPT FORM DEBUG] Loading settings useEffect triggered for weddingId:', weddingId);
+    // console.log('[PROMPT FORM DEBUG] Loading settings useEffect triggered for weddingId:', weddingId);
     
     const loadPromptFormSettings = async () => {
       try {
-        console.log('[PROMPT FORM DEBUG] Making API call to:', `${backendUrl}/weddings/${weddingId}/prompt-form-settings`);
+        // console.log('[PROMPT FORM DEBUG] Making API call to:', `${backendUrl}/weddings/${weddingId}/prompt-form-settings`);
         const response = await axios.get(`${backendUrl}/weddings/${weddingId}/prompt-form-settings`);
-        console.log('[PROMPT FORM DEBUG] API response:', response.data);
+        // console.log('[PROMPT FORM DEBUG] API response:', response.data);
         
         if (response.data && response.data.data) {
-          console.log('[PROMPT FORM DEBUG] Setting prompt form settings:', response.data.data);
+          // console.log('[PROMPT FORM DEBUG] Setting prompt form settings:', response.data.data);
           setPromptFormSettings(response.data.data);
         }
       } catch (error) {
-        console.warn('[PROMPT FORM DEBUG] API call failed:', error);
-        console.log('[PROMPT FORM DEBUG] Using default settings');
+        // console.warn('[PROMPT FORM DEBUG] API call failed:', error);
+        // console.log('[PROMPT FORM DEBUG] Using default settings');
         // Use default settings if none found
         setPromptFormSettings({
           questions: [],
@@ -185,14 +185,14 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
           buttonTextColor: '#ffffff',
         });
       }
-      console.log('[PROMPT FORM DEBUG] Setting isLoading to false');
+      // console.log('[PROMPT FORM DEBUG] Setting isLoading to false');
       setIsLoading(false);
     };
 
     if (weddingId) {
       loadPromptFormSettings();
     } else {
-      console.log('[PROMPT FORM DEBUG] No weddingId, setting isLoading to false');
+      // console.log('[PROMPT FORM DEBUG] No weddingId, setting isLoading to false');
       setIsLoading(false);
     }
   }, [weddingId, backendUrl]);
@@ -380,22 +380,22 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     fontFamily: formTextFontFamily,
   };
 
-  console.log('[PROMPT FORM DEBUG] About to render. State:', {
-    isLoading,
-    promptFormSettings: promptFormSettings ? 'present' : 'missing',
-    questionsLength: promptFormSettings?.questions?.length || 0,
-    isClosed
-  });
+  // console.log('[PROMPT FORM DEBUG] About to render. State:', {
+  //   isLoading,
+  //   promptFormSettings: promptFormSettings ? 'present' : 'missing',
+  //   questionsLength: promptFormSettings?.questions?.length || 0,
+  //   isClosed
+  // });
 
   // Don't render if loading
   if (isLoading) {
-    console.log('[PROMPT FORM DEBUG] Not rendering: still loading');
+    // console.log('[PROMPT FORM DEBUG] Not rendering: still loading');
     return null;
   }
 
   // Only render if there are questions configured
   if (!promptFormSettings || promptFormSettings.questions.length === 0) {
-    console.log('[PROMPT FORM DEBUG] Not rendering: no settings or questions');
+    // console.log('[PROMPT FORM DEBUG] Not rendering: no settings or questions');
     
     // In setup mode, show a styled debug message
     if (isSetupMode) {
@@ -421,7 +421,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     return null;
   }
 
-  console.log('[PROMPT FORM DEBUG] Rendering prompt form with', promptFormSettings.questions.length, 'questions');
+  // console.log('[PROMPT FORM DEBUG] Rendering prompt form with', promptFormSettings.questions.length, 'questions');
 
   const renderContent = () => {
     if (submissionStatus === 'submitted') {

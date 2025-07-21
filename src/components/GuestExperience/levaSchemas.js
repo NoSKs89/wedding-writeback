@@ -936,13 +936,13 @@ export const getElementSchema = (element, globalFontFamilyFromStore) => {
             };
             
             // DEBUG: Log schema to verify buttonColor is included
-            console.log(`🔧 Schema: Bottom Navbar schema generated`, {
-                timestamp: Date.now(),
-                elementId: element.id,
-                hasButtonColor: 'buttonColor' in schema,
-                buttonColorValue: schema.buttonColor?.value,
-                schemaKeys: Object.keys(schema)
-            });
+            // console.log(`🔧 Schema: Bottom Navbar schema generated`, {
+            //     timestamp: Date.now(),
+            //     elementId: element.id,
+            //     hasButtonColor: 'buttonColor' in schema,
+            //     buttonColorValue: schema.buttonColor?.value,
+            //     schemaKeys: Object.keys(schema)
+            // });
             
             return schema;
         }
