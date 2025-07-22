@@ -50,6 +50,11 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       : ''
   );
 
+  // Local state for auto sequence
+  const [autoSequenceValue, setAutoSequenceValue] = useState<string>(
+    element.autoSequence ? element.autoSequence.toString() : 'none'
+  );
+
   // Local state for input values, initialized from props
   const [startInput, setStartInput] = useState<string>((startPositionPercent !== undefined ? startPositionPercent * 100 : 0).toFixed(1));
   const [endInput, setEndInput] = useState<string>((endPositionPercent !== undefined ? endPositionPercent * 100 : 0).toFixed(1));
@@ -61,6 +66,11 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   useEffect(() => {
     setEndInput((endPositionPercent !== undefined ? endPositionPercent * 100 : 0).toFixed(1));
   }, [endPositionPercent]);
+
+  useEffect(() => {
+    // Update local state if element autoSequence changes externally
+    setAutoSequenceValue(element.autoSequence ? element.autoSequence.toString() : 'none');
+  }, [element.autoSequence]);
 
   useEffect(() => {
     // Update local state if element content (maxImages) changes externally
@@ -248,6 +258,20 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     }
   };
 
+  const handleAutoSequenceChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setAutoSequenceValue(value);
+    
+    if (value === 'none') {
+      onUpdate({ autoSequence: null });
+    } else {
+      const numValue = parseInt(value, 10);
+      if (!isNaN(numValue) && numValue > 0) {
+        onUpdate({ autoSequence: numValue });
+      }
+    }
+  };
+
   const baseStyle: React.CSSProperties = {
     padding: '17px',
     paddingRight: '20px',
@@ -417,6 +441,27 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
             </select>
           </div>
         </div>
+
+        {element.type !== 'empty' && (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
+            <label style={{fontSize: '0.9rem'}}>Auto Nav:</label>
+            <div style={selectContainerStyle}>
+              <select value={autoSequenceValue} onChange={handleAutoSequenceChange} style={selectStyle}>
+                <option value="none"> - none - </option>
+                <option value="1">Auto 1</option>
+                <option value="2">Auto 2</option>
+                <option value="3">Auto 3</option>
+                <option value="4">Auto 4</option>
+                <option value="5">Auto 5</option>
+                <option value="6">Auto 6</option>
+                <option value="7">Auto 7</option>
+                <option value="8">Auto 8</option>
+                <option value="9">Auto 9</option>
+                <option value="10">Auto 10</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {recommendedText && <p style={recommendedTextStyle}>{recommendedText}</p>}
         {element.type === 'empty' && <p style={{color: '#888'}}>Placeholder: Pick Element {element.id}</p>}

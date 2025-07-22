@@ -223,6 +223,11 @@ export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext) => 
 
 export const getElementSchema = (element, globalFontFamilyFromStore) => {
     let controlsSchema = {
+        autoSequence: { 
+            value: null, 
+            options: ['none', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'], 
+            label: 'Auto Navigation' 
+        },
         opacityAtStart: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Start' },
         opacityAtMiddle: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ Middle' },
         opacityAtEnd: { value: 1, min: 0, max: 1, step: 0.01, label: 'Opacity @ End' },

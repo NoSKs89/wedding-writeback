@@ -4,6 +4,7 @@ export interface ElementConfig {
   type: 'text' | 'photo' | 'background-image' | 'component' | 'empty' | 'video' | 'background-video';
   content: any;
   timelineColor: string;
+  autoSequence?: number | null; // Auto navigation sequence number (1, 2, 3, etc.) or null if not in auto sequence
 }
 
 export interface TimelineMarker {

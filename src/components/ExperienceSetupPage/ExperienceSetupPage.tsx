@@ -30,6 +30,7 @@ export interface ElementConfig {
   content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo/video, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
+  autoSequence?: number | null; // Auto navigation sequence number (1, 2, 3, etc.) or null if not in auto sequence
   // Z-index is implicitly determined by array order (index 0 is highest)
 }
 
@@ -95,31 +96,31 @@ const generateInitialElementsAndMarkers = (weddingData: WeddingData | null) => {
   const initialElementsList: ElementConfig[] = [
     {
       id: 1, type: 'text', content: weddingData.brideName || 'Bride Name',
-      name: 'Bride Name', timelineColor: ELEMENT_COLORS[0],
+      name: 'Bride Name', timelineColor: ELEMENT_COLORS[0], autoSequence: null,
     },
     {
       id: 2, type: 'text', content: weddingData.groomName || 'Groom Name',
-      name: 'Groom Name', timelineColor: ELEMENT_COLORS[1],
+      name: 'Groom Name', timelineColor: ELEMENT_COLORS[1], autoSequence: null,
     },
     {
       id: 3, type: 'text', content: formatDate(weddingData.weddingDate),
-      name: 'Wedding Date', timelineColor: ELEMENT_COLORS[2],
+      name: 'Wedding Date', timelineColor: ELEMENT_COLORS[2], autoSequence: null,
     },
     {
       id: 4, type: 'photo', content: weddingData.introCouple || null,
-      name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3],
+      name: 'Intro Couple Image', timelineColor: ELEMENT_COLORS[3], autoSequence: null,
     },
     {
       id: 5, type: 'background-image', content: weddingData.introBackground || null, // Changed type to 'background-image'
-      name: 'Background Scene Image', timelineColor: ELEMENT_COLORS[4],
+      name: 'Background Scene Image', timelineColor: ELEMENT_COLORS[4], autoSequence: null,
     },
     {
       id: 6, type: 'component', content: 'RSVP Form', name: 'RSVP Form',
-      timelineColor: ELEMENT_COLORS[5],
+      timelineColor: ELEMENT_COLORS[5], autoSequence: null,
     },
     {
       id: 7, type: 'component', content: 'Scrapbook', name: 'Scrapbook',
-      timelineColor: ELEMENT_COLORS[6],
+      timelineColor: ELEMENT_COLORS[6], autoSequence: null,
     },
   ];
 
@@ -594,7 +595,8 @@ const ExperienceSetupPage: React.FC = () => {
         type: 'empty',
         content: null, // content will be set by onUpdate if type changes to scrapbook
         timelineColor: ELEMENT_COLORS[(newId - 1) % ELEMENT_COLORS.length], 
-        name: `Element ${newId}`
+        name: `Element ${newId}`,
+        autoSequence: null
       };
       // Add default markers for the new element - these are simple defaults, not from specificDefaultPositions
       const defaultPos = ((newId - 1) / Math.max(INITIAL_DEFINED_ELEMENT_COUNT, prevElements.length + 1)) * 0.8;

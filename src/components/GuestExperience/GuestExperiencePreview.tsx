@@ -306,6 +306,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [shouldFadeHint, setShouldFadeHint] = useState(false);
 
+  // --- AUTO NAVIGATION STATE ---
+  const [autoNavigationEnabled, setAutoNavigationEnabled] = useState(false);
+  const [currentAutoIndex, setCurrentAutoIndex] = useState(-1); // Start at -1 (not at any auto element)
+  const [autoElements, setAutoElements] = useState<Array<{elementId: number, sequence: number, endPosition: number}>>([]);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+
   console.log('[GUEST_EXP_PREVIEW] layoutSettingsFromPreview structure:', layoutSettingsFromPreview);
   console.log('[GUEST_EXP_PREVIEW] overallControls:', overallControls);
   console.log('[GUEST_EXP_PREVIEW] Scroll hint state:', { 
@@ -561,6 +567,125 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   // Calculate scroll values with parallax physics applied
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
   const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
+
+  // --- AUTO NAVIGATION PROCESSING ---
+  useEffect(() => {
+    console.log('[AUTO_NAV_PROCESSING_PREVIEW] Starting auto elements processing...');
+    console.log('[AUTO_NAV_PROCESSING_PREVIEW] elementsFromBlueprint:', elementsFromBlueprint);
+    
+    const processedAutoElements: Array<{elementId: number, sequence: number, endPosition: number}> = [];
+    
+    // Extract elements with auto sequences from elementsFromBlueprint (NOT layoutSettingsFromPreview!)
+    elementsFromBlueprint.forEach(element => {
+      console.log(`[AUTO_NAV_PROCESSING_PREVIEW] Checking element ${element.id}:`, {
+        id: element.id,
+        type: element.type,
+        name: element.name,
+        autoSequence: element.autoSequence,
+        hasAutoSequence: 'autoSequence' in element
+      });
+      
+      if ('autoSequence' in element && element.autoSequence && element.autoSequence !== null) {
+        const sequenceValue = typeof element.autoSequence === 'string' 
+          ? parseInt(element.autoSequence, 10) 
+          : element.autoSequence;
+        
+        console.log(`[AUTO_NAV_PROCESSING_PREVIEW] Element ${element.id} has valid autoSequence:`, {
+          raw: element.autoSequence,
+          parsed: sequenceValue,
+          isValid: !isNaN(sequenceValue) && sequenceValue > 0
+        });
+        
+        // Only proceed if we have a valid number
+        if (!isNaN(sequenceValue) && sequenceValue > 0) {
+          // Find the element in renderableElements to get its start position
+          const renderableElement = renderableElements.find(el => el.id === element.id);
+          console.log(`[AUTO_NAV_PROCESSING_PREVIEW] Looking for renderable element ${element.id}:`, {
+            found: !!renderableElement,
+            elementData: renderableElement ? { id: renderableElement.id, type: renderableElement.type, sticky: renderableElement.sticky } : null
+          });
+          
+          if (renderableElement) {
+            processedAutoElements.push({
+              elementId: element.id,
+              sequence: sequenceValue,
+              endPosition: renderableElement.sticky.end // Changed from .start to .end
+            });
+            console.log(`[AUTO_NAV_PROCESSING_PREVIEW] ✅ Added auto element: ${element.id} -> Auto ${sequenceValue} at END position ${renderableElement.sticky.end}`);
+          }
+        }
+      } else {
+        console.log(`[AUTO_NAV_PROCESSING_PREVIEW] Element ${element.id} has no valid autoSequence`);
+      }
+    });
+
+    // Sort by sequence number
+    processedAutoElements.sort((a, b) => a.sequence - b.sequence);
+    setAutoElements(processedAutoElements);
+    
+    // Enable auto navigation if there are auto elements
+    const willEnable = processedAutoElements.length > 0;
+    setAutoNavigationEnabled(willEnable);
+    
+    console.log('[AUTO_NAV_PROCESSING_PREVIEW] FINAL RESULTS:', {
+      total: processedAutoElements.length,
+      elements: processedAutoElements,
+      willShowArrows: processedAutoElements.length > 1,
+      autoNavigationEnabled: willEnable,
+      timestamp: Date.now()
+    });
+  }, [elementsFromBlueprint, renderableElements]);
+
+  // --- AUTO NAVIGATION FUNCTIONS ---
+  const scrollToAutoElement = useCallback((autoIndex: number) => {
+    if (!autoElements[autoIndex] || isAutoScrolling) return;
+    
+    const targetElement = autoElements[autoIndex];
+    const targetScrollPosition = targetElement.endPosition * windowHeight;
+    
+    console.log(`[AUTO_NAV_PREVIEW] Scrolling to auto element ${targetElement.sequence} (element ${targetElement.elementId}) at END position ${targetScrollPosition}px`);
+    
+    setIsAutoScrolling(true);
+    setCurrentAutoIndex(autoIndex);
+    
+    const parallaxContainer = parallaxRef.current?.container.current;
+    if (parallaxContainer) {
+      parallaxContainer.scrollTo({
+        top: targetScrollPosition,
+        behavior: 'smooth'
+      });
+      
+      // Reset auto scrolling flag after animation completes
+      setTimeout(() => {
+        setIsAutoScrolling(false);
+      }, 1000); // Adjust timing based on scroll animation duration
+    }
+  }, [autoElements, isAutoScrolling, windowHeight, parallaxRef]);
+
+  const handleAutoNext = useCallback(() => {
+    if (currentAutoIndex < autoElements.length - 1) {
+      const nextIndex = currentAutoIndex + 1;
+      scrollToAutoElement(nextIndex);
+    }
+  }, [currentAutoIndex, autoElements.length, scrollToAutoElement]);
+
+  const handleAutoPrevious = useCallback(() => {
+    if (currentAutoIndex > -1) {
+      if (currentAutoIndex === 0) {
+        // Go back to top of page
+        setCurrentAutoIndex(-1);
+        const parallaxContainer = parallaxRef.current?.container.current;
+        if (parallaxContainer) {
+          parallaxContainer.scrollTo({
+            top: 0,
+            behavior: 'smooth'
+          });
+        }
+      } else {
+        scrollToAutoElement(currentAutoIndex - 1);
+      }
+    }
+  }, [currentAutoIndex, scrollToAutoElement, parallaxRef]);
 
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
 
@@ -1246,6 +1371,143 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             />
           );
         })()}
+
+        {/* Auto Navigation Arrows */}
+        {autoNavigationEnabled && autoElements.length > 1 && (
+          <>
+            {/* Previous Arrow */}
+            <button
+              onClick={handleAutoPrevious}
+                                disabled={isAutoScrolling || currentAutoIndex === -1}
+              style={{
+                position: 'fixed',
+                left: '20px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1200,
+                                  backgroundColor: (isAutoScrolling || currentAutoIndex === -1) 
+                  ? 'rgba(128, 128, 128, 0.5)' 
+                  : 'rgba(0, 0, 0, 0.8)',
+                                  color: (isAutoScrolling || currentAutoIndex === -1) 
+                  ? 'rgba(255, 255, 255, 0.5)' 
+                  : 'white',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '50%',
+                width: '60px',
+                height: '60px',
+                fontSize: '28px',
+                cursor: (isAutoScrolling || currentAutoIndex === 0) 
+                  ? 'not-allowed' 
+                  : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: (isAutoScrolling || currentAutoIndex === 0)
+                  ? '0 2px 6px rgba(0, 0, 0, 0.2)'
+                  : '0 6px 20px rgba(0, 0, 0, 0.4)',
+                transition: 'all 0.3s ease',
+                opacity: (isAutoScrolling || currentAutoIndex === 0) ? 0.6 : 1,
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+              }}
+              onMouseEnter={(e) => {
+                if (!isAutoScrolling && currentAutoIndex > 0) {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
+                  e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
+                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.5)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isAutoScrolling && currentAutoIndex > 0) {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                  e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+                }
+              }}
+            >
+              &#8592;
+            </button>
+
+            {/* Next Arrow */}
+            <button
+              onClick={handleAutoNext}
+              disabled={isAutoScrolling || currentAutoIndex === autoElements.length - 1}
+              style={{
+                position: 'fixed',
+                right: '20px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                zIndex: 1200,
+                backgroundColor: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
+                  ? 'rgba(128, 128, 128, 0.5)' 
+                  : 'rgba(0, 0, 0, 0.8)',
+                color: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
+                  ? 'rgba(255, 255, 255, 0.5)' 
+                  : 'white',
+                border: '2px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '50%',
+                width: '60px',
+                height: '60px',
+                fontSize: '28px',
+                cursor: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
+                  ? 'not-allowed' 
+                  : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: (isAutoScrolling || currentAutoIndex === autoElements.length - 1)
+                  ? '0 2px 6px rgba(0, 0, 0, 0.2)'
+                  : '0 6px 20px rgba(0, 0, 0, 0.4)',
+                transition: 'all 0.3s ease',
+                opacity: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) ? 0.6 : 1,
+                backdropFilter: 'blur(5px)',
+                WebkitBackdropFilter: 'blur(5px)',
+              }}
+              onMouseEnter={(e) => {
+                if (!isAutoScrolling && currentAutoIndex < autoElements.length - 1) {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
+                  e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
+                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.5)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isAutoScrolling && currentAutoIndex < autoElements.length - 1) {
+                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+                  e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+                }
+              }}
+            >
+              &#8594;
+            </button>
+
+            {/* Auto Navigation Indicator */}
+            <div
+              style={{
+                position: 'fixed',
+                bottom: '30px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1200,
+                backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                color: 'white',
+                padding: '12px 20px',
+                borderRadius: '25px',
+                fontSize: '16px',
+                fontWeight: '600',
+                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
+                pointerEvents: 'none',
+                userSelect: 'none',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+                textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
+              }}
+            >
+              Auto {autoElements[currentAutoIndex]?.sequence || 1} of {autoElements.length}
+            </div>
+          </>
+        )}
         </>
     </UserInfoProvider>
   );

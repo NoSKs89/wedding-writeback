@@ -365,6 +365,13 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
         previewingLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
         saveToLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Save to Layout Slot' },
+        // Auto Navigation Controls
+        autoScrollDuration: { value: 4000, min: 1000, max: 10000, step: 500, label: 'Auto Scroll Duration (ms)' },
+        autoScrollEasing: { 
+          value: 'easeOut', 
+          options: ['easeOut', 'easeInOut', 'linear', 'bouncy'], 
+          label: 'Auto Scroll Easing' 
+        },
     }, { collapsed: true, render: () => isSetupMode }),
   }), [isSetupMode, defaultLayoutSlotToLoad]);
   
@@ -375,8 +382,22 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     colorScheme: selectedColorSchemeName,
     overallFontFamily,
     previewingLayoutSlot,
-    saveToLayoutSlot
+    saveToLayoutSlot,
+    autoScrollDuration,
+    autoScrollEasing,
   } = overallControls;
+
+  // Debug logging for auto navigation controls
+  useEffect(() => {
+    console.log(`[AUTO_NAV] 🎛️ Auto navigation controls updated:`, {
+      autoScrollDuration,
+      autoScrollEasing,
+      overallControlsKeys: Object.keys(overallControls),
+      hasAutoScrollDuration: 'autoScrollDuration' in overallControls,
+      hasAutoScrollEasing: 'autoScrollEasing' in overallControls,
+      timestamp: Date.now()
+    });
+  }, [autoScrollDuration, autoScrollEasing, overallControls]);
 
   // --- LOCAL COMPONENT STATE ---
   const [scrollY, setScrollY] = useState(0);
@@ -392,6 +413,93 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [showScrollHintVisible, setShowScrollHintVisible] = useState(true);
   const [hasUserScrolled, setHasUserScrolled] = useState(false);
   const [shouldFadeHint, setShouldFadeHint] = useState(false);
+
+  // --- AUTO NAVIGATION STATE ---
+  const [autoNavigationEnabled, setAutoNavigationEnabled] = useState(false);
+  const [currentAutoIndex, setCurrentAutoIndex] = useState(-1); // Start at -1 (not at any auto element)
+  const [autoElements, setAutoElements] = useState<Array<{elementId: number, sequence: number, endPosition: number}>>([]);
+  const [isAutoScrolling, setIsAutoScrolling] = useState(false);
+
+  // --- REACT SPRING SCROLL ANIMATION ---
+  // --- EASING FUNCTIONS ---
+  const getEasingFunction = (easingType: string) => {
+    switch (easingType) {
+      case 'easeOut':
+        return (t: number) => 1 - Math.pow(1 - t, 3);
+      case 'easeInOut':
+        return (t: number) => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      case 'linear':
+        return (t: number) => t;
+      case 'bouncy':
+        return (t: number) => {
+          const n1 = 7.5625;
+          const d1 = 2.75;
+          if (t < 1 / d1) {
+            return n1 * t * t;
+          } else if (t < 2 / d1) {
+            return n1 * (t -= 1.5 / d1) * t + 0.75;
+          } else if (t < 2.5 / d1) {
+            return n1 * (t -= 2.25 / d1) * t + 0.9375;
+          } else {
+            return n1 * (t -= 2.625 / d1) * t + 0.984375;
+          }
+        };
+      default:
+        return (t: number) => 1 - Math.pow(1 - t, 3);
+    }
+  };
+
+  // --- CUSTOM SCROLL ANIMATION ---
+  const animateScrollTo = useCallback((targetPosition: number, duration: number = 4000, easingType: string = 'easeOut') => {
+    console.log(`[AUTO_NAV] 🚀 animateScrollTo called:`, { targetPosition, duration, easingType });
+    
+    const parallaxContainer = parallaxRef.current?.container.current;
+    if (!parallaxContainer) {
+      console.log(`[AUTO_NAV] ❌ No parallax container found`);
+      setIsAutoScrolling(false);
+      return;
+    }
+
+    const startPosition = parallaxContainer.scrollTop;
+    const distance = targetPosition - startPosition;
+    const startTime = performance.now();
+
+    console.log(`[AUTO_NAV] 🚀 Animation setup:`, {
+      startPosition,
+      targetPosition,
+      distance,
+      duration
+    });
+
+    const easing = getEasingFunction(easingType);
+
+    const animateFrame = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = easing(progress);
+      
+      const currentPosition = startPosition + (distance * easedProgress);
+      
+      console.log(`[AUTO_NAV] 🔄 Animation frame:`, {
+        elapsed: Math.round(elapsed),
+        progress: Math.round(progress * 100) / 100,
+        easedProgress: Math.round(easedProgress * 100) / 100,
+        currentPosition: Math.round(currentPosition)
+      });
+      
+      parallaxContainer.scrollTop = currentPosition;
+      
+      if (progress < 1) {
+        requestAnimationFrame(animateFrame);
+      } else {
+        console.log(`[AUTO_NAV] ✅ Animation completed!`);
+        setIsAutoScrolling(false);
+      }
+    };
+
+    console.log(`[AUTO_NAV] ▶️ Starting animation with requestAnimationFrame`);
+    requestAnimationFrame(animateFrame);
+  }, [getEasingFunction]);
 
   // Destructure scroll hint controls
   const { 
@@ -673,17 +781,17 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           actualStartColor = scheme.colors.primary || gradientColorStart;
           actualEndColor = scheme.colors.accent || gradientColorStop;
           break;
-                  case 'Scheme: Secondary & Accent':
-            actualStartColor = scheme.colors.secondary || gradientColorStart;
-            actualEndColor = scheme.colors.accent || gradientColorStop;
-            break;
-          case 'Scheme: Text & Background':
-            actualStartColor = scheme.colors.text || gradientColorStart;
-            actualEndColor = scheme.colors.background || gradientColorStop;
-            break;
-          default:
-            actualStartColor = gradientColorStart;
-            actualEndColor = gradientColorStop;
+        case 'Scheme: Secondary & Accent':
+          actualStartColor = scheme.colors.secondary || gradientColorStart;
+          actualEndColor = scheme.colors.accent || gradientColorStop;
+          break;
+        case 'Scheme: Text & Background':
+          actualStartColor = scheme.colors.text || gradientColorStart;
+          actualEndColor = scheme.colors.background || gradientColorStop;
+          break;
+        default:
+          actualStartColor = gradientColorStart;
+          actualEndColor = gradientColorStop;
       }
     }
     
@@ -728,6 +836,74 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [previewingLayoutSlot, setOverallControls]);
 
   useEffect(() => { setCurrentSavingToSlot(saveToLayoutSlot); }, [saveToLayoutSlot]);
+
+  // --- AUTO NAVIGATION PROCESSING ---
+  useEffect(() => {
+    console.log('[AUTO_NAV_PROCESSING] Starting auto elements processing...');
+    console.log('[AUTO_NAV_PROCESSING] elementsFromBlueprint:', elementsFromBlueprint);
+    
+    const processedAutoElements: Array<{elementId: number, sequence: number, endPosition: number}> = [];
+    
+    // Extract elements with auto sequences from elementsFromBlueprint (NOT controlValues!)
+    elementsFromBlueprint.forEach(element => {
+      console.log(`[AUTO_NAV_PROCESSING] Checking element ${element.id}:`, {
+        id: element.id,
+        type: element.type,
+        name: element.name,
+        autoSequence: element.autoSequence,
+        hasAutoSequence: 'autoSequence' in element
+      });
+      
+      if ('autoSequence' in element && element.autoSequence && element.autoSequence !== null) {
+        const sequenceValue = typeof element.autoSequence === 'string' 
+          ? parseInt(element.autoSequence, 10) 
+          : element.autoSequence;
+        
+        console.log(`[AUTO_NAV_PROCESSING] Element ${element.id} has valid autoSequence:`, {
+          raw: element.autoSequence,
+          parsed: sequenceValue,
+          isValid: !isNaN(sequenceValue) && sequenceValue > 0
+        });
+        
+        // Only proceed if we have a valid number
+        if (!isNaN(sequenceValue) && sequenceValue > 0) {
+          // Find the element in renderableElements to get its start position
+          const renderableElement = renderableElements.find(el => el.id === element.id);
+          console.log(`[AUTO_NAV_PROCESSING] Looking for renderable element ${element.id}:`, {
+            found: !!renderableElement,
+            elementData: renderableElement ? { id: renderableElement.id, type: renderableElement.type, sticky: renderableElement.sticky } : null
+          });
+          
+          if (renderableElement) {
+            processedAutoElements.push({
+              elementId: element.id,
+              sequence: sequenceValue,
+              endPosition: renderableElement.sticky.end // Changed from .start to .end
+            });
+            console.log(`[AUTO_NAV_PROCESSING] ✅ Added auto element: ${element.id} -> Auto ${sequenceValue} at END position ${renderableElement.sticky.end}`);
+          }
+        }
+      } else {
+        console.log(`[AUTO_NAV_PROCESSING] Element ${element.id} has no valid autoSequence`);
+      }
+    });
+
+    // Sort by sequence number
+    processedAutoElements.sort((a, b) => a.sequence - b.sequence);
+    setAutoElements(processedAutoElements);
+    
+    // Enable auto navigation if there are auto elements
+    const willEnable = processedAutoElements.length > 0;
+    setAutoNavigationEnabled(willEnable);
+    
+    console.log('[AUTO_NAV_PROCESSING] FINAL RESULTS:', {
+      total: processedAutoElements.length,
+      elements: processedAutoElements,
+      willShowArrows: processedAutoElements.length > 1,
+      autoNavigationEnabled: willEnable,
+      timestamp: Date.now()
+    });
+  }, [elementsFromBlueprint, renderableElements]);
 
   const googleFontsToLoad = useMemo<FontObject[]>(() => {
     const fonts = new Set<string>();
@@ -949,6 +1125,85 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return adjustedValue;
   }, [activeParallaxPhysicsGuest]);
   
+  // --- AUTO NAVIGATION FUNCTIONS ---
+  const scrollToAutoElement = useCallback((autoIndex: number) => {
+    console.log(`[AUTO_NAV] 🚀 scrollToAutoElement called with autoIndex: ${autoIndex}`, {
+      autoElementsLength: autoElements.length,
+      targetElementExists: !!autoElements[autoIndex],
+      isAutoScrolling,
+      autoScrollDuration,
+      autoScrollEasing,
+      animateScrollToExists: !!animateScrollTo
+    });
+    
+    if (!autoElements[autoIndex]) {
+      console.log(`[AUTO_NAV] ❌ No auto element at index ${autoIndex}`);
+      return;
+    }
+    
+    if (isAutoScrolling) {
+      console.log(`[AUTO_NAV] ❌ Already auto scrolling, skipping`);
+      return;
+    }
+    
+    const targetElement = autoElements[autoIndex];
+    const targetScrollPosition = targetElement.endPosition * windowHeight;
+    
+    console.log(`[AUTO_NAV] 🚀 React Spring scrolling to auto element ${targetElement.sequence} (element ${targetElement.elementId}) at END position ${targetScrollPosition}px`);
+    
+    setIsAutoScrolling(true);
+    setCurrentAutoIndex(autoIndex);
+    
+    // Use custom animation for smooth, controlled scrolling
+    animateScrollTo(targetScrollPosition, autoScrollDuration, autoScrollEasing);
+  }, [autoElements, isAutoScrolling, windowHeight, autoScrollDuration, autoScrollEasing, animateScrollTo]);
+
+  const handleAutoNext = useCallback(() => {
+    console.log(`[AUTO_NAV] 🔵 handleAutoNext clicked!`, {
+      currentAutoIndex,
+      autoElementsLength: autoElements.length,
+      canGoNext: currentAutoIndex < autoElements.length - 1,
+      isAutoScrolling,
+      autoElements: autoElements.map(el => ({ elementId: el.elementId, sequence: el.sequence }))
+    });
+    
+    if (currentAutoIndex < autoElements.length - 1) {
+      const nextIndex = currentAutoIndex + 1;
+      console.log(`[AUTO_NAV] 🔵 Calling scrollToAutoElement with nextIndex: ${nextIndex}`);
+      scrollToAutoElement(nextIndex);
+    } else {
+      console.log(`[AUTO_NAV] 🔵 Cannot go next - already at last element or beyond`);
+    }
+  }, [currentAutoIndex, autoElements.length, scrollToAutoElement, isAutoScrolling, autoElements]);
+
+  const handleAutoPrevious = useCallback(() => {
+    console.log(`[AUTO_NAV] 🔴 handleAutoPrevious clicked!`, {
+      currentAutoIndex,
+      canGoPrevious: currentAutoIndex > -1,
+      isAutoScrolling,
+      autoElements: autoElements.map(el => ({ elementId: el.elementId, sequence: el.sequence }))
+    });
+    
+    if (currentAutoIndex > -1) {
+      if (currentAutoIndex === 0) {
+        // Go back to top with React Spring
+        console.log(`[AUTO_NAV] 🔴 Going to top - setCurrentAutoIndex(-1)`);
+        setCurrentAutoIndex(-1);
+        setIsAutoScrolling(true);
+        
+        console.log(`[AUTO_NAV] 🚀 Custom animation scrolling to top`);
+        
+        animateScrollTo(0, autoScrollDuration * 0.75, autoScrollEasing);
+      } else {
+        const prevIndex = currentAutoIndex - 1;
+        console.log(`[AUTO_NAV] 🔴 Calling scrollToAutoElement with prevIndex: ${prevIndex}`);
+        scrollToAutoElement(prevIndex);
+      }
+    } else {
+      console.log(`[AUTO_NAV] 🔴 Cannot go previous - currentAutoIndex is -1`);
+    }
+  }, [currentAutoIndex, scrollToAutoElement, autoScrollDuration, autoScrollEasing, animateScrollTo, isAutoScrolling, autoElements]);
+  
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
   
   // Update theme color dynamically based on gradient start color
@@ -1013,16 +1268,20 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const handleSaveConfiguration = () => { if (weddingIdFromApp) setShowSaveConfirm(true); else { setSaveErrorMessage('Cannot save: Wedding ID is missing.'); setTimeout(() => setSaveErrorMessage(null), 5000); } };
   const cancelSave = () => setShowSaveConfirm(false);
   const confirmSave = async () => {
-    setShowSaveConfirm(false); setIsSaving(true); setSaveSuccessMessage(null); setSaveErrorMessage(null);
-    const viewType = isMobile ? 'mobile' : 'desktop';
+    setShowSaveConfirm(false);
+    setIsSaving(true);
+    setSaveSuccessMessage(null);
+    setSaveErrorMessage(null);
+    console.log(`[SAVE] Attempting to save to slot ${currentSavingToSlot}...`);
     try {
       const layoutSettings = { ...useLevaStore.getState().controlValues, "Overall Controls (Guest)": overallControls };
-      await useLevaStore.getState().saveSettingsToServer(weddingIdFromApp, viewType, currentSavingToSlot, layoutSettings);
-      setSaveSuccessMessage(`Layout for ${viewType} view saved successfully!`);
+      await useLevaStore.getState().saveSettingsToServer(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', currentSavingToSlot, layoutSettings);
+      setSaveSuccessMessage(`Layout saved to slot ${currentSavingToSlot}!`);
       setTimeout(() => setSaveSuccessMessage(null), 3000);
-    } catch (error: any) {
-      setSaveErrorMessage(`Failed to save layout. Error: ${error.message || 'Unknown error'}`);
-      setTimeout(() => setSaveErrorMessage(null), 7000);
+    } catch (error) {
+      console.error('[SAVE] Save failed:', error);
+      setSaveErrorMessage('Save failed. Please try again.');
+      setTimeout(() => setSaveErrorMessage(null), 5000);
     }
     setIsSaving(false);
   };
@@ -1702,6 +1961,165 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               fadeOnceDetected={fadeOnceDetected}
             />
           );
+        })()}
+
+        {/* Auto Navigation Arrows - DEBUG VERSION */}
+        {(() => {
+          console.log('[AUTO_NAV_DEBUG] Arrow rendering check:', {
+            autoNavigationEnabled,
+            autoElementsLength: autoElements.length,
+            autoElements,
+            currentAutoIndex,
+            willShowArrows: autoNavigationEnabled && autoElements.length > 1,
+            elementsFromBlueprint: elementsFromBlueprint.map(el => ({ 
+              id: el.id, 
+              type: el.type, 
+              name: el.name, 
+              autoSequence: el.autoSequence 
+            })),
+            timestamp: Date.now()
+          });
+
+          // Show arrows if we have ANY auto elements (even if just 1 for testing)
+          const showDebugArrows = autoElements.length > 0;
+          
+          if (showDebugArrows) {
+            console.log('[AUTO_NAV_DEBUG] ✅ SHOWING DEBUG ARROWS');
+            return (
+              <>
+                {/* DEBUG Info Bar */}
+                <div
+                  style={{
+                    position: 'fixed',
+                    top: '10px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 2000,
+                    backgroundColor: 'rgba(0, 150, 0, 0.9)',
+                    color: 'white',
+                    padding: '10px 20px',
+                    borderRadius: '5px',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    pointerEvents: 'none',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  }}
+                >
+                  ✅ AUTO NAV WORKING: {autoElements.length} element{autoElements.length !== 1 ? 's' : ''} found
+                </div>
+
+                {/* Previous Arrow - DEBUG */}
+                <button
+                  onClick={handleAutoPrevious}
+                  style={{
+                    position: 'fixed',
+                    left: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 2000,
+                                            backgroundColor: currentAutoIndex === -1 ? '#999' : '#007bff',
+                    color: 'white',
+                    border: '3px solid white',
+                    borderRadius: '50%',
+                    width: '80px',
+                    height: '80px',
+                    fontSize: '30px',
+                                            cursor: currentAutoIndex === -1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
+                                            opacity: currentAutoIndex === -1 ? 0.6 : 1,
+                  }}
+                >
+                  &#8592;
+                </button>
+
+                {/* Next Arrow - DEBUG */}
+                <button
+                  onClick={handleAutoNext}
+                  style={{
+                    position: 'fixed',
+                    right: '20px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    zIndex: 2000,
+                    backgroundColor: currentAutoIndex >= autoElements.length - 1 ? '#999' : '#28a745',
+                    color: 'white',
+                    border: '3px solid white',
+                    borderRadius: '50%',
+                    width: '80px',
+                    height: '80px',
+                    fontSize: '30px',
+                    cursor: currentAutoIndex >= autoElements.length - 1 ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
+                    opacity: currentAutoIndex >= autoElements.length - 1 ? 0.6 : 1,
+                  }}
+                >
+                  &#8594;
+                </button>
+
+                {/* Auto Navigation Indicator - DEBUG */}
+                <div
+                  style={{
+                    position: 'fixed',
+                    bottom: '30px',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 2000,
+                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                    color: 'white',
+                    padding: '15px 25px',
+                    borderRadius: '25px',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    border: '2px solid white',
+                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
+                  }}
+                >
+                  {currentAutoIndex >= 0 ? `Auto ${autoElements[currentAutoIndex]?.sequence || 1} of ${autoElements.length}` : `Auto Navigation (${autoElements.length} elements)`}
+                </div>
+              </>
+            );
+          } else {
+            console.log('[AUTO_NAV_DEBUG] ❌ NO AUTO ELEMENTS - Checking elementsFromBlueprint');
+            console.table(elementsFromBlueprint.map(el => ({ 
+              id: el.id, 
+              type: el.type, 
+              name: el.name, 
+              autoSequence: el.autoSequence,
+              hasAutoSequence: 'autoSequence' in el
+            })));
+            
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: '10px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 2000,
+                  backgroundColor: 'rgba(255, 140, 0, 0.9)',
+                  color: 'white',
+                  padding: '15px 25px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  maxWidth: '400px',
+                }}
+              >
+                ⚠️ No Auto Elements Found<br/>
+                <small style={{ fontSize: '12px', fontWeight: 'normal' }}>
+                  Check setup page and click "Save Configuration"
+                </small>
+              </div>
+            );
+          }
         })()}
       </>
     </UserInfoProvider>
