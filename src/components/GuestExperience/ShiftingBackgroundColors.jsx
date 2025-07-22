@@ -700,7 +700,7 @@ const ShiftingBackgroundColors = ({ scrollY, TOTAL_PAGES, windowHeight, selected
             mixBlendMode: 'multiply',
             pointerEvents: 'none',
             // Static CSS pattern that doesn't move - creates layered texture
-            background: `
+            backgroundImage: `
               repeating-conic-gradient(
                 from ${(scrollY * noiseMovementSpeed * 0.1) % 360}deg at 20% 30%, 
                 rgba(0,0,0,0.01) 0deg, 

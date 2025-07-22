@@ -161,6 +161,10 @@ export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boo
     previewingLayoutSlot: { value: 1, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
     saveToLayoutSlot: { value: 1, options: [1, 2, 3, 4, 5], label: 'Save to Layout Slot' },
     
+    // Auto Navigation Scroll Controls
+    autoScrollDuration: { value: 4000, min: 1000, max: 10000, step: 500, label: 'Auto Scroll Duration (ms)' },
+    autoScrollEasing: { value: 'easeOut', options: ['easeOut', 'easeInOut', 'linear', 'bouncy'], label: 'Auto Scroll Easing' },
+    
     // Auto Navigation Arrow Controls
     arrowNormalScale: { value: 1.0, min: 0.2, max: 3.0, step: 0.1, label: 'Arrow Normal Scale' },
     arrowNormalOpacity: { value: 1.0, min: 0.1, max: 1.0, step: 0.05, label: 'Arrow Normal Opacity' },
@@ -169,6 +173,23 @@ export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boo
     arrowAnimationSpeed: { value: 1200, min: 100, max: 2000, step: 50, label: 'Arrow Animation Speed' },
     arrowBounceSpeed: { value: 180, min: 50, max: 500, step: 10, label: 'Arrow Bounce Speed' },
     arrowHoldDuration: { value: 800, min: 200, max: 2000, step: 100, label: 'Arrow Hold Duration (ms)' },
+    
+    // Auto Navigation Arrow Styling
+    arrowTextColor: { value: '#ffffff', label: 'Arrow Text Color' },
+    arrowBackgroundColor: { value: 'rgba(0, 0, 0, 0.5)', label: 'Arrow Background Color' },
+    arrowBackgroundOpacity: { value: 0.8, min: 0, max: 1, step: 0.05, label: 'Arrow Background Opacity' },
+    arrowBorderRadius: { value: 8, min: 0, max: 50, step: 1, label: 'Arrow Border Radius (px)' },
+    arrowFontSize: { value: 48, min: 24, max: 96, step: 2, label: 'Arrow Font Size (px)' },
+    arrowPadding: { value: 8, min: 0, max: 30, step: 1, label: 'Arrow Padding (px)' },
+    arrowShadowEnabled: { value: true, label: 'Enable Arrow Text Shadow' },
+    arrowShadowColor: { value: 'rgba(0, 0, 0, 0.8)', label: 'Arrow Text Shadow Color' },
+    arrowShadowBlur: { value: 10, min: 0, max: 50, step: 1, label: 'Arrow Text Shadow Blur (px)' },
+    arrowShadowOffsetX: { value: 2, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset X (px)' },
+    arrowShadowOffsetY: { value: 4, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset Y (px)' },
+    arrowBorderEnabled: { value: false, label: 'Enable Arrow Border' },
+    arrowBorderColor: { value: '#ffffff', label: 'Arrow Border Color' },
+    arrowBorderWidth: { value: 2, min: 1, max: 10, step: 1, label: 'Arrow Border Width (px)' },
+    arrowBackdropBlur: { value: 0, min: 0, max: 20, step: 1, label: 'Arrow Backdrop Blur (px)' },
 });
 
 export const getElementSchema = (element: any, globalFontFamilyFromStore: any) => {
@@ -237,6 +258,36 @@ export const getElementSchema = (element: any, globalFontFamilyFromStore: any) =
             circleFinalRadius: { value: 0, min: 0, max: 100, step: 1, label: 'Circle Final Radius (%)' },
             bgImageInitialScale: { value: 1, min: 0.1, max: 3, step: 0.01, label: 'BG Initial Scale' },
             bgImageFinalScale: { value: 0.1, min: 0, max: 3, step: 0.01, label: 'BG Final Scale' },
+        };
+    } else if (element.type === 'video') {
+        return {
+            ...controlsSchema,
+            landingXPosition: { value: 0, step: 1, label: 'Landing X Position (px)' },
+            landingYPosition: { value: 0, step: 1, label: 'Landing Y Position (px)' },
+            
+            // Video playback controls
+            autoplay: { value: true, label: 'Auto Play' },
+            loop: { value: true, label: 'Loop Video' },
+            muted: { value: true, label: 'Muted' },
+            showControls: { value: false, label: 'Show Video Controls' },
+            
+            // Video fade controls
+            enableVideoFade: { value: true, label: 'Enable Fade on Loop' },
+            videoFadeDuration: { value: 1.5, min: 0.1, max: 5.0, step: 0.1, label: 'Fade Duration (seconds)' },
+        };
+    } else if (element.type === 'background-video') {
+        return {
+            ...controlsSchema,
+            
+            // Video playback controls
+            autoplay: { value: true, label: 'Auto Play' },
+            loop: { value: true, label: 'Loop Video' },
+            muted: { value: true, label: 'Muted' },
+            showControls: { value: false, label: 'Show Video Controls' },
+            
+            // Video fade controls
+            enableVideoFade: { value: true, label: 'Enable Fade on Loop' },
+            videoFadeDuration: { value: 1.5, min: 0.1, max: 5.0, step: 0.1, label: 'Fade Duration (seconds)' },
         };
     } else if (element.type === 'component') {
         // Include component-specific controls based on component name

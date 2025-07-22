@@ -221,7 +221,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     
     // Arrow styling controls from layout settings
     arrowTextColor = '#ffffff',
-    arrowBackgroundColor = 'rgba(0, 0, 0, 0.5)',
+    arrowBackgroundColor = 'transparent',
     arrowBackgroundOpacity = 0.8,
     arrowBorderRadius = 8,
     arrowFontSize = 48,
@@ -243,6 +243,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     fadeOnceDetected,
     selectedColorSchemeName,
     overallControlsSource: overallControls ? 'from layout settings' : 'using defaults',
+    arrowBackgroundColor,
+    arrowTextColor,
     timestamp: Date.now()
   });
 
@@ -356,6 +358,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
   const [focusedImage, setFocusedImage] = useState<FocusedImageState | null>(null);
   const [imageReturningToScrapbook, setImageReturningToScrapbook] = useState<FocusedImageState | null>(null);
+  
+  // Video fade state - track opacity of videos by element ID
+  const [videoOpacity, setVideoOpacity] = useState<{[elementId: number]: number}>({});
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
   const [lastPutDownIndex, setLastPutDownIndex] = useState<number | null>(null);
   const [imageNaturalDimensions, setImageNaturalDimensions] = useState<NaturalImageDimensions[]>([]);
@@ -510,6 +515,15 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
     // Lightweight image preloading instead of heavy pre-rendering with DOM elements
     const preloadScrapbookImages = async () => {
+      // Check if scrapbook is disabled to prevent S3 costs
+      const isScrapbookDisabled = scrapbookLayoutControlsFromSettings?.scrapbookDisabled ?? false;
+      
+      if (isScrapbookDisabled) {
+        console.log('[SCRAPBOOK PRELOAD PREVIEW] ❌ Scrapbook is disabled, skipping preload to save S3 costs');
+        setScrapbookImagesPreRendered(true);
+        return;
+      }
+      
       console.log('[SCRAPBOOK PRELOAD PREVIEW] Starting lightweight preload of scrapbook images...');
       
       // Get scrapbook image sources
@@ -569,7 +583,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     return () => {
       clearTimeout(preloadTimeout);
     };
-  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookImagesPreRendered]);
+  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookImagesPreRendered, scrapbookLayoutControlsFromSettings]);
 
   // Cleanup pre-render container when component unmounts (no longer needed)
   useEffect(() => {
@@ -703,6 +717,47 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
       }
     }
   }, [currentAutoIndex, scrollToAutoElement, parallaxRef]);
+
+  // --- VIDEO FADE LOGIC ---
+  const handleVideoTimeUpdate = useCallback((elementId: number, event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.target as HTMLVideoElement;
+    const { currentTime, duration } = video;
+    
+    // Find the element to get its fade settings
+    const element = elementsFromBlueprint.find(el => el.id === elementId);
+    if (!element) return;
+    
+    const videoFolderName = generateElementFolderName(element);
+    const videoControls = elementControls[videoFolderName] || {};
+    const { enableVideoFade = true, videoFadeDuration = 1.5 } = videoControls;
+    
+    // Only apply fade logic if enabled
+    if (!enableVideoFade) {
+      setVideoOpacity(prev => ({ ...prev, [elementId]: 1 }));
+      return;
+    }
+    
+    if (duration > 0) {
+      const timeRemaining = duration - currentTime;
+      const fadeStartTime = videoFadeDuration; // Use custom fade duration
+      const fadeRestartTime = videoFadeDuration; // Use custom fade duration for restart
+      
+      if (timeRemaining <= fadeStartTime && timeRemaining > 0) {
+        // Fading out - near end of video
+        const fadeProgress = (fadeStartTime - timeRemaining) / fadeStartTime;
+        const opacity = 1 - fadeProgress;
+        setVideoOpacity(prev => ({ ...prev, [elementId]: opacity }));
+      } else if (currentTime <= fadeRestartTime) {
+        // Fading in - just after restart
+        const fadeProgress = currentTime / fadeRestartTime;
+        const opacity = fadeProgress;
+        setVideoOpacity(prev => ({ ...prev, [elementId]: opacity }));
+      } else {
+        // Normal playback - full opacity
+        setVideoOpacity(prev => ({ ...prev, [elementId]: 1 }));
+      }
+    }
+  }, [elementsFromBlueprint, elementControls]);
 
   const selectedColorScheme: WeddingColorScheme = weddingColorSchemes.find(scheme => scheme.name === selectedColorSchemeName) || weddingColorSchemes[0];
 
@@ -878,7 +933,28 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     setDisplayedImagesAndTheirData(images);
   }, []);
 
-  useEffect(() => { let isMounted = true; if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length) { if (isMounted) setImageNaturalDimensions([]); return; } const imagePaths = weddingDataFromApp.scrapbookImages.map((img: any) => img.fileName?.startsWith('http') ? img.fileName : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`); const dimsPromises = imagePaths.map((src: string) => new Promise<NaturalImageDimensions>(resolve => { if (!src) return resolve({ width: 0, height: 0, src: '' }); const img = new Image(); img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src }); img.onerror = () => resolve({ width: 0, height: 0, src }); img.src = src; })); Promise.all(dimsPromises).then(dims => { if (isMounted) setImageNaturalDimensions(dims); }); return () => { isMounted = false; }; }, [isScrapbookEnabled, weddingDataFromApp]);
+  useEffect(() => { 
+    let isMounted = true; 
+    
+    // Check if scrapbook is disabled to prevent S3 costs
+    const isScrapbookDisabled = scrapbookLayoutControlsFromSettings?.scrapbookDisabled ?? false;
+    
+    if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length || isScrapbookDisabled) { 
+      if (isMounted) setImageNaturalDimensions([]); 
+      return; 
+    } 
+    
+    const imagePaths = weddingDataFromApp.scrapbookImages.map((img: any) => img.fileName?.startsWith('http') ? img.fileName : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`); 
+    const dimsPromises = imagePaths.map((src: string) => new Promise<NaturalImageDimensions>(resolve => { 
+      if (!src) return resolve({ width: 0, height: 0, src: '' }); 
+      const img = new Image(); 
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight, src }); 
+      img.onerror = () => resolve({ width: 0, height: 0, src }); 
+      img.src = src; 
+    })); 
+    Promise.all(dimsPromises).then(dims => { if (isMounted) setImageNaturalDimensions(dims); }); 
+    return () => { isMounted = false; }; 
+  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookLayoutControlsFromSettings]);
   useEffect(() => { if (!isScrapbookEnabled) { if (focusedImage || imageReturningToScrapbook || pendingImageToFocus) { setFocusedImage(null); setImageReturningToScrapbook(null); setPendingImageToFocus(null); focusedImageApi.start({ opacity: 0, immediate: true }); } return; } if (focusedImage) { const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight); const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5); focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${top}px`, left: `${left}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' } }); } else if (imageReturningToScrapbook) { const { currentIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook; const targetEl = scrapbookImageRefs.current[currentIndex]; const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === currentIndex); if (targetEl && itemData) { const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(itemData.initialStyle.transform); const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0); focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } }); focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } }); } else { focusedImageApi.start({ opacity: 0, immediate: true }); setImageReturningToScrapbook(null); if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); } } } else { focusedImageApi.start({ opacity: 0, immediate: true }); } }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollYWithPhysics, activeSpringConfigGuest]);
   const handleCloseFocusedImage = useCallback((e: React.MouseEvent) => { e.stopPropagation(); if (focusedImage) { setImageReturningToScrapbook(focusedImage); setFocusedImage(null); setPendingImageToFocus(null); } }, [focusedImage]);
   const updateAndFocusNewImage = useCallback((newDisplayIndex: number): FocusedImageState | null => { if (!isScrapbookEnabled || !displayedImagesAndTheirData?.length) return null; const targetData = displayedImagesAndTheirData.find(d => d.displayIndex === newDisplayIndex); const targetEl = scrapbookImageRefs.current[newDisplayIndex]; if (!targetData || !targetEl) return null; let naturalDims = imageNaturalDimensions.find(dim => dim.src === targetData.src); if (!naturalDims?.width) { if (targetEl.naturalWidth > 0) naturalDims = { width: targetEl.naturalWidth, height: targetEl.naturalHeight, src: targetData.src }; else return null; } const rect = targetEl.getBoundingClientRect(); const baseRot = parseRotationFromStyle(targetData.initialStyle.transform); const dynamicRot = Math.sin(scrollYWithPhysics * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0); return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex }; }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollYWithPhysics]);
@@ -949,9 +1025,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               height: 'auto',
               borderRadius: '8px',
               objectFit: 'contain',
-              display: 'block'
+              display: 'block',
+              opacity: videoOpacity[el.id] ?? 1,
+              transition: 'opacity 0.3s ease-in-out'
             }}
             onError={(e) => console.error('Video playback error:', e)}
+            onTimeUpdate={(e) => handleVideoTimeUpdate(el.id, e)}
             onLoadedMetadata={(e) => {
               // Programmatic play for iOS Safari compatibility
               if (autoplay && muted) {
@@ -963,6 +1042,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                   });
                 }
               }
+              // Initialize opacity
+              setVideoOpacity(prev => ({ ...prev, [el.id]: 1 }));
             }}
           />
         );
@@ -999,9 +1080,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                 top: 0,
                 left: 0,
                 backgroundColor: '#000000',
-                backfaceVisibility: 'hidden' // Prevent rendering glitches
+                backfaceVisibility: 'hidden', // Prevent rendering glitches
+                opacity: videoOpacity[el.id] ?? 1,
+                transition: 'opacity 0.3s ease-in-out'
               }}
               onError={(e) => console.error('Background video playback error:', e)}
+              onTimeUpdate={(e) => handleVideoTimeUpdate(el.id, e)}
               onLoadedMetadata={(e) => {
                 // Programmatic play for iOS Safari compatibility
                 if (autoplay && muted) {
@@ -1013,6 +1097,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                     });
                   }
                 }
+                // Initialize opacity
+                setVideoOpacity(prev => ({ ...prev, [el.id]: 1 }));
               }}
             />
           </div>
@@ -1458,31 +1544,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               &#8594;
             </button>
 
-            {/* Auto Navigation Indicator */}
-            <div
-              style={{
-                position: 'fixed',
-                bottom: '30px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1200,
-                backgroundColor: 'rgba(0, 0, 0, 0.85)',
-                color: 'white',
-                padding: '12px 20px',
-                borderRadius: '25px',
-                fontSize: '16px',
-                fontWeight: '600',
-                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
-                pointerEvents: 'none',
-                userSelect: 'none',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backdropFilter: 'blur(10px)',
-                WebkitBackdropFilter: 'blur(10px)',
-                textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
-              }}
-            >
-              Auto {autoElements[currentAutoIndex]?.sequence || 1} of {autoElements.length}
-            </div>
+
             </>
           );
         })()}

@@ -353,54 +353,16 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const isScrapbookEnabled = useMemo(() => renderableElements.some(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
 
   // --- OVERALL CONTROLS ---
-  const [overallControls, setOverallControls] = useControls(() => ({
-        'Overall Controls (Guest)': folder({
-      showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
-      showScrollHint: { 
-        value: !experienceSettingsFromApp?.autoNavigationEnabled, 
-        label: 'Show Scroll Hint Arrow',
-        disabled: !!experienceSettingsFromApp?.autoNavigationEnabled 
-      },
-      scrollHintDuration: { value: 20, min: 5, max: 50, step: 5, label: 'Scroll Hint Duration (%)' },
-      fadeOnceDetected: { value: true, label: 'Fade Once Detected' },
-        springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Scrapbook Image Physics (Guest)' },
-        parallaxPhysicsPreset: { value: 'default', options: Object.keys(parallaxPhysicsPresets), label: 'Parallax Physics Preset (Guest)' },
-        colorScheme: { value: weddingColorSchemes[0].name, options: weddingColorSchemes.map(scheme => scheme.name), label: 'Color Scheme' },
-        overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
-        previewingLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
-        saveToLayoutSlot: { value: defaultLayoutSlotToLoad, options: [1, 2, 3, 4, 5], label: 'Save to Layout Slot' },
-        // Auto Navigation Controls
-        autoScrollDuration: { value: 4000, min: 1000, max: 10000, step: 500, label: 'Auto Scroll Duration (ms)' },
-        autoScrollEasing: { 
-          value: 'easeOut', 
-          options: ['easeOut', 'easeInOut', 'linear', 'bouncy'], 
-          label: 'Auto Scroll Easing' 
-        },
-        
-        // Auto Navigation Arrow Styling
-        arrowTextColor: { value: '#ffffff', label: 'Arrow Text Color' },
-        arrowBackgroundColor: { value: 'rgba(0, 0, 0, 0.5)', label: 'Arrow Background Color' },
-        arrowBackgroundOpacity: { value: 0.8, min: 0, max: 1, step: 0.05, label: 'Arrow Background Opacity' },
-        arrowBorderRadius: { value: 8, min: 0, max: 50, step: 1, label: 'Arrow Border Radius (px)' },
-        arrowFontSize: { value: 48, min: 24, max: 96, step: 2, label: 'Arrow Font Size (px)' },
-        arrowPadding: { value: 8, min: 0, max: 30, step: 1, label: 'Arrow Padding (px)' },
-        
-        // Arrow Text Shadow
-        arrowShadowEnabled: { value: true, label: 'Enable Arrow Text Shadow' },
-        arrowShadowColor: { value: 'rgba(0, 0, 0, 0.8)', label: 'Arrow Text Shadow Color' },
-        arrowShadowBlur: { value: 10, min: 0, max: 50, step: 1, label: 'Arrow Text Shadow Blur (px)' },
-        arrowShadowOffsetX: { value: 2, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset X (px)' },
-        arrowShadowOffsetY: { value: 4, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset Y (px)' },
-        
-        // Arrow Border/Outline  
-        arrowBorderEnabled: { value: false, label: 'Enable Arrow Border' },
-        arrowBorderColor: { value: '#ffffff', label: 'Arrow Border Color' },
-        arrowBorderWidth: { value: 2, min: 1, max: 10, step: 1, label: 'Arrow Border Width (px)' },
-        
-        // Arrow Backdrop Effects
-        arrowBackdropBlur: { value: 0, min: 0, max: 20, step: 1, label: 'Arrow Backdrop Blur (px)' },
-    }, { collapsed: true, render: () => isSetupMode }),
+  const [allOverallControlsForSaving, setAllOverallControlsForSaving] = useControls(() => ({
+    'Overall Controls (Guest)': folder(
+      overallControlsSchemaDefinitionGuest(isSetupMode),
+      { collapsed: true, render: () => isSetupMode }
+    ),
   }), [isSetupMode, defaultLayoutSlotToLoad]);
+
+  // Extract the actual controls object for saving (contains ALL properties)
+  const overallControls = allOverallControlsForSaving;
+  const setOverallControls = setAllOverallControlsForSaving;
   
   const {
     showHUD: showGlobalHUDEnabledGuest,
@@ -433,15 +395,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // Debug logging for auto navigation controls
   useEffect(() => {
-    console.log(`[AUTO_NAV] 🎛️ Auto navigation controls updated:`, {
-      autoScrollDuration,
-      autoScrollEasing,
-      overallControlsKeys: Object.keys(overallControls),
-      hasAutoScrollDuration: 'autoScrollDuration' in overallControls,
-      hasAutoScrollEasing: 'autoScrollEasing' in overallControls,
+    console.log(`[ARROW_COLOR_DEBUG] 🎨 Arrow styling values from useControls:`, {
+      arrowBackgroundColor,
+      arrowTextColor,
+      arrowBackgroundOpacity,
+      source: 'from Leva useControls',
       timestamp: Date.now()
     });
-  }, [autoScrollDuration, autoScrollEasing, overallControls]);
+  }, [arrowBackgroundColor, arrowTextColor, arrowBackgroundOpacity]);
 
   // --- LOCAL COMPONENT STATE ---
   const [scrollY, setScrollY] = useState(0);
@@ -467,15 +428,21 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   // --- FORM SUBMISSION TRACKING ---
   const [formSubmissions, setFormSubmissions] = useState<{[elementId: number]: boolean}>({});
   const [currentViewedAutoElement, setCurrentViewedAutoElement] = useState<number | null>(null);
+  const [effectTriggerCounter, setEffectTriggerCounter] = useState(0);
 
   // Form submission handlers
   const handleFormSubmission = useCallback((elementId: number) => {
-    console.log(`[FORM_SUBMISSION] ✅ Form submitted for element ${elementId}`);
-    setFormSubmissions(prev => ({
-      ...prev,
-      [elementId]: true
-    }));
-  }, []);
+    console.log(`[FORM_SUBMISSION] ✅ Form submitted for element ${elementId}`, {
+      elementId,
+      currentFormSubmissions: formSubmissions,
+      willUpdateTo: { ...formSubmissions, [elementId]: true }
+    });
+    setFormSubmissions(prev => {
+      const updated = { ...prev, [elementId]: true };
+      console.log(`[FORM_SUBMISSION] 🔄 Form submissions state updated:`, updated);
+      return updated;
+    });
+  }, [formSubmissions]);
 
   const handleRSVPSubmission = useCallback((elementId: number) => {
     console.log(`[FORM_SUBMISSION] 📝 RSVP Form submitted for element ${elementId}`);
@@ -486,6 +453,47 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     console.log(`[FORM_SUBMISSION] 💬 Prompt Form submitted for element ${elementId}`);
     handleFormSubmission(elementId);
   }, [handleFormSubmission]);
+
+  // --- VIDEO FADE LOGIC ---
+  const handleVideoTimeUpdate = useCallback((elementId: number, event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.target as HTMLVideoElement;
+    const { currentTime, duration } = video;
+    
+    // Find the element to get its fade settings
+    const element = elementsFromBlueprint.find(el => el.id === elementId);
+    if (!element) return;
+    
+    const videoFolderName = generateElementFolderName(element);
+    const videoControls = controlValues[videoFolderName] || {};
+    const { enableVideoFade = true, videoFadeDuration = 1.5 } = videoControls;
+    
+    // Only apply fade logic if enabled
+    if (!enableVideoFade) {
+      setVideoOpacity(prev => ({ ...prev, [elementId]: 1 }));
+      return;
+    }
+    
+    if (duration > 0) {
+      const timeRemaining = duration - currentTime;
+      const fadeStartTime = videoFadeDuration; // Use custom fade duration
+      const fadeRestartTime = videoFadeDuration; // Use custom fade duration for restart
+      
+      if (timeRemaining <= fadeStartTime && timeRemaining > 0) {
+        // Fading out - near end of video
+        const fadeProgress = (fadeStartTime - timeRemaining) / fadeStartTime;
+        const opacity = 1 - fadeProgress;
+        setVideoOpacity(prev => ({ ...prev, [elementId]: opacity }));
+      } else if (currentTime <= fadeRestartTime) {
+        // Fading in - just after restart
+        const fadeProgress = currentTime / fadeRestartTime;
+        const opacity = fadeProgress;
+        setVideoOpacity(prev => ({ ...prev, [elementId]: opacity }));
+      } else {
+        // Normal playback - full opacity
+        setVideoOpacity(prev => ({ ...prev, [elementId]: 1 }));
+      }
+    }
+  }, [elementsFromBlueprint, controlValues]);
 
   // --- REACT SPRING SCROLL ANIMATION ---
   // --- EASING FUNCTIONS ---
@@ -518,11 +526,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- CUSTOM SCROLL ANIMATION WITH LAYOUT SHIFT PROTECTION ---
   const animateScrollTo = useCallback((targetPosition: number, duration: number = 4000, easingType: string = 'easeOut') => {
-    console.log(`[AUTO_NAV] 🚀 animateScrollTo called:`, { targetPosition, duration, easingType });
+    // console.log(`[AUTO_NAV] 🚀 animateScrollTo called:`, { targetPosition, duration, easingType });
     
     const parallaxContainer = parallaxRef.current?.container.current;
     if (!parallaxContainer) {
-      console.log(`[AUTO_NAV] ❌ No parallax container found`);
+      // console.log(`[AUTO_NAV] ❌ No parallax container found`);
 
       setIsAutoScrolling(false);
       return;
@@ -536,13 +544,13 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     let lastScrollHeight = parallaxContainer.scrollHeight;
     let layoutShiftDetected = false;
 
-    console.log(`[AUTO_NAV] 🚀 Animation setup:`, {
-      startPosition,
-      targetPosition,
-      distance,
-      duration,
-      initialScrollHeight: lastScrollHeight
-    });
+    // console.log(`[AUTO_NAV] 🚀 Animation setup:`, {
+    //   startPosition,
+    //   targetPosition,
+    //   distance,
+    //   duration,
+    //   initialScrollHeight: lastScrollHeight
+    // });
 
     const easing = getEasingFunction(easingType);
 
@@ -555,12 +563,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       const currentScrollHeight = parallaxContainer.scrollHeight;
       if (currentScrollHeight !== lastScrollHeight) {
         layoutShiftDetected = true;
-        console.log(`[AUTO_NAV] ⚠️ Layout shift detected during animation:`, {
-          oldHeight: lastScrollHeight,
-          newHeight: currentScrollHeight,
-          heightDiff: currentScrollHeight - lastScrollHeight,
-          progress: Math.round(progress * 100) / 100
-        });
+        // console.log(`[AUTO_NAV] ⚠️ Layout shift detected during animation:`, {
+        //   oldHeight: lastScrollHeight,
+        //   newHeight: currentScrollHeight,
+        //   heightDiff: currentScrollHeight - lastScrollHeight,
+        //   progress: Math.round(progress * 100) / 100
+        // });
         lastScrollHeight = currentScrollHeight;
       }
       
@@ -576,26 +584,24 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       if (progress < 1) {
         requestAnimationFrame(animateFrame);
       } else {
-        console.log(`[AUTO_NAV] ✅ Animation completed!`, {
-          finalPosition: parallaxContainer.scrollTop,
-          targetWas: targetPosition,
-          layoutShiftsDetected: layoutShiftDetected,
-          finalScrollHeight: parallaxContainer.scrollHeight
-        });
+        // console.log(`[AUTO_NAV] ✅ Animation completed!`, {
+        //   finalPosition: parallaxContainer.scrollTop,
+        //   targetWas: targetPosition,
+        //   layoutShiftsDetected: layoutShiftDetected,
+        //   finalScrollHeight: parallaxContainer.scrollHeight
+        // });
 
         setIsAutoScrolling(false);
       }
     };
 
-    console.log(`[AUTO_NAV] ▶️ Starting animation with requestAnimationFrame`);
+    // console.log(`[AUTO_NAV] ▶️ Starting animation with requestAnimationFrame`);
     requestAnimationFrame(animateFrame);
   }, [getEasingFunction]);
 
   // --- AUTO NAVIGATION ARROW ANIMATIONS ---
   // Separate state for arrow scaling that lasts longer than isAutoScrolling
   const [arrowsInTransition, setArrowsInTransition] = useState(false);
-
-
 
   // Destructure scroll hint and arrow controls
   const { 
@@ -638,6 +644,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     opacity: arrowNormalOpacity || 1,
     config: config.wobbly,
   }));
+
+  // Simple state-based opacity with CSS transitions for arrow visibility
+  const [arrowOpacity, setArrowOpacity] = useState(1);
+  
+  // Track if arrows should be visible (for pointer events)
+  const [arrowsVisible, setArrowsVisible] = useState(true);
+
+
 
   // Start arrow transition when auto-scroll begins
   useEffect(() => {
@@ -770,22 +784,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           const maxScrollableHeight = (TOTAL_PAGES - 1) * windowHeight;
           const scrollProgress = maxScrollableHeight > 0 ? (currentScrollY / maxScrollableHeight) * 100 : 0;
 
-          console.log('[GUEST_EXP] 🔍 SCROLL EVENT DETAILED:', { 
-            currentScrollY, 
-            maxScrollableHeight, 
-            scrollProgress: scrollProgress.toFixed(2) + '%', 
-            scrollHintDuration: scrollHintDuration + '%',
-            hasUserScrolled,
-            showScrollHint,
-            fadeOnceDetected,
-            TOTAL_PAGES,
-            windowHeight,
-            scrolledMoreThan5px: currentScrollY > 5,
-            progressExceedsDuration: scrollProgress > scrollHintDuration,
-            willSetHasUserScrolled: !hasUserScrolled && currentScrollY > 5,
-            willSetShouldFadeHint: (!hasUserScrolled && currentScrollY > 5) && fadeOnceDetected,
-            timestamp: Date.now()
-          });
+          // console.log('[GUEST_EXP] 🔍 SCROLL EVENT DETAILED:', { currentScrollY, maxScrollableHeight, scrollProgress: scrollProgress.toFixed(2) + '%' }); // Commented out to reduce console spam
 
           if (!hasUserScrolled && currentScrollY > 5) {
             console.log('[GUEST_EXP] 🚨 User started scrolling! Setting hasUserScrolled to TRUE');
@@ -797,9 +796,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               console.log('[GUEST_EXP] ❌ fadeOnceDetected is FALSE - NOT setting shouldFadeHint');
             }
           } else if (hasUserScrolled) {
-            console.log('[GUEST_EXP] User has already scrolled (hasUserScrolled=true), currentScrollY:', currentScrollY);
+            // console.log('[GUEST_EXP] User has already scrolled (hasUserScrolled=true), currentScrollY:', currentScrollY); // Commented out to reduce spam
           } else {
-            console.log('[GUEST_EXP] User has not scrolled enough yet (currentScrollY <= 5):', currentScrollY);
+            // console.log('[GUEST_EXP] User has not scrolled enough yet (currentScrollY <= 5):', currentScrollY); // Commented out to reduce spam
           }
 
           if (scrollProgress > scrollHintDuration) {
@@ -982,6 +981,53 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [pendingImageToFocus, setPendingImageToFocus] = useState<FocusedImageState | null>(null);
   const [lastPutDownIndex, setLastPutDownIndex] = useState<number | null>(null);
   const [imageNaturalDimensions, setImageNaturalDimensions] = useState<NaturalImageDimensions[]>([]);
+  
+  // Video fade state - track opacity of videos by element ID
+  const [videoOpacity, setVideoOpacity] = useState<{[elementId: number]: number}>({});
+
+  // Debug effect to verify currentViewedAutoElement changes
+  // useEffect(() => {
+  //   console.log(`[FORM_ARROWS] 🔄 currentViewedAutoElement changed to:`, currentViewedAutoElement);
+  // }, [currentViewedAutoElement]);
+
+  // Update arrow visibility with smooth animation
+  useEffect(() => {
+    // Calculate visibility conditions
+    let shouldShowArrows = !!(experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage);
+    
+    // Hide arrows if we're currently viewing an unsubmitted form element
+    if (shouldShowArrows && currentViewedAutoElement) {
+      const currentElement = elementsFromBlueprint.find(el => el.id === currentViewedAutoElement);
+      if (currentElement && currentElement.type === 'component' && 
+          (currentElement.name === 'RSVP Form' || currentElement.name === 'Prompt Form')) {
+        const isSubmitted = formSubmissions[currentViewedAutoElement] || false;
+        if (!isSubmitted) {
+          shouldShowArrows = false;
+          // console.log(`[FORM_ARROWS] 🚫 DECISION: Hiding arrows - on unsubmitted ${currentElement.name} (element ${currentViewedAutoElement})`);
+        } else {
+          // console.log(`[FORM_ARROWS] ✅ DECISION: Keeping arrows - ${currentElement.name} has been submitted (element ${currentViewedAutoElement})`);
+        }
+      }
+    }
+
+    // console.log(`[FORM_ARROWS] 🎯 FINAL DECISION: shouldShowArrows =`, shouldShowArrows);
+    
+    // Simple state-based opacity change with smooth CSS transition
+    const targetOpacity = shouldShowArrows ? 1 : 0;
+    // console.log(`[FORM_ARROWS] 🚀 Setting arrow opacity to:`, targetOpacity);
+    setArrowOpacity(targetOpacity);
+    
+    // Update pointer events state
+    setArrowsVisible(!!shouldShowArrows);
+  }, [
+    experienceSettingsFromApp?.autoNavigationEnabled,
+    autoElements.length,
+    focusedImage,
+    currentViewedAutoElement,
+    elementsFromBlueprint,
+    formSubmissions
+  ]);
+
   const imageReturningToScrapbookRef = useRef(imageReturningToScrapbook);
   const pendingImageToFocusRef = useRef(pendingImageToFocus);
   const scrapbookImageRefs = useRef<(HTMLImageElement | null)[]>([]);
@@ -1036,7 +1082,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     console.log(`🚀 GuestExperience: DATA LOADING effect triggered`, {
       timestamp: Date.now(),
       hasInitialElementLayouts: !!weddingDataFromApp?.initialElementLayouts,
-      initialElementLayouts: weddingDataFromApp?.initialElementLayouts,
       weddingIdFromApp,
       isMobile,
       defaultLayoutSlotToLoad,
@@ -1044,11 +1089,18 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       willCallSwitchPreviewingSlotInStore: !weddingDataFromApp?.initialElementLayouts && !!weddingIdFromApp
     });
     
+    // LOG ARROW COLOR FROM INITIAL LAYOUTS
     if (weddingDataFromApp?.initialElementLayouts) {
-      console.log(`📂 GuestExperience: Calling loadLayoutSettingsFromDB with:`, weddingDataFromApp.initialElementLayouts);
+      console.log(`[ARROW_COLOR_DEBUG] 📂 Initial element layouts arrow data:`, {
+        hasOverallControls: !!weddingDataFromApp.initialElementLayouts['Overall Controls (Guest)'],
+        overallControls: weddingDataFromApp.initialElementLayouts['Overall Controls (Guest)'],
+        arrowBackgroundColor: weddingDataFromApp.initialElementLayouts['Overall Controls (Guest)']?.arrowBackgroundColor,
+        source: 'from initialElementLayouts',
+        timestamp: Date.now()
+      });
       loadLayoutSettingsFromDB(weddingDataFromApp.initialElementLayouts, defaultLayoutSlotToLoad);
     } else if (weddingIdFromApp) {
-      // console.log(`🔄 GuestExperience: Calling switchPreviewingSlotInStore for ${isMobile ? 'mobile' : 'desktop'} slot ${defaultLayoutSlotToLoad}`);
+      console.log(`[ARROW_COLOR_DEBUG] 🔄 No initial layouts, will fetch from server for ${isMobile ? 'mobile' : 'desktop'} slot ${defaultLayoutSlotToLoad}`);
       switchPreviewingSlotInStore(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', defaultLayoutSlotToLoad);
     }
   }, [weddingDataFromApp?.initialElementLayouts, weddingIdFromApp, isMobile, defaultLayoutSlotToLoad, loadLayoutSettingsFromDB, switchPreviewingSlotInStore]);
@@ -1257,6 +1309,17 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
     // Lightweight image preloading instead of heavy pre-rendering with DOM elements
     const preloadScrapbookImages = async () => {
+      // Check if scrapbook is disabled to prevent S3 costs - calculate locally to avoid initialization order issues
+      const currentScrapbookElement = renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook');
+      const currentScrapbookFolderName = currentScrapbookElement ? generateElementFolderName(currentScrapbookElement) : null;
+      const isScrapbookDisabled = currentScrapbookFolderName ? (controlValues[currentScrapbookFolderName]?.scrapbookDisabled ?? false) : false;
+      
+      if (isScrapbookDisabled) {
+        console.log('[SCRAPBOOK PRELOAD] ❌ Scrapbook is disabled, skipping preload to save S3 costs');
+        setScrapbookImagesPreRendered(true);
+        return;
+      }
+      
       console.log('[SCRAPBOOK PRELOAD] Starting lightweight preload of scrapbook images...');
       
       // Get scrapbook image sources
@@ -1316,7 +1379,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return () => {
       clearTimeout(preloadTimeout);
     };
-  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookImagesPreRendered]);
+  }, [isScrapbookEnabled, weddingDataFromApp, scrapbookImagesPreRendered, renderableElements, controlValues]);
 
   // Cleanup pre-render container when component unmounts (no longer needed)
   useEffect(() => {
@@ -1356,29 +1419,29 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   
   // --- AUTO NAVIGATION FUNCTIONS ---
   const scrollToAutoElement = useCallback((autoIndex: number) => {
-    console.log(`[AUTO_NAV] 🚀 scrollToAutoElement called with autoIndex: ${autoIndex}`, {
-      autoElementsLength: autoElements.length,
-      targetElementExists: !!autoElements[autoIndex],
-      isAutoScrolling,
-      autoScrollDuration,
-      autoScrollEasing,
-      animateScrollToExists: !!animateScrollTo
-    });
+    // console.log(`[AUTO_NAV] 🚀 scrollToAutoElement called with autoIndex: ${autoIndex}`, {
+    //   autoElementsLength: autoElements.length,
+    //   targetElementExists: !!autoElements[autoIndex],
+    //   isAutoScrolling,
+    //   autoScrollDuration,
+    //   autoScrollEasing,
+    //   animateScrollToExists: !!animateScrollTo
+    // });
     
     if (!autoElements[autoIndex]) {
-      console.log(`[AUTO_NAV] ❌ No auto element at index ${autoIndex}`);
+      // console.log(`[AUTO_NAV] ❌ No auto element at index ${autoIndex}`);
       return;
     }
     
     if (isAutoScrolling) {
-      console.log(`[AUTO_NAV] ❌ Already auto scrolling, skipping`);
+      // console.log(`[AUTO_NAV] ❌ Already auto scrolling, skipping`);
       return;
     }
     
     const targetElement = autoElements[autoIndex];
     const targetScrollPosition = targetElement.endPosition * windowHeight;
     
-    console.log(`[AUTO_NAV] 🚀 React Spring scrolling to auto element ${targetElement.sequence} (element ${targetElement.elementId}) at END position ${targetScrollPosition}px`);
+    // console.log(`[AUTO_NAV] 🚀 React Spring scrolling to auto element ${targetElement.sequence} (element ${targetElement.elementId}) at END position ${targetScrollPosition}px`);
     
     setIsAutoScrolling(true);
     setCurrentAutoIndex(autoIndex);
@@ -1388,20 +1451,20 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [autoElements, isAutoScrolling, windowHeight, autoScrollDuration, autoScrollEasing, animateScrollTo]);
 
   const handleAutoNext = useCallback(() => {
-    console.log(`[AUTO_NAV] 🔵 handleAutoNext clicked!`, {
-      currentAutoIndex,
-      autoElementsLength: autoElements.length,
-      canGoNext: currentAutoIndex < autoElements.length - 1,
-      isAutoScrolling,
-      autoElements: autoElements.map(el => ({ elementId: el.elementId, sequence: el.sequence }))
-    });
+    // console.log(`[AUTO_NAV] 🔵 handleAutoNext clicked!`, {
+    //   currentAutoIndex,
+    //   autoElementsLength: autoElements.length,
+    //   canGoNext: currentAutoIndex < autoElements.length - 1,
+    //   isAutoScrolling,
+    //   autoElements: autoElements.map(el => ({ elementId: el.elementId, sequence: el.sequence }))
+    // });
     
     if (currentAutoIndex < autoElements.length - 1) {
       const nextIndex = currentAutoIndex + 1;
-      console.log(`[AUTO_NAV] 🔵 Calling scrollToAutoElement with nextIndex: ${nextIndex}`);
+      // console.log(`[AUTO_NAV] 🔵 Calling scrollToAutoElement with nextIndex: ${nextIndex}`);
       scrollToAutoElement(nextIndex);
     } else {
-      console.log(`[AUTO_NAV] 🔵 Cannot go next - already at last element or beyond`);
+      // console.log(`[AUTO_NAV] 🔵 Cannot go next - already at last element or beyond`);
     }
   }, [currentAutoIndex, autoElements.length, scrollToAutoElement, isAutoScrolling, autoElements]);
 
@@ -1503,7 +1566,15 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     setSaveErrorMessage(null);
     console.log(`[SAVE] Attempting to save to slot ${currentSavingToSlot}...`);
     try {
-      const layoutSettings = { ...useLevaStore.getState().controlValues, "Overall Controls (Guest)": overallControls };
+      // Use only the full controlValues from the store
+      const layoutSettings = useLevaStore.getState().controlValues;
+      // LOG ARROW COLOR BEING SAVED
+      console.log(`[ARROW_COLOR_DEBUG] 💾 Saving arrow color data:`, {
+        currentArrowBackgroundColor: layoutSettings["Overall Controls (Guest)"]?.arrowBackgroundColor,
+        fullOverallControls: layoutSettings["Overall Controls (Guest)"] || {},
+        slot: currentSavingToSlot,
+        timestamp: Date.now()
+      });
       await useLevaStore.getState().saveSettingsToServer(weddingIdFromApp, isMobile ? 'mobile' : 'desktop', currentSavingToSlot, layoutSettings);
       setSaveSuccessMessage(`Layout saved to slot ${currentSavingToSlot}!`);
       setTimeout(() => setSaveSuccessMessage(null), 3000);
@@ -1538,26 +1609,44 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       setScrollY(currentScrollY);
       setScrollVelocity(velocity);
       
-      // Detect which auto element is currently in view
+      // Detect which auto element is currently in view - improved detection for forms
       if (autoElements.length > 0) {
         const currentScrollPercent = currentScrollY / windowHeight;
         let detectedElementId: number | null = null;
         
-        // Find which auto element we're closest to
+        // Find which auto element we're currently viewing
         for (let i = 0; i < autoElements.length; i++) {
-          const element = autoElements[i];
-          const elementPosition = element.endPosition;
+          const autoElement = autoElements[i];
+          const renderableElement = renderableElements.find(el => el.id === autoElement.elementId);
           
-          // Check if we're within the element's range (with some tolerance)
-          const tolerance = 0.5; // 0.5 page tolerance
-          if (currentScrollPercent >= elementPosition - tolerance && 
-              currentScrollPercent <= elementPosition + tolerance) {
-            detectedElementId = element.elementId;
-            break;
+          if (renderableElement) {
+            const elementStart = renderableElement.sticky.start;
+            const elementEnd = renderableElement.sticky.end;
+            
+            // Check if we're within the element's actual range (start to end)
+            if (currentScrollPercent >= elementStart && currentScrollPercent <= elementEnd) {
+              detectedElementId = autoElement.elementId;
+              
+              // Special logging for form elements
+              const elementBlueprint = elementsFromBlueprint.find(el => el.id === autoElement.elementId);
+              if (elementBlueprint && elementBlueprint.type === 'component' && 
+                  (elementBlueprint.name === 'RSVP Form' || elementBlueprint.name === 'Prompt Form')) {
+                // console.log(`[FORM_DETECTION] 🎯 Currently viewing ${elementBlueprint.name} (element ${autoElement.elementId})`, { scrollPercent: currentScrollPercent.toFixed(3), isSubmitted: formSubmissions[autoElement.elementId] || false }); // Commented out to reduce spam
+              }
+              break;
+            }
           }
         }
         
-        setCurrentViewedAutoElement(detectedElementId);
+        // Only update if the detected element has actually changed
+        if (detectedElementId !== currentViewedAutoElement) {
+          // console.log(`[AUTO_ELEMENT_DETECTION] 🔄 Setting currentViewedAutoElement:`, {
+          //   from: currentViewedAutoElement,
+          //   to: detectedElementId,
+          //   scrollPercent: currentScrollPercent.toFixed(3)
+          // });
+          setCurrentViewedAutoElement(detectedElementId);
+        }
       }
       
       lastScrollY.current = currentScrollY;
@@ -1566,13 +1655,23 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     
     parallaxContainer.addEventListener('scroll', handleScroll);
     return () => parallaxContainer.removeEventListener('scroll', handleScroll);
-  }, [parallaxRef.current]);
+  }, [autoElements, renderableElements, elementsFromBlueprint, formSubmissions, currentViewedAutoElement, windowHeight]);
 
   const handleDisplayedImagesUpdate = useCallback((newImageData: DisplayedImage[]) => setDisplayedImagesAndTheirData(newImageData), []);
 
   useEffect(() => {
     let isMounted = true;
-    if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length) { if (isMounted) setImageNaturalDimensions([]); return; }
+    
+    // Check if scrapbook is disabled to prevent S3 costs - calculate locally to avoid initialization order issues  
+    const currentScrapbookElement = renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook');
+    const currentScrapbookFolderName = currentScrapbookElement ? generateElementFolderName(currentScrapbookElement) : null;
+    const isScrapbookDisabled = currentScrapbookFolderName ? (controlValues[currentScrapbookFolderName]?.scrapbookDisabled ?? false) : false;
+    
+    if (!isScrapbookEnabled || !weddingDataFromApp?.scrapbookImages?.length || isScrapbookDisabled) { 
+      if (isMounted) setImageNaturalDimensions([]); 
+      return; 
+    }
+    
     const imagePaths = weddingDataFromApp.scrapbookImages.map((img: any) => img.fileName?.startsWith('http') ? img.fileName : `${weddingDataFromApp.scrapbookImageFolder.replace(/\/$/, '')}/${img.fileName.replace(/^\//, '')}`);
     const dimsPromises = imagePaths.map((src: string) => new Promise<NaturalImageDimensions>(resolve => {
       if (!src) return resolve({ width: 0, height: 0, src: '' });
@@ -1583,7 +1682,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     }));
     Promise.all(dimsPromises).then(dims => { if (isMounted) setImageNaturalDimensions(dims); });
     return () => { isMounted = false; };
-  }, [isScrapbookEnabled, weddingDataFromApp]);
+  }, [isScrapbookEnabled, weddingDataFromApp, renderableElements, controlValues]);
   
   useEffect(() => {
     if (!isScrapbookEnabled) {
@@ -1996,9 +2095,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                         height: 'auto',
                         borderRadius: '8px',
                         objectFit: 'contain',
-                        display: 'block'
+                        display: 'block',
+                        opacity: videoOpacity[element.id] ?? 1,
+                        transition: 'opacity 0.3s ease-in-out'
                       }}
                       onError={(e) => console.error('Video playback error:', e)}
+                      onTimeUpdate={(e) => handleVideoTimeUpdate(element.id, e)}
                       onLoadedMetadata={(e) => {
                         // Programmatic play for iOS Safari compatibility
                         if (autoplay && muted) {
@@ -2010,6 +2112,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                             });
                           }
                         }
+                        // Initialize opacity
+                        setVideoOpacity(prev => ({ ...prev, [element.id]: 1 }));
                       }}
                     />
                   );
@@ -2046,9 +2150,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                           top: 0,
                           left: 0,
                           backgroundColor: '#000000',
-                          backfaceVisibility: 'hidden' // Prevent rendering glitches
+                          backfaceVisibility: 'hidden', // Prevent rendering glitches
+                          opacity: videoOpacity[element.id] ?? 1,
+                          transition: 'opacity 0.3s ease-in-out'
                         }}
                         onError={(e) => console.error('Background video playback error:', e)}
+                        onTimeUpdate={(e) => handleVideoTimeUpdate(element.id, e)}
                         onLoadedMetadata={(e) => {
                           // Programmatic play for iOS Safari compatibility
                           if (autoplay && muted) {
@@ -2060,6 +2167,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                               });
                             }
                           }
+                          // Initialize opacity
+                          setVideoOpacity(prev => ({ ...prev, [element.id]: 1 }));
                         }}
                       />
                     </div>
@@ -2211,6 +2320,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
 
 
+
+
+
+
         {/* Auto Navigation Arrows */}
         {(() => {
           // Generate arrow styles from controls
@@ -2244,26 +2357,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             return baseStyle;
           };
 
-          // Show arrows if auto navigation is enabled AND we have auto elements AND no scrapbook image is focused
-          // AND we're not on an unsubmitted form element
-          let showDebugArrows = experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage;
-          
-          // Hide arrows if we're currently viewing an unsubmitted form element
-          if (showDebugArrows && currentViewedAutoElement) {
-            const currentElement = elementsFromBlueprint.find(el => el.id === currentViewedAutoElement);
-            if (currentElement && currentElement.type === 'component' && 
-                (currentElement.name === 'RSVP Form' || currentElement.name === 'Prompt Form')) {
-              const isSubmitted = formSubmissions[currentViewedAutoElement] || false;
-              if (!isSubmitted) {
-                showDebugArrows = false;
-                console.log(`[FORM_ARROWS] 🚫 Hiding arrows - on unsubmitted ${currentElement.name} (element ${currentViewedAutoElement})`);
-              } else {
-                console.log(`[FORM_ARROWS] ✅ Showing arrows - ${currentElement.name} has been submitted (element ${currentViewedAutoElement})`);
-              }
-            }
-          }
-          
-          if (showDebugArrows) {
+          // Always render arrows if auto navigation is enabled and we have auto elements
+          // Visibility is now controlled by animated opacity instead of conditional rendering
+          if (experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0) {
             return (
               <>
                 {/* Previous Arrow - Styled */}
@@ -2273,7 +2369,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     ...generateArrowStyle(currentAutoIndex === -1),
                     left: '20px',
                     transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: prevArrowSpring.opacity.to((o: number) => currentAutoIndex === -1 ? 0.3 : o * arrowBackgroundOpacity),
+                    opacity: arrowOpacity,
+                    transition: 'opacity 0.4s ease-in-out',
+                    pointerEvents: arrowsVisible ? 'auto' : 'none',
                   }}
                   disabled={currentAutoIndex === -1}
                 >
@@ -2287,33 +2385,16 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                     ...generateArrowStyle(currentAutoIndex >= autoElements.length - 1),
                     right: '20px',
                     transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: nextArrowSpring.opacity.to((o: number) => currentAutoIndex >= autoElements.length - 1 ? 0.3 : o * arrowBackgroundOpacity),
+                    opacity: arrowOpacity,
+                    transition: 'opacity 0.4s ease-in-out',
+                    pointerEvents: arrowsVisible ? 'auto' : 'none',
                   }}
                   disabled={currentAutoIndex >= autoElements.length - 1}
                 >
                   &#8594;
                 </animated.button>
 
-                {/* Auto Navigation Indicator - DEBUG */}
-                <div
-                  style={{
-                    position: 'fixed',
-                    bottom: '30px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 2000,
-                    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-                    color: 'white',
-                    padding: '15px 25px',
-                    borderRadius: '25px',
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    border: '2px solid white',
-                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
-                  }}
-                >
-                  {currentAutoIndex >= 0 ? `Auto ${autoElements[currentAutoIndex]?.sequence || 1} of ${autoElements.length}` : `Auto Navigation (${autoElements.length} elements)`}
-                </div>
+
               </>
             );
           } else {

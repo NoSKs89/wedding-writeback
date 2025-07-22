@@ -173,6 +173,17 @@ export const useLevaStore = create<LevaStoreState>()(
         const response = await axios.get(`${apiBase}/weddings/${weddingId}/layoutSettings/${viewType}`, {
           params: { slotNumber }
         });
+        
+        // LOG ARROW COLOR FROM SERVER RESPONSE
+        console.log(`[ARROW_COLOR_DEBUG] 🌐 Server response for slot ${slotNumber}:`, {
+          hasSettings: !!response.data.settings,
+          settingsKeys: response.data.settings ? Object.keys(response.data.settings) : 'none',
+          overallControls: response.data.settings?.['Overall Controls (Guest)'],
+          arrowBackgroundColor: response.data.settings?.['Overall Controls (Guest)']?.arrowBackgroundColor,
+          fullResponse: response.data,
+          timestamp: Date.now()
+        });
+        
         if (response.data.settings && Object.keys(response.data.settings).length > 0) {
           get().loadSettingsFromDB(response.data.settings, slotNumber);
         } else {
