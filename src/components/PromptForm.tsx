@@ -66,6 +66,7 @@ interface PromptFormProps {
   backendUrl: string;
   elementName?: string;
   styleControlsFromProp?: any;
+  onSubmit?: () => void; // Callback when form is successfully submitted
 }
 
 // Default styles for the form
@@ -83,7 +84,7 @@ export const promptFormControlsSchema = {
   formPadding: { value: 30, min: 10, max: 50, step: 1, label: 'Padding (px)' },
 };
 
-const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, backendUrl, elementName = 'Prompt Form', styleControlsFromProp = {} }, ref) => {
+const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, backendUrl, elementName = 'Prompt Form', styleControlsFromProp = {}, onSubmit }, ref) => {
   // console.log('[PROMPT FORM DEBUG] Component called with:', {
   //   weddingData: weddingData ? 'present' : 'missing',
   //   weddingId: weddingData?.customId || weddingData?.id,
@@ -295,6 +296,11 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
       const response = await axios.post(`${backendUrl}/prompt-responses`, payload);
       setFinalResponse(response.data);
       setSubmissionStatus('submitted');
+      
+      // Call the onSubmit callback if provided
+      if (onSubmit) {
+        onSubmit();
+      }
     } catch (err: any) {
       console.error("Error submitting prompt responses:", err);
       const errorMessage = err.response?.data?.message || 'There was an error submitting your responses. Please try again.';

@@ -49,6 +49,7 @@ interface RSVPFormProps {
   backendUrl: string;
   elementName?: string;
   styleControlsFromProp?: any;
+  onSubmit?: () => void; // Callback when form is successfully submitted
 }
 
 // Type for the selectedMeals state
@@ -88,7 +89,7 @@ export const rsvpFormControlsSchema = {
   canMakeItButtonEmoji: { value: '😄', label: "Can Make It Emoji"},
 };
 
-const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl, elementName = 'RSVP Form', styleControlsFromProp = {} }, ref) => {
+const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backendUrl, elementName = 'RSVP Form', styleControlsFromProp = {}, onSubmit }, ref) => {
   const weddingId = weddingData.customId || weddingData.id;
   const { isPlated = false, allowKids = true, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
@@ -460,6 +461,11 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       const response = await axios.post(backendUrl, payload);
       setFinalResponse(response.data);
       setSubmissionStatus('submitted');
+      
+      // Call the onSubmit callback if provided
+      if (onSubmit) {
+        onSubmit();
+      }
     } catch (err: any) {
       console.error("Error submitting RSVP:", err);
       const errorMessage = err.response?.data?.message || 'There was an error submitting your RSVP. Please try again.';

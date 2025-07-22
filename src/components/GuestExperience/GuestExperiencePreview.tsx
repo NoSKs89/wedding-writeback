@@ -1011,6 +1011,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               backendUrl={weddingDataFromApp.rsvpEndpoint}
               elementName={rsvpFolderName}
               styleControlsFromProp={elementControls[rsvpFolderName]}
+              onSubmit={() => console.log('[PREVIEW] RSVP Form submitted')}
             />
           );
         } else if (el.name === 'Prompt Form') {
@@ -1021,6 +1022,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               backendUrl={getApiBaseUrl()}
               elementName={promptFolderName}
               styleControlsFromProp={elementControls[promptFolderName]}
+              onSubmit={() => console.log('[PREVIEW] Prompt Form submitted')}
             />
           );
         } else if (el.name === 'Scrapbook') {

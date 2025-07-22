@@ -424,6 +424,29 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [autoElements, setAutoElements] = useState<Array<{elementId: number, sequence: number, endPosition: number}>>([]);
   const [isAutoScrolling, setIsAutoScrolling] = useState(false);
 
+  // --- FORM SUBMISSION TRACKING ---
+  const [formSubmissions, setFormSubmissions] = useState<{[elementId: number]: boolean}>({});
+  const [currentViewedAutoElement, setCurrentViewedAutoElement] = useState<number | null>(null);
+
+  // Form submission handlers
+  const handleFormSubmission = useCallback((elementId: number) => {
+    console.log(`[FORM_SUBMISSION] ✅ Form submitted for element ${elementId}`);
+    setFormSubmissions(prev => ({
+      ...prev,
+      [elementId]: true
+    }));
+  }, []);
+
+  const handleRSVPSubmission = useCallback((elementId: number) => {
+    console.log(`[FORM_SUBMISSION] 📝 RSVP Form submitted for element ${elementId}`);
+    handleFormSubmission(elementId);
+  }, [handleFormSubmission]);
+
+  const handlePromptSubmission = useCallback((elementId: number) => {
+    console.log(`[FORM_SUBMISSION] 💬 Prompt Form submitted for element ${elementId}`);
+    handleFormSubmission(elementId);
+  }, [handleFormSubmission]);
+
   // --- REACT SPRING SCROLL ANIMATION ---
   // --- EASING FUNCTIONS ---
   const getEasingFunction = (easingType: string) => {
@@ -1475,6 +1498,28 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       setScrollY(currentScrollY);
       setScrollVelocity(velocity);
       
+      // Detect which auto element is currently in view
+      if (autoElements.length > 0) {
+        const currentScrollPercent = currentScrollY / windowHeight;
+        let detectedElementId: number | null = null;
+        
+        // Find which auto element we're closest to
+        for (let i = 0; i < autoElements.length; i++) {
+          const element = autoElements[i];
+          const elementPosition = element.endPosition;
+          
+          // Check if we're within the element's range (with some tolerance)
+          const tolerance = 0.5; // 0.5 page tolerance
+          if (currentScrollPercent >= elementPosition - tolerance && 
+              currentScrollPercent <= elementPosition + tolerance) {
+            detectedElementId = element.elementId;
+            break;
+          }
+        }
+        
+        setCurrentViewedAutoElement(detectedElementId);
+      }
+      
       lastScrollY.current = currentScrollY;
       lastScrollTime.current = currentTime;
     };
@@ -1984,10 +2029,10 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 case 'component':
                   if (element.name === 'RSVP Form') {
                     const rsvpFolderName = generateElementFolderName(element);
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[rsvpFolderName]} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><RSVPForm weddingData={weddingDataWithEndpoint} backendUrl={weddingDataWithEndpoint.rsvpEndpoint} styleControlsFromProp={controlValues[rsvpFolderName]} onSubmit={() => handleRSVPSubmission(element.id)} /></div>;
                   } else if (element.name === 'Prompt Form') {
                     const promptFolderName = generateElementFolderName(element);
-                    contentToRender = <div style={{ pointerEvents: 'auto' }}><PromptForm weddingData={weddingDataWithEndpoint} backendUrl={getApiBaseUrl()} styleControlsFromProp={controlValues[promptFolderName]} /></div>;
+                    contentToRender = <div style={{ pointerEvents: 'auto' }}><PromptForm weddingData={weddingDataWithEndpoint} backendUrl={getApiBaseUrl()} styleControlsFromProp={controlValues[promptFolderName]} onSubmit={() => handlePromptSubmission(element.id)} /></div>;
                   } else if (element.name === 'Scrapbook') {
                     const scrapbookElementFolderName = generateElementFolderName(element);
                     contentToRender = <InteractiveScrapbook 
@@ -2129,7 +2174,23 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         {/* Auto Navigation Arrows */}
         {(() => {
           // Show arrows if auto navigation is enabled AND we have auto elements AND no scrapbook image is focused
-          const showDebugArrows = experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage;
+          // AND we're not on an unsubmitted form element
+          let showDebugArrows = experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage;
+          
+          // Hide arrows if we're currently viewing an unsubmitted form element
+          if (showDebugArrows && currentViewedAutoElement) {
+            const currentElement = elementsFromBlueprint.find(el => el.id === currentViewedAutoElement);
+            if (currentElement && currentElement.type === 'component' && 
+                (currentElement.name === 'RSVP Form' || currentElement.name === 'Prompt Form')) {
+              const isSubmitted = formSubmissions[currentViewedAutoElement] || false;
+              if (!isSubmitted) {
+                showDebugArrows = false;
+                console.log(`[FORM_ARROWS] 🚫 Hiding arrows - on unsubmitted ${currentElement.name} (element ${currentViewedAutoElement})`);
+              } else {
+                console.log(`[FORM_ARROWS] ✅ Showing arrows - ${currentElement.name} has been submitted (element ${currentViewedAutoElement})`);
+              }
+            }
+          }
           
           if (showDebugArrows) {
             return (
