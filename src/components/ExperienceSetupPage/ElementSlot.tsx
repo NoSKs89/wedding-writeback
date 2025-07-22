@@ -23,6 +23,7 @@ interface ElementSlotProps {
   onReorder: (elementId: number, direction: 'up' | 'down') => void;
   isFirst: boolean;
   isLast: boolean;
+  autoNavigationEnabled: boolean; // Controls whether Auto Nav dropdown is shown
 }
 
 const ElementSlot: React.FC<ElementSlotProps> = ({
@@ -37,6 +38,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   onReorder,
   isFirst,
   isLast,
+  autoNavigationEnabled,
 }) => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [textContent, setTextContent] = useState<string>(element.type === 'text' && typeof element.content === 'string' ? element.content : '');
@@ -442,7 +444,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
           </div>
         </div>
 
-        {element.type !== 'empty' && (
+        {element.type !== 'empty' && autoNavigationEnabled && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>
             <label style={{fontSize: '0.9rem'}}>Auto Nav:</label>
             <div style={selectContainerStyle}>

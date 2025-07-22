@@ -19,4 +19,5 @@ export interface ExperienceSettings {
   markers: TimelineMarker[];
   defaultLayoutSlotMobile?: number;
   defaultLayoutSlotDesktop?: number;
+  autoNavigationEnabled?: boolean;
 } 

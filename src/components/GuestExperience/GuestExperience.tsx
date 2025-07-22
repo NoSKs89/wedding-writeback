@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, CSSProperties } from 'react';
 import { Parallax, ParallaxLayer, IParallax, ParallaxLayerProps } from '@react-spring/parallax';
 import { useControls, folder } from 'leva';
-import { useSpring, animated } from 'react-spring';
+import { useSpring, animated, config } from 'react-spring';
 import { useDrag } from '@use-gesture/react';
 
 import RSVPForm from '../RSVPForm';
@@ -356,7 +356,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const [overallControls, setOverallControls] = useControls(() => ({
         'Overall Controls (Guest)': folder({
       showHUD: { value: false, label: 'Show Debug HUD (Guest)' },
-      showScrollHint: { value: true, label: 'Show Scroll Hint Arrow' },
+      showScrollHint: { 
+        value: !experienceSettingsFromApp?.autoNavigationEnabled, 
+        label: 'Show Scroll Hint Arrow',
+        disabled: !!experienceSettingsFromApp?.autoNavigationEnabled 
+      },
       scrollHintDuration: { value: 20, min: 5, max: 50, step: 5, label: 'Scroll Hint Duration (%)' },
       fadeOnceDetected: { value: true, label: 'Fade Once Detected' },
         springPreset: { value: 'default', options: Object.keys(springConfigPresets), label: 'Scrapbook Image Physics (Guest)' },
@@ -449,13 +453,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     }
   };
 
-  // --- CUSTOM SCROLL ANIMATION ---
+  // --- CUSTOM SCROLL ANIMATION WITH LAYOUT SHIFT PROTECTION ---
   const animateScrollTo = useCallback((targetPosition: number, duration: number = 4000, easingType: string = 'easeOut') => {
     console.log(`[AUTO_NAV] 🚀 animateScrollTo called:`, { targetPosition, duration, easingType });
     
     const parallaxContainer = parallaxRef.current?.container.current;
     if (!parallaxContainer) {
       console.log(`[AUTO_NAV] ❌ No parallax container found`);
+
       setIsAutoScrolling(false);
       return;
     }
@@ -463,12 +468,17 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     const startPosition = parallaxContainer.scrollTop;
     const distance = targetPosition - startPosition;
     const startTime = performance.now();
+    
+    // Track if layout shifts during animation
+    let lastScrollHeight = parallaxContainer.scrollHeight;
+    let layoutShiftDetected = false;
 
     console.log(`[AUTO_NAV] 🚀 Animation setup:`, {
       startPosition,
       targetPosition,
       distance,
-      duration
+      duration,
+      initialScrollHeight: lastScrollHeight
     });
 
     const easing = getEasingFunction(easingType);
@@ -478,21 +488,38 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       const progress = Math.min(elapsed / duration, 1);
       const easedProgress = easing(progress);
       
+      // Check for layout shifts (images loading, content changing)
+      const currentScrollHeight = parallaxContainer.scrollHeight;
+      if (currentScrollHeight !== lastScrollHeight) {
+        layoutShiftDetected = true;
+        console.log(`[AUTO_NAV] ⚠️ Layout shift detected during animation:`, {
+          oldHeight: lastScrollHeight,
+          newHeight: currentScrollHeight,
+          heightDiff: currentScrollHeight - lastScrollHeight,
+          progress: Math.round(progress * 100) / 100
+        });
+        lastScrollHeight = currentScrollHeight;
+      }
+      
       const currentPosition = startPosition + (distance * easedProgress);
       
-      console.log(`[AUTO_NAV] 🔄 Animation frame:`, {
-        elapsed: Math.round(elapsed),
-        progress: Math.round(progress * 100) / 100,
-        easedProgress: Math.round(easedProgress * 100) / 100,
-        currentPosition: Math.round(currentPosition)
-      });
+
       
-      parallaxContainer.scrollTop = currentPosition;
+      // Apply scroll with performance optimization
+      if (parallaxContainer.scrollTop !== currentPosition) {
+        parallaxContainer.scrollTop = currentPosition;
+      }
       
       if (progress < 1) {
         requestAnimationFrame(animateFrame);
       } else {
-        console.log(`[AUTO_NAV] ✅ Animation completed!`);
+        console.log(`[AUTO_NAV] ✅ Animation completed!`, {
+          finalPosition: parallaxContainer.scrollTop,
+          targetWas: targetPosition,
+          layoutShiftsDetected: layoutShiftDetected,
+          finalScrollHeight: parallaxContainer.scrollHeight
+        });
+
         setIsAutoScrolling(false);
       }
     };
@@ -501,12 +528,151 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     requestAnimationFrame(animateFrame);
   }, [getEasingFunction]);
 
-  // Destructure scroll hint controls
+  // --- AUTO NAVIGATION ARROW ANIMATIONS ---
+  // Separate state for arrow scaling that lasts longer than isAutoScrolling
+  const [arrowsInTransition, setArrowsInTransition] = useState(false);
+
+
+
+  // Destructure scroll hint and arrow controls
   const { 
     showScrollHint, 
     scrollHintDuration, 
-    fadeOnceDetected 
+    fadeOnceDetected,
+    // Auto Navigation Arrow Controls
+    arrowNormalScale,
+    arrowNormalOpacity,
+    arrowShrinkScale,
+    arrowBounceScale,
+    arrowAnimationSpeed,
+    arrowBounceSpeed,
+    arrowHoldDuration
   } = (overallControls as any) || {};
+
+  // Debug: Log control values on mount to verify they're accessible
+  useEffect(() => {
+    console.log(`[ARROW_CONTROLS] 🔧 Arrow controls detected:`, {
+      arrowNormalScale,
+      arrowNormalOpacity,
+      arrowShrinkScale,
+      arrowBounceScale,
+      arrowAnimationSpeed,
+      arrowBounceSpeed,
+      arrowHoldDuration,
+      overallControlsKeys: Object.keys(overallControls || {})
+    });
+  }, []);
+
+  // Spring animations for arrow scaling during auto-scroll (after controls are available)
+  const [prevArrowSpring, prevArrowApi] = useSpring(() => ({
+    scale: arrowNormalScale || 1,
+    opacity: arrowNormalOpacity || 1,
+    config: config.wobbly,
+  }));
+
+  const [nextArrowSpring, nextArrowApi] = useSpring(() => ({
+    scale: arrowNormalScale || 1,
+    opacity: arrowNormalOpacity || 1,
+    config: config.wobbly,
+  }));
+
+  // Start arrow transition when auto-scroll begins
+  useEffect(() => {
+    if (isAutoScrolling && !arrowsInTransition) {
+      setArrowsInTransition(true);
+    }
+  }, [isAutoScrolling, arrowsInTransition]);
+
+  // End arrow transition with delay after auto-scroll completes
+  useEffect(() => {
+    if (!isAutoScrolling && arrowsInTransition) {
+      const holdTime = arrowHoldDuration || 800;
+      const timer = setTimeout(() => {
+        setArrowsInTransition(false);
+      }, holdTime);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [isAutoScrolling, arrowsInTransition, arrowHoldDuration]);
+
+  // Animate arrows based on transition state (not just isAutoScrolling)
+  useEffect(() => {
+    if (arrowsInTransition) {
+      const shrinkScale = arrowShrinkScale || 0.001;
+      const animSpeed = arrowAnimationSpeed || 1200;
+      // Scale down EXTREMELY dramatically and KEEP IT SMALL
+      prevArrowApi.start({ 
+        scale: shrinkScale,
+        opacity: 0.3, // Slight fade during shrink
+        config: { ...config.wobbly, tension: animSpeed, friction: 15 }
+      });
+      nextArrowApi.start({ 
+        scale: shrinkScale,
+        opacity: 0.3,
+        config: { ...config.wobbly, tension: animSpeed, friction: 15 }
+      });
+    } else {
+      const bounceScale = arrowBounceScale || 1.5;
+      const bounceSpeed = arrowBounceSpeed || 180;
+      const normalScale = arrowNormalScale || 1.0;
+      const normalOpacity = arrowNormalOpacity || 1.0;
+      
+      // When transition completes: bounce MUCH BIGGER then settle to normal
+      prevArrowApi.start({ 
+        scale: bounceScale,
+        opacity: normalOpacity,
+        config: { ...config.wobbly, tension: bounceSpeed, friction: 8 },
+        onRest: () => {
+          prevArrowApi.start({ 
+            scale: normalScale,
+            opacity: normalOpacity,
+            config: { ...config.wobbly, tension: 250, friction: 15 }
+          });
+        }
+      });
+      nextArrowApi.start({ 
+        scale: bounceScale,
+        opacity: normalOpacity,
+        config: { ...config.wobbly, tension: bounceSpeed, friction: 8 },
+        onRest: () => {
+          nextArrowApi.start({ 
+            scale: normalScale,
+            opacity: normalOpacity,
+            config: { ...config.wobbly, tension: 250, friction: 15 }
+          });
+        }
+      });
+    }
+  }, [arrowsInTransition, prevArrowApi, nextArrowApi, arrowShrinkScale, arrowAnimationSpeed, arrowBounceScale, arrowBounceSpeed, arrowNormalScale, arrowNormalOpacity]);
+
+  // Update arrows to normal scale/opacity when controls change (but not during animation)
+  useEffect(() => {
+    if (!arrowsInTransition && !isAutoScrolling) {
+      const normalScale = arrowNormalScale || 1.0;
+      const normalOpacity = arrowNormalOpacity || 1.0;
+      
+      console.log(`[ARROW_CONTROLS] 🎛️ Updating arrows with control values:`, {
+        normalScale,
+        normalOpacity,
+        shrinkScale: arrowShrinkScale || 0.001,
+        bounceScale: arrowBounceScale || 1.5,
+        animSpeed: arrowAnimationSpeed || 1200,
+        bounceSpeed: arrowBounceSpeed || 180,
+        holdDuration: arrowHoldDuration || 800
+      });
+      
+      prevArrowApi.start({ 
+        scale: normalScale,
+        opacity: normalOpacity,
+        config: config.gentle 
+      });
+      nextArrowApi.start({ 
+        scale: normalScale,
+        opacity: normalOpacity,
+        config: config.gentle 
+      });
+    }
+  }, [arrowNormalScale, arrowNormalOpacity, arrowShrinkScale, arrowBounceScale, arrowAnimationSpeed, arrowBounceSpeed, arrowHoldDuration, arrowsInTransition, isAutoScrolling, prevArrowApi, nextArrowApi]);
 
   // Simple scroll detection for hint
   useEffect(() => {
@@ -1695,6 +1861,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             transform: 'translateZ(0)', // Force GPU acceleration
             WebkitTransform: 'translateZ(0)',
             willChange: 'scroll-position, transform',
+            // Performance optimizations during auto-scroll
+            ...(isAutoScrolling && {
+              contain: 'layout style paint', // Optimize layout calculations during animation
+              contentVisibility: 'auto', // Optimize off-screen content rendering
+            }),
             // Hide scrollbars for webkit browsers (Chrome, Safari, most mobile browsers)
             ...(isMobile ? {
               scrollbarWidth: 'none', // Firefox
@@ -1834,6 +2005,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
                       TOTAL_PAGES={TOTAL_PAGES}
                       elementSticky={element.sticky}
+
                     />;
                   } else if (element.name === 'Bottom Navbar') {
                     // Bottom Navbar renders outside parallax but we need ElementWrapper for controls
@@ -1937,22 +2109,11 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
         {/* Scroll Hint */}
         {(() => {
-          console.log('[GUEST_EXP] 🎯 About to render ScrollHint with props:', {
-            isVisible: showScrollHintVisible,
-            shouldFade: shouldFadeHint,
-            fadeOnceDetected: fadeOnceDetected,
-            currentState: {
-              hasUserScrolled,
-              showScrollHint,
-              scrollHintDuration
-            },
-            controlValues: {
-              showScrollHint: overallControls.showScrollHint,
-              scrollHintDuration: overallControls.scrollHintDuration,
-              fadeOnceDetected: overallControls.fadeOnceDetected
-            },
-            timestamp: Date.now()
-          });
+          // Don't show scroll hint if auto navigation is enabled
+          if (experienceSettingsFromApp?.autoNavigationEnabled) {
+            return null;
+          }
+          
           return (
             <ScrollHint 
               isVisible={showScrollHintVisible}
@@ -1963,104 +2124,61 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           );
         })()}
 
-        {/* Auto Navigation Arrows - DEBUG VERSION */}
-        {(() => {
-          console.log('[AUTO_NAV_DEBUG] Arrow rendering check:', {
-            autoNavigationEnabled,
-            autoElementsLength: autoElements.length,
-            autoElements,
-            currentAutoIndex,
-            willShowArrows: autoNavigationEnabled && autoElements.length > 1,
-            elementsFromBlueprint: elementsFromBlueprint.map(el => ({ 
-              id: el.id, 
-              type: el.type, 
-              name: el.name, 
-              autoSequence: el.autoSequence 
-            })),
-            timestamp: Date.now()
-          });
 
-          // Show arrows if we have ANY auto elements (even if just 1 for testing)
-          const showDebugArrows = autoElements.length > 0;
+
+        {/* Auto Navigation Arrows */}
+        {(() => {
+          // Show arrows if auto navigation is enabled AND we have auto elements AND no scrapbook image is focused
+          const showDebugArrows = experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage;
           
           if (showDebugArrows) {
-            console.log('[AUTO_NAV_DEBUG] ✅ SHOWING DEBUG ARROWS');
             return (
               <>
-                {/* DEBUG Info Bar */}
-                <div
-                  style={{
-                    position: 'fixed',
-                    top: '10px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 2000,
-                    backgroundColor: 'rgba(0, 150, 0, 0.9)',
-                    color: 'white',
-                    padding: '10px 20px',
-                    borderRadius: '5px',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    pointerEvents: 'none',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                  }}
-                >
-                  ✅ AUTO NAV WORKING: {autoElements.length} element{autoElements.length !== 1 ? 's' : ''} found
-                </div>
-
-                {/* Previous Arrow - DEBUG */}
-                <button
+                {/* Previous Arrow - Animated White */}
+                <animated.button
                   onClick={handleAutoPrevious}
                   style={{
                     position: 'fixed',
                     left: '20px',
                     top: '50%',
-                    transform: 'translateY(-50%)',
+                    transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
+                    opacity: prevArrowSpring.opacity.to((o: number) => currentAutoIndex === -1 ? 0.3 : o),
                     zIndex: 2000,
-                                            backgroundColor: currentAutoIndex === -1 ? '#999' : '#007bff',
+                    background: 'none',
+                    border: 'none',
                     color: 'white',
-                    border: '3px solid white',
-                    borderRadius: '50%',
-                    width: '80px',
-                    height: '80px',
-                    fontSize: '30px',
-                                            cursor: currentAutoIndex === -1 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
-                                            opacity: currentAutoIndex === -1 ? 0.6 : 1,
+                    fontSize: '48px',
+                    cursor: currentAutoIndex === -1 ? 'not-allowed' : 'pointer',
+                    padding: '8px',
+                    lineHeight: 1,
                   }}
+                  disabled={currentAutoIndex === -1}
                 >
                   &#8592;
-                </button>
+                </animated.button>
 
-                {/* Next Arrow - DEBUG */}
-                <button
+                {/* Next Arrow - Animated White */}
+                <animated.button
                   onClick={handleAutoNext}
                   style={{
                     position: 'fixed',
                     right: '20px',
                     top: '50%',
-                    transform: 'translateY(-50%)',
+                    transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
+                    opacity: nextArrowSpring.opacity.to((o: number) => currentAutoIndex >= autoElements.length - 1 ? 0.3 : o),
                     zIndex: 2000,
-                    backgroundColor: currentAutoIndex >= autoElements.length - 1 ? '#999' : '#28a745',
+                    background: 'none',
+                    border: 'none',
                     color: 'white',
-                    border: '3px solid white',
-                    borderRadius: '50%',
-                    width: '80px',
-                    height: '80px',
-                    fontSize: '30px',
+                    fontSize: '48px',
                     cursor: currentAutoIndex >= autoElements.length - 1 ? 'not-allowed' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.4)',
-                    opacity: currentAutoIndex >= autoElements.length - 1 ? 0.6 : 1,
+                    padding: '8px',
+                    lineHeight: 1,
                   }}
+                  disabled={currentAutoIndex >= autoElements.length - 1}
                 >
                   &#8594;
-                </button>
+                </animated.button>
 
                 {/* Auto Navigation Indicator - DEBUG */}
                 <div
@@ -2085,40 +2203,51 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               </>
             );
           } else {
-            console.log('[AUTO_NAV_DEBUG] ❌ NO AUTO ELEMENTS - Checking elementsFromBlueprint');
-            console.table(elementsFromBlueprint.map(el => ({ 
-              id: el.id, 
-              type: el.type, 
-              name: el.name, 
-              autoSequence: el.autoSequence,
-              hasAutoSequence: 'autoSequence' in el
-            })));
+            if (focusedImage) {
+              console.log('[AUTO_NAV_DEBUG] 🖼️ HIDING AUTO ARROWS - Scrapbook image is focused');
+            } else {
+              console.log('[AUTO_NAV_DEBUG] ❌ NO AUTO ELEMENTS - Checking elementsFromBlueprint');
+              console.table(elementsFromBlueprint.map(el => ({ 
+                id: el.id, 
+                type: el.type, 
+                name: el.name, 
+                autoSequence: el.autoSequence,
+                hasAutoSequence: 'autoSequence' in el
+              })));
+            }
             
-            return (
-              <div
-                style={{
-                  position: 'fixed',
-                  top: '10px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  zIndex: 2000,
-                  backgroundColor: 'rgba(255, 140, 0, 0.9)',
-                  color: 'white',
-                  padding: '15px 25px',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  textAlign: 'center',
-                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                  maxWidth: '400px',
-                }}
-              >
-                ⚠️ No Auto Elements Found<br/>
-                <small style={{ fontSize: '12px', fontWeight: 'normal' }}>
-                  Check setup page and click "Save Configuration"
-                </small>
-              </div>
-            );
+                          // Only show "No Auto Elements Found" message if there are truly no auto elements
+              // Don't show it when arrows are hidden due to focused scrapbook image
+              if (!focusedImage && autoElements.length === 0) {
+                return (
+                  <div
+                    style={{
+                      position: 'fixed',
+                      top: '10px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 2000,
+                      backgroundColor: 'rgba(255, 140, 0, 0.9)',
+                      color: 'white',
+                      padding: '15px 25px',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                      maxWidth: '400px',
+                    }}
+                  >
+                    ⚠️ No Auto Elements Found<br/>
+                    <small style={{ fontSize: '12px', fontWeight: 'normal' }}>
+                      Check setup page and click "Save Configuration"
+                    </small>
+                  </div>
+                );
+              }
+              
+              // If scrapbook image is focused, return null (hide arrows without warning message)
+              return null;
           }
         })()}
       </>

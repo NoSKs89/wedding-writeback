@@ -41,6 +41,7 @@ export interface ExperienceSettings {
   timelineLength: number;
   defaultLayoutSlotDesktop: number;
   defaultLayoutSlotMobile: number;
+  autoNavigationEnabled: boolean;
 }
 
 // Define an interface for the wedding data based on the provided structure
@@ -196,6 +197,7 @@ const ExperienceSetupPage: React.FC = () => {
   const [focusedElementId, setFocusedElementId] = useState<number | null>(null); // New state for focused element
   const [defaultLayoutSlotDesktop, setDefaultLayoutSlotDesktop] = useState<number>(1); // CHANGED
   const [defaultLayoutSlotMobile, setDefaultLayoutSlotMobile] = useState<number>(1); // ADDED
+  const [autoNavigationEnabled, setAutoNavigationEnabled] = useState<boolean>(false); // Auto Navigation toggle
 
   // State for mobile and landscape detection
   const [isMobile, setIsMobile] = useState(false);
@@ -252,12 +254,13 @@ const ExperienceSetupPage: React.FC = () => {
             const apiBase = getApiBaseUrl();
             const settingsResponse = await axios.get<{ data: ExperienceSettings }>(`${apiBase}/weddings/${weddingId}/experience-settings`);
             if (settingsResponse.data && settingsResponse.data.data) {
-              const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength, defaultLayoutSlotDesktop: savedDefaultLayoutSlotDesktop, defaultLayoutSlotMobile: savedDefaultLayoutSlotMobile } = settingsResponse.data.data;
+              const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength, defaultLayoutSlotDesktop: savedDefaultLayoutSlotDesktop, defaultLayoutSlotMobile: savedDefaultLayoutSlotMobile, autoNavigationEnabled: savedAutoNavigationEnabled } = settingsResponse.data.data;
               setElements(savedElements);
               setMarkers(savedMarkers);
               setTimelineLength(savedTimelineLength);
               setDefaultLayoutSlotDesktop(savedDefaultLayoutSlotDesktop || 1);
               setDefaultLayoutSlotMobile(savedDefaultLayoutSlotMobile || 1);
+              setAutoNavigationEnabled(savedAutoNavigationEnabled || false);
               console.log('Successfully loaded experience settings from server.');
             } else {
               // No saved settings, generate initial ones
@@ -267,6 +270,7 @@ const ExperienceSetupPage: React.FC = () => {
               setTimelineLength(INITIAL_TIMELINE_LENGTH);
               setDefaultLayoutSlotDesktop(1);
               setDefaultLayoutSlotMobile(1);
+              setAutoNavigationEnabled(false);
             }
           } catch (error) {
             console.warn('No experience settings found on server, generating defaults.', error);
@@ -277,6 +281,7 @@ const ExperienceSetupPage: React.FC = () => {
             setTimelineLength(INITIAL_TIMELINE_LENGTH);
             setDefaultLayoutSlotDesktop(1);
             setDefaultLayoutSlotMobile(1);
+            setAutoNavigationEnabled(false);
           }
         }
         setIsLoadingExperienceSettings(false);
@@ -644,6 +649,7 @@ const ExperienceSetupPage: React.FC = () => {
       timelineLength,
       defaultLayoutSlotDesktop,
       defaultLayoutSlotMobile,
+      autoNavigationEnabled,
     };
 
     try {
@@ -748,6 +754,17 @@ const ExperienceSetupPage: React.FC = () => {
                       <option key={slot} value={slot}>Slot {slot}</option>
                   ))}
                   </select>
+              </div>
+              <div>
+                  <label htmlFor="autoNavigationEnabled" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                          type="checkbox"
+                          id="autoNavigationEnabled"
+                          checked={autoNavigationEnabled}
+                          onChange={(e) => setAutoNavigationEnabled(e.target.checked)}
+                      />
+                      Enable 'Auto' Navigation
+                  </label>
               </div>
           </div>
         </div>
@@ -882,6 +899,7 @@ const ExperienceSetupPage: React.FC = () => {
                       onReorder={handleReorderElement}
                       isFirst={index === 0}
                       isLast={index === elements.length - 1}
+                      autoNavigationEnabled={autoNavigationEnabled}
                     />
                   </div>
                 );

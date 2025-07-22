@@ -160,6 +160,15 @@ export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boo
     overallFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Global Font Family' },
     previewingLayoutSlot: { value: 1, options: [1, 2, 3, 4, 5], label: 'Previewing Layout Slot' },
     saveToLayoutSlot: { value: 1, options: [1, 2, 3, 4, 5], label: 'Save to Layout Slot' },
+    
+    // Auto Navigation Arrow Controls
+    arrowNormalScale: { value: 1.0, min: 0.2, max: 3.0, step: 0.1, label: 'Arrow Normal Scale' },
+    arrowNormalOpacity: { value: 1.0, min: 0.1, max: 1.0, step: 0.05, label: 'Arrow Normal Opacity' },
+    arrowShrinkScale: { value: 0.001, min: 0.001, max: 0.5, step: 0.001, label: 'Arrow Shrink Scale' },
+    arrowBounceScale: { value: 1.5, min: 1.0, max: 3.0, step: 0.1, label: 'Arrow Bounce Scale' },
+    arrowAnimationSpeed: { value: 1200, min: 100, max: 2000, step: 50, label: 'Arrow Animation Speed' },
+    arrowBounceSpeed: { value: 180, min: 50, max: 500, step: 10, label: 'Arrow Bounce Speed' },
+    arrowHoldDuration: { value: 800, min: 200, max: 2000, step: 100, label: 'Arrow Hold Duration (ms)' },
 });
 
 export const getElementSchema = (element: any, globalFontFamilyFromStore: any) => {
