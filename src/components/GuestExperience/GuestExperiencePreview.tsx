@@ -1492,7 +1492,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               fontSize: `${arrowFontSize}px`,
               padding: `${arrowPadding}px`,
               borderRadius: `${arrowBorderRadius}px`,
-              background: arrowBackgroundColor,
+              background: 'transparent',
               opacity: isDisabled ? 0.3 : arrowBackgroundOpacity,
               backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
               WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',

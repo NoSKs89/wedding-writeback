@@ -2339,7 +2339,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               fontSize: `${arrowFontSize}px`,
               padding: `${arrowPadding}px`,
               borderRadius: `${arrowBorderRadius}px`,
-              background: arrowBackgroundColor,
+              background: 'transparent',
               backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
               WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
             };

@@ -176,7 +176,6 @@ export const overallControlsSchemaDefinitionGuest = (isSetupModeFromContext: boo
     
     // Auto Navigation Arrow Styling
     arrowTextColor: { value: '#ffffff', label: 'Arrow Text Color' },
-    arrowBackgroundColor: { value: 'rgba(0, 0, 0, 0.5)', label: 'Arrow Background Color' },
     arrowBackgroundOpacity: { value: 0.8, min: 0, max: 1, step: 0.05, label: 'Arrow Background Opacity' },
     arrowBorderRadius: { value: 8, min: 0, max: 50, step: 1, label: 'Arrow Border Radius (px)' },
     arrowFontSize: { value: 48, min: 24, max: 96, step: 2, label: 'Arrow Font Size (px)' },
