@@ -376,6 +376,29 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           options: ['easeOut', 'easeInOut', 'linear', 'bouncy'], 
           label: 'Auto Scroll Easing' 
         },
+        
+        // Auto Navigation Arrow Styling
+        arrowTextColor: { value: '#ffffff', label: 'Arrow Text Color' },
+        arrowBackgroundColor: { value: 'rgba(0, 0, 0, 0.5)', label: 'Arrow Background Color' },
+        arrowBackgroundOpacity: { value: 0.8, min: 0, max: 1, step: 0.05, label: 'Arrow Background Opacity' },
+        arrowBorderRadius: { value: 8, min: 0, max: 50, step: 1, label: 'Arrow Border Radius (px)' },
+        arrowFontSize: { value: 48, min: 24, max: 96, step: 2, label: 'Arrow Font Size (px)' },
+        arrowPadding: { value: 8, min: 0, max: 30, step: 1, label: 'Arrow Padding (px)' },
+        
+        // Arrow Text Shadow
+        arrowShadowEnabled: { value: true, label: 'Enable Arrow Text Shadow' },
+        arrowShadowColor: { value: 'rgba(0, 0, 0, 0.8)', label: 'Arrow Text Shadow Color' },
+        arrowShadowBlur: { value: 10, min: 0, max: 50, step: 1, label: 'Arrow Text Shadow Blur (px)' },
+        arrowShadowOffsetX: { value: 2, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset X (px)' },
+        arrowShadowOffsetY: { value: 4, min: -20, max: 20, step: 1, label: 'Arrow Text Shadow Offset Y (px)' },
+        
+        // Arrow Border/Outline  
+        arrowBorderEnabled: { value: false, label: 'Enable Arrow Border' },
+        arrowBorderColor: { value: '#ffffff', label: 'Arrow Border Color' },
+        arrowBorderWidth: { value: 2, min: 1, max: 10, step: 1, label: 'Arrow Border Width (px)' },
+        
+        // Arrow Backdrop Effects
+        arrowBackdropBlur: { value: 0, min: 0, max: 20, step: 1, label: 'Arrow Backdrop Blur (px)' },
     }, { collapsed: true, render: () => isSetupMode }),
   }), [isSetupMode, defaultLayoutSlotToLoad]);
   
@@ -389,6 +412,23 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     saveToLayoutSlot,
     autoScrollDuration,
     autoScrollEasing,
+    
+    // Arrow styling controls
+    arrowTextColor,
+    arrowBackgroundColor,
+    arrowBackgroundOpacity,
+    arrowBorderRadius,
+    arrowFontSize,
+    arrowPadding,
+    arrowShadowEnabled,
+    arrowShadowColor,
+    arrowShadowBlur,
+    arrowShadowOffsetX,
+    arrowShadowOffsetY,
+    arrowBorderEnabled,
+    arrowBorderColor,
+    arrowBorderWidth,
+    arrowBackdropBlur,
   } = overallControls;
 
   // Debug logging for auto navigation controls
@@ -2173,6 +2213,37 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
         {/* Auto Navigation Arrows */}
         {(() => {
+          // Generate arrow styles from controls
+          const generateArrowStyle = (isDisabled: boolean) => {
+            const baseStyle: React.CSSProperties = {
+              position: 'fixed',
+              top: '50%',
+              zIndex: 2000,
+              border: 'none',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              lineHeight: 1,
+              color: arrowTextColor,
+              fontSize: `${arrowFontSize}px`,
+              padding: `${arrowPadding}px`,
+              borderRadius: `${arrowBorderRadius}px`,
+              background: arrowBackgroundColor,
+              backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+              WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+            };
+
+            // Apply text shadow if enabled (shadow on the arrow symbol itself)
+            if (arrowShadowEnabled) {
+              baseStyle.textShadow = `${arrowShadowOffsetX}px ${arrowShadowOffsetY}px ${arrowShadowBlur}px ${arrowShadowColor}`;
+            }
+
+            // Apply border if enabled
+            if (arrowBorderEnabled) {
+              baseStyle.border = `${arrowBorderWidth}px solid ${arrowBorderColor}`;
+            }
+
+            return baseStyle;
+          };
+
           // Show arrows if auto navigation is enabled AND we have auto elements AND no scrapbook image is focused
           // AND we're not on an unsubmitted form element
           let showDebugArrows = experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0 && !focusedImage;
@@ -2195,46 +2266,28 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           if (showDebugArrows) {
             return (
               <>
-                {/* Previous Arrow - Animated White */}
+                {/* Previous Arrow - Styled */}
                 <animated.button
                   onClick={handleAutoPrevious}
                   style={{
-                    position: 'fixed',
+                    ...generateArrowStyle(currentAutoIndex === -1),
                     left: '20px',
-                    top: '50%',
                     transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: prevArrowSpring.opacity.to((o: number) => currentAutoIndex === -1 ? 0.3 : o),
-                    zIndex: 2000,
-                    background: 'none',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '48px',
-                    cursor: currentAutoIndex === -1 ? 'not-allowed' : 'pointer',
-                    padding: '8px',
-                    lineHeight: 1,
+                    opacity: prevArrowSpring.opacity.to((o: number) => currentAutoIndex === -1 ? 0.3 : o * arrowBackgroundOpacity),
                   }}
                   disabled={currentAutoIndex === -1}
                 >
                   &#8592;
                 </animated.button>
 
-                {/* Next Arrow - Animated White */}
+                {/* Next Arrow - Styled */}
                 <animated.button
                   onClick={handleAutoNext}
                   style={{
-                    position: 'fixed',
+                    ...generateArrowStyle(currentAutoIndex >= autoElements.length - 1),
                     right: '20px',
-                    top: '50%',
                     transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: nextArrowSpring.opacity.to((o: number) => currentAutoIndex >= autoElements.length - 1 ? 0.3 : o),
-                    zIndex: 2000,
-                    background: 'none',
-                    border: 'none',
-                    color: 'white',
-                    fontSize: '48px',
-                    cursor: currentAutoIndex >= autoElements.length - 1 ? 'not-allowed' : 'pointer',
-                    padding: '8px',
-                    lineHeight: 1,
+                    opacity: nextArrowSpring.opacity.to((o: number) => currentAutoIndex >= autoElements.length - 1 ? 0.3 : o * arrowBackgroundOpacity),
                   }}
                   disabled={currentAutoIndex >= autoElements.length - 1}
                 >

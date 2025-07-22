@@ -218,6 +218,23 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     showScrollHint = true,
     scrollHintDuration = 20,
     fadeOnceDetected = true,
+    
+    // Arrow styling controls from layout settings
+    arrowTextColor = '#ffffff',
+    arrowBackgroundColor = 'rgba(0, 0, 0, 0.5)',
+    arrowBackgroundOpacity = 0.8,
+    arrowBorderRadius = 8,
+    arrowFontSize = 48,
+    arrowPadding = 8,
+    arrowShadowEnabled = true,
+    arrowShadowColor = 'rgba(0, 0, 0, 0.8)',
+    arrowShadowBlur = 10,
+    arrowShadowOffsetX = 2,
+    arrowShadowOffsetY = 4,
+    arrowBorderEnabled = false,
+    arrowBorderColor = '#ffffff',
+    arrowBorderWidth = 2,
+    arrowBackdropBlur = 0,
   } = overallControls || {};
 
   console.log('[GUEST_EXP_PREVIEW] 🎛️ Overall Controls Destructured:', {
@@ -1375,56 +1392,52 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         })()}
 
         {/* Auto Navigation Arrows */}
-        {autoNavigationEnabled && autoElements.length > 1 && (
-          <>
-            {/* Previous Arrow */}
+        {autoNavigationEnabled && autoElements.length > 1 && (() => {
+          // Generate arrow styles from layout settings
+          const generateArrowStyle = (isDisabled: boolean) => {
+            const baseStyle: React.CSSProperties = {
+              position: 'fixed',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 1200,
+              border: 'none',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              color: arrowTextColor,
+              fontSize: `${arrowFontSize}px`,
+              padding: `${arrowPadding}px`,
+              borderRadius: `${arrowBorderRadius}px`,
+              background: arrowBackgroundColor,
+              opacity: isDisabled ? 0.3 : arrowBackgroundOpacity,
+              backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+              WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+              transition: 'all 0.3s ease',
+            };
+
+            // Apply text shadow if enabled (shadow on the arrow symbol itself)
+            if (arrowShadowEnabled) {
+              baseStyle.textShadow = `${arrowShadowOffsetX}px ${arrowShadowOffsetY}px ${arrowShadowBlur}px ${arrowShadowColor}`;
+            }
+
+            // Apply border if enabled
+            if (arrowBorderEnabled) {
+              baseStyle.border = `${arrowBorderWidth}px solid ${arrowBorderColor}`;
+            }
+
+            return baseStyle;
+          };
+
+          return (
+            <>
+              {/* Previous Arrow */}
             <button
               onClick={handleAutoPrevious}
-                                disabled={isAutoScrolling || currentAutoIndex === -1}
+              disabled={isAutoScrolling || currentAutoIndex === -1}
               style={{
-                position: 'fixed',
+                ...generateArrowStyle(isAutoScrolling || currentAutoIndex === -1),
                 left: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1200,
-                                  backgroundColor: (isAutoScrolling || currentAutoIndex === -1) 
-                  ? 'rgba(128, 128, 128, 0.5)' 
-                  : 'rgba(0, 0, 0, 0.8)',
-                                  color: (isAutoScrolling || currentAutoIndex === -1) 
-                  ? 'rgba(255, 255, 255, 0.5)' 
-                  : 'white',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '50%',
-                width: '60px',
-                height: '60px',
-                fontSize: '28px',
-                cursor: (isAutoScrolling || currentAutoIndex === 0) 
-                  ? 'not-allowed' 
-                  : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: (isAutoScrolling || currentAutoIndex === 0)
-                  ? '0 2px 6px rgba(0, 0, 0, 0.2)'
-                  : '0 6px 20px rgba(0, 0, 0, 0.4)',
-                transition: 'all 0.3s ease',
-                opacity: (isAutoScrolling || currentAutoIndex === 0) ? 0.6 : 1,
-                backdropFilter: 'blur(5px)',
-                WebkitBackdropFilter: 'blur(5px)',
-              }}
-              onMouseEnter={(e) => {
-                if (!isAutoScrolling && currentAutoIndex > 0) {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
-                  e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
-                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isAutoScrolling && currentAutoIndex > 0) {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                  e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
-                }
               }}
             >
               &#8592;
@@ -1435,49 +1448,11 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               onClick={handleAutoNext}
               disabled={isAutoScrolling || currentAutoIndex === autoElements.length - 1}
               style={{
-                position: 'fixed',
+                ...generateArrowStyle(isAutoScrolling || currentAutoIndex === autoElements.length - 1),
                 right: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 1200,
-                backgroundColor: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
-                  ? 'rgba(128, 128, 128, 0.5)' 
-                  : 'rgba(0, 0, 0, 0.8)',
-                color: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
-                  ? 'rgba(255, 255, 255, 0.5)' 
-                  : 'white',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                borderRadius: '50%',
-                width: '60px',
-                height: '60px',
-                fontSize: '28px',
-                cursor: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) 
-                  ? 'not-allowed' 
-                  : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: (isAutoScrolling || currentAutoIndex === autoElements.length - 1)
-                  ? '0 2px 6px rgba(0, 0, 0, 0.2)'
-                  : '0 6px 20px rgba(0, 0, 0, 0.4)',
-                transition: 'all 0.3s ease',
-                opacity: (isAutoScrolling || currentAutoIndex === autoElements.length - 1) ? 0.6 : 1,
-                backdropFilter: 'blur(5px)',
-                WebkitBackdropFilter: 'blur(5px)',
-              }}
-              onMouseEnter={(e) => {
-                if (!isAutoScrolling && currentAutoIndex < autoElements.length - 1) {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.95)';
-                  e.currentTarget.style.transform = 'translateY(-50%) scale(1.1)';
-                  e.currentTarget.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.5)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isAutoScrolling && currentAutoIndex < autoElements.length - 1) {
-                  e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-                  e.currentTarget.style.transform = 'translateY(-50%) scale(1)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
-                }
               }}
             >
               &#8594;
@@ -1508,8 +1483,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
             >
               Auto {autoElements[currentAutoIndex]?.sequence || 1} of {autoElements.length}
             </div>
-          </>
-        )}
+            </>
+          );
+        })()}
         </>
     </UserInfoProvider>
   );
