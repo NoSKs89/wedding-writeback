@@ -842,127 +842,142 @@ const Navbar: React.FC<NavbarProps> = ({
     if (!expandedItem) return null;
 
     return (
-      <animated.div
-        style={{
-          position: 'fixed',
-          top: modalTop,
-          left: modalLeft,
-          width: modalWidth,
-          height: modalHeight,
-          backgroundColor: expandedItem.backgroundColor || 'white',
-          borderRadius: 12,
-          zIndex: 2147483647,
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'flex-start',
-          alignItems: 'center',
-          cursor: 'default',
-          padding: expandedItem.shrinkToFitContent ? '12px' : '8px',
-          overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          ...style,
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '15px',
-            right: '15px',
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: 'none',
-            borderRadius: '50%',
-            width: '30px',
-            height: '30px',
-            color: expandedItem.textColor || '#333',
-            fontSize: '18px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100002,
-          }}
-        >
-          ×
-        </button>
-        {/* Modal content */}
+      <>
+        {/* Modal backdrop: clicking this closes the modal */}
         <div
-          className="hamburger-modal-content"
           style={{
-            opacity: 1,
-            width: '100%',
-            height: '100%',
-            overflow: 'auto',
-            padding: expandedItem.shrinkToFitContent ? '15px 15px 20px 15px' : '10px 10px 16px 10px',
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 2147483646,
+          }}
+          onClick={onClose}
+        />
+        <animated.div
+          style={{
+            position: 'fixed',
+            top: modalTop,
+            left: modalLeft,
+            width: modalWidth,
+            height: modalHeight,
+            backgroundColor: expandedItem.backgroundColor || 'white',
+            borderRadius: 12,
+            zIndex: 2147483647,
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'center',
+            justifyContent: 'flex-start',
             alignItems: 'center',
-            gap: expandedItem.shrinkToFitContent ? '22px' : '16px',
-            boxSizing: 'border-box',
-            scrollbarWidth: 'none', // Firefox
-            msOverflowStyle: 'none', // IE and Edge
+            cursor: 'default',
+            padding: expandedItem.shrinkToFitContent ? '12px' : '8px',
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            ...style,
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Hide scrollbars for all browsers */}
-          <style>
-            {`
-              .hamburger-modal-content::-webkit-scrollbar {
-                display: none !important;
-                width: 0 !important;
-                height: 0 !important;
-              }
-              .hamburger-modal-content {
-                -webkit-overflow-scrolling: touch;
-              }
-            `}
-          </style>
-          {expandedItem.showTitleWhenOpened && expandedItem.title && (
-            <h2 style={{
-              color: expandedItem.textColor || '#000',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              margin: 0,
-            }}>{expandedItem.title}</h2>
-          )}
-          {expandedItem.imageUrl && (
-            <img
-              src={expandedItem.imageUrl}
-              alt="Modal content"
-              style={{
-                width: '95%',
-                maxHeight: expandedItem.shrinkToFitContent ? `${modalHeight * 0.7}px` : `${modalHeight * 0.92}px`,
-                objectFit: 'contain',
-                borderRadius: '8px',
-                margin: '0 auto',
-                display: 'block',
-                alignSelf: 'center',
-              }}
-            />
-          )}
-          {expandedItem.textContent && expandedItem.textContent.split('\n').map((line: string, idx: number) => (
-            <div
-              key={idx}
-              style={{
-                color: expandedItem.textColor || '#333',
-                fontSize: '16px',
-                lineHeight: '1.5',
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute',
+              top: '15px',
+              right: '15px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '30px',
+              height: '30px',
+              color: expandedItem.textColor || '#333',
+              fontSize: '18px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 100002,
+            }}
+          >
+            ×
+          </button>
+          {/* Modal content */}
+          <div
+            className="hamburger-modal-content"
+            style={{
+              opacity: 1,
+              width: '100%',
+              height: '100%',
+              overflow: 'auto',
+              padding: expandedItem.shrinkToFitContent ? '15px 15px 20px 15px' : '10px 10px 16px 10px',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: expandedItem.shrinkToFitContent ? '22px' : '16px',
+              boxSizing: 'border-box',
+              scrollbarWidth: 'none', // Firefox
+              msOverflowStyle: 'none', // IE and Edge
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Hide scrollbars for all browsers */}
+            <style>
+              {`
+                .hamburger-modal-content::-webkit-scrollbar {
+                  display: none !important;
+                  width: 0 !important;
+                  height: 0 !important;
+                }
+                .hamburger-modal-content {
+                  -webkit-overflow-scrolling: touch;
+                }
+              `}
+            </style>
+            {expandedItem.showTitleWhenOpened && expandedItem.title && (
+              <h2 style={{
+                color: expandedItem.textColor || '#000',
+                fontSize: '24px',
+                fontWeight: 'bold',
                 textAlign: 'center',
-                whiteSpace: 'normal',
-                wordWrap: 'break-word',
-                overflowWrap: 'break-word',
-                hyphens: 'auto',
-              }}
-            >
-              {convertTextToLinksAndElements(line, '#4A9EFF', '#FFD700')}
-            </div>
-          ))}
-        </div>
-      </animated.div>
+                margin: 0,
+              }}>{expandedItem.title}</h2>
+            )}
+            {expandedItem.imageUrl && (
+              <img
+                src={expandedItem.imageUrl}
+                alt="Modal content"
+                style={{
+                  width: '95%',
+                  maxHeight: expandedItem.shrinkToFitContent ? `${modalHeight * 0.7}px` : `${modalHeight * 0.92}px`,
+                  objectFit: 'contain',
+                  borderRadius: '8px',
+                  margin: '0 auto',
+                  display: 'block',
+                  alignSelf: 'center',
+                }}
+              />
+            )}
+            {expandedItem.textContent && expandedItem.textContent.split('\n').map((line: string, idx: number) => (
+              <div
+                key={idx}
+                style={{
+                  color: expandedItem.textColor || '#333',
+                  fontSize: '16px',
+                  lineHeight: '1.5',
+                  textAlign: 'center',
+                  whiteSpace: 'normal',
+                  wordWrap: 'break-word',
+                  overflowWrap: 'break-word',
+                  hyphens: 'auto',
+                }}
+              >
+                {convertTextToLinksAndElements(line, '#4A9EFF', '#FFD700')}
+              </div>
+            ))}
+          </div>
+        </animated.div>
+      </>
     );
   };
 
