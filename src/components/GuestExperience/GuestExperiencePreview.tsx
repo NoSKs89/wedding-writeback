@@ -1500,12 +1500,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               zIndex: 1200,
               border: 'none',
               cursor: isDisabled ? 'not-allowed' : 'pointer',
-              color: arrowTextColor,
+              color: isDisabled ? '#888888' : arrowTextColor,
               fontSize: `${arrowFontSize}px`,
               padding: `${arrowPadding}px`,
               borderRadius: `${arrowBorderRadius}px`,
               background: 'transparent',
-              opacity: isDisabled ? 0.3 : arrowBackgroundOpacity,
+              opacity: isDisabled ? 0.2 : arrowBackgroundOpacity,
               backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
               WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
               transition: 'all 0.3s ease',
@@ -1518,7 +1518,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
 
             // Apply border if enabled
             if (arrowBorderEnabled) {
-              baseStyle.border = `${arrowBorderWidth}px solid ${arrowBorderColor}`;
+              baseStyle.border = `${arrowBorderWidth}px solid ${isDisabled ? '#888888' : arrowBorderColor}`;
             }
 
             return baseStyle;
@@ -1529,9 +1529,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               {/* Previous Arrow */}
             <button
               onClick={handleAutoPrevious}
-              disabled={isAutoScrolling || currentAutoIndex === -1}
+              disabled={isAutoScrolling || currentAutoIndex <= 0}
               style={{
-                ...generateArrowStyle(isAutoScrolling || currentAutoIndex === -1),
+                ...generateArrowStyle(isAutoScrolling || currentAutoIndex <= 0),
                 left: '20px',
                 display: 'flex',
                 alignItems: 'center',

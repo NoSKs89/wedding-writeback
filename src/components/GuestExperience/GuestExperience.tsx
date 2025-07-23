@@ -2480,13 +2480,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               border: 'none',
               cursor: isDisabled ? 'not-allowed' : 'pointer',
               lineHeight: 1,
-              color: arrowTextColor,
+              color: isDisabled ? '#888888' : arrowTextColor,
               fontSize: `${arrowFontSize}px`,
               padding: `${arrowPadding}px`,
               borderRadius: `${arrowBorderRadius}px`,
               background: 'transparent',
               backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
               WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+              opacity: isDisabled ? 0.2 : 1,
             };
 
             // Apply text shadow if enabled (shadow on the arrow symbol itself)
@@ -2496,7 +2497,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
             // Apply border if enabled
             if (arrowBorderEnabled) {
-              baseStyle.border = `${arrowBorderWidth}px solid ${arrowBorderColor}`;
+              baseStyle.border = `${arrowBorderWidth}px solid ${isDisabled ? '#888888' : arrowBorderColor}`;
             }
 
             return baseStyle;
@@ -2511,14 +2512,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 <animated.button
                   onClick={handleAutoPrevious}
                   style={{
-                    ...generateArrowStyle(currentAutoIndex === -1),
+                    ...generateArrowStyle(isAutoScrolling || currentAutoIndex <= 0),
                     left: '20px',
                     transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
                     opacity: arrowOpacity,
                     transition: 'opacity 0.4s ease-in-out',
                     pointerEvents: arrowsVisible ? 'auto' : 'none',
                   }}
-                  disabled={currentAutoIndex === -1}
+                  disabled={isAutoScrolling || currentAutoIndex <= 0}
                 >
                   &#8592;
                 </animated.button>
@@ -2527,14 +2528,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 <animated.button
                   onClick={handleAutoNext}
                   style={{
-                    ...generateArrowStyle(currentAutoIndex >= autoElements.length - 1),
+                    ...generateArrowStyle(isAutoScrolling || currentAutoIndex >= autoElements.length - 1),
                     right: '20px',
                     transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
                     opacity: arrowOpacity,
                     transition: 'opacity 0.4s ease-in-out',
                     pointerEvents: arrowsVisible ? 'auto' : 'none',
                   }}
-                  disabled={currentAutoIndex >= autoElements.length - 1}
+                  disabled={isAutoScrolling || currentAutoIndex >= autoElements.length - 1}
                 >
                   &#8594;
                 </animated.button>
