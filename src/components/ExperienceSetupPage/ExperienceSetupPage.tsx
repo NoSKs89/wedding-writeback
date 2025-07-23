@@ -26,11 +26,24 @@ export interface TimelineMarker {
 
 export interface ElementConfig {
   id: number; // Now 1-8
-  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video'; // Added 'background-video'
+  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video' | 'navbar';
   content: string | File | React.ComponentType<any> | null | { 
     maxImages?: number;
-    disableS3?: boolean; // Added to control S3 loading
-  }; // URL for photo/video, text content, component type, or scrapbook config
+    disableS3?: boolean;
+  } | {
+    navbarType: 'bottom' | 'top' | 'hamburger';
+    items: Array<{
+      id: string;
+      title: string;
+      textContent: string;
+      imageUrl?: string;
+      backgroundColor: string;
+      textColor: string;
+      position: number;
+      showTitleWhenOpened: boolean;
+      shrinkToFitContent: boolean;
+    }>;
+  } | 'Bottom Navbar' | 'RSVP Form' | 'Prompt Form' | 'Scrapbook'; // Support legacy component names
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
   autoSequence?: number | null; // Auto navigation sequence number (1, 2, 3, etc.) or null if not in auto sequence

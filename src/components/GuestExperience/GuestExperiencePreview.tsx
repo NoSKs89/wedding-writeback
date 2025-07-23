@@ -22,6 +22,7 @@ import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMa
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
+import Navbar from './Navbar'; // Changed from BottomNavbar
 
 // --- TYPE DEFINITIONS ---
 interface WeddingData {
@@ -1000,6 +1001,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
     }
   }, []);
 
+  // Update the element renderer
   const renderElement = (el: ElementDefinition, index: number) => {
     let componentToRender;
     switch (el.type) {
@@ -1151,7 +1153,26 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         } else if (el.name === 'Bottom Navbar') {
           // Bottom Navbar will be rendered outside parallax structure, so skip here
           return null;
-        } else return null;
+        } else if (el.name === 'Navbar') {
+          const navbarContent = typeof el.content === 'object' ? el.content : { navbarType: 'bottom', items: [] };
+          const folderName = generateElementFolderName(el);
+          componentToRender = (
+            <Navbar
+              scrollY={scrollY}
+              startPosition={el.sticky.start}
+              endPosition={el.sticky.end}
+              windowHeight={windowHeight}
+              TOTAL_PAGES={TOTAL_PAGES}
+              styleControls={elementControls[folderName]}
+              weddingId={weddingId}
+              element={el}
+              experienceSettings={experienceSettingsFromApp}
+              overallFontFamily={overallFontFamily}
+              layoutSettingsFromPreview={layoutSettingsFromPreview}
+              navbarType={navbarContent.navbarType}
+            />
+          );
+        }
         break;
       default: return null;
     }

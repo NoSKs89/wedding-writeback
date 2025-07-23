@@ -210,7 +210,18 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         setMaxScrapbookImages(currentMax);
         onUpdate({ type: 'component', content: { maxImages: currentMax }, name: 'Scrapbook' });
     } else if (newTypeValue === 'component-bottom-navbar') {
+        // Legacy bottom navbar support
         onUpdate({ type: 'component', content: 'Bottom Navbar', name: 'Bottom Navbar' });
+    } else if (newTypeValue === 'navbar') {
+        // Initialize navbar with default type 'bottom'
+        onUpdate({ 
+          type: 'navbar', 
+          content: { 
+            navbarType: 'bottom',
+            items: [] 
+          }, 
+          name: 'Navbar' 
+        });
     } else if (newTypeValue === 'photo' || newTypeValue === 'text' || newTypeValue === 'background-image' || newTypeValue === 'video' || newTypeValue === 'background-video') {
         onUpdate({ type: newTypeValue as 'photo' | 'text' | 'background-image' | 'video' | 'background-video', content: null, name: undefined });
     } else {
@@ -410,6 +421,28 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     dropdownValue = element.type;
   }
 
+  const [navbarType, setNavbarType] = useState<'bottom' | 'top' | 'hamburger'>(
+    element.type === 'navbar' && typeof element.content === 'object' && 'navbarType' in element.content
+      ? (element.content as { navbarType: 'bottom' | 'top' | 'hamburger' }).navbarType
+      : element.type === 'component' && element.content === 'Bottom Navbar'
+      ? 'bottom' // Legacy support
+      : 'bottom'
+  );
+
+  const handleNavbarTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
+    const newType = e.target.value as 'bottom' | 'top' | 'hamburger';
+    setNavbarType(newType);
+    if (element.type === 'navbar' && typeof element.content === 'object') {
+      onUpdate({
+        content: {
+          ...element.content,
+          navbarType: newType,
+          items: 'items' in element.content ? element.content.items : []
+        }
+      });
+    }
+  };
+
   return (
     <div 
       style={{ ...baseStyle, ...focusedStyle }} 
@@ -454,12 +487,29 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
               <option value="component-rsvp">RSVP Form</option>
               <option value="component-prompt">Prompt Form</option>
               <option value="component-scrapbook">Scrapbook</option>
-              <option value="component-bottom-navbar">Bottom Navbar</option>
+              <option value="navbar">Navbar</option>
               <option value="background-image">Background Image</option>
               <option value="background-video">Background Video</option>
             </select>
           </div>
         </div>
+
+        {element.type === 'navbar' && (
+          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <label style={{fontSize: '0.9rem'}}>Navbar Type:</label>
+            <div style={selectContainerStyle}>
+              <select 
+                value={navbarType} 
+                onChange={handleNavbarTypeChange} 
+                style={selectStyle}
+              >
+                <option value="bottom">Bottom</option>
+                <option value="top">Top</option>
+                <option value="hamburger">Hamburger</option>
+              </select>
+            </div>
+          </div>
+        )}
 
         {element.type !== 'empty' && autoNavigationEnabled && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '10px' }}>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback, CSSProperties } from 'react';
 import { Parallax, ParallaxLayer, IParallax, ParallaxLayerProps } from '@react-spring/parallax';
 import { useControls, folder } from 'leva';
-import { useSpring, animated, config } from 'react-spring';
+import { useSpring, animated, config, useTransition } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
 
 import RSVPForm from '../RSVPForm';
@@ -23,6 +23,7 @@ import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMa
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
+import Navbar from './Navbar'; // Changed from BottomNavbar
 
 
 // --- TYPE DEFINITIONS ---
@@ -1519,9 +1520,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
   const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
   
-  // Register Bottom Navbar controls - simplified approach using existing store values
-  const bottomNavbarElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Bottom Navbar'), [renderableElements]);
-  const bottomNavbarFolderName = bottomNavbarElement ? generateElementFolderName(bottomNavbarElement) : null;
+  // Update the navbar element finder
+  const navbarElement = useMemo(() => renderableElements.find(el => el.type === 'navbar'), [renderableElements]);
+  const navbarFolderName = navbarElement ? generateElementFolderName(navbarElement) : null;
 
   // Get the scrapbook element to determine its folder name
   const scrapbookElement = useMemo(() => renderableElements.find(el => el.type === 'component' && el.name === 'Scrapbook'), [renderableElements]);
