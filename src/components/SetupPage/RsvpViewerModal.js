@@ -124,7 +124,7 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete, allowKid
                             <tr>
                                 <th>Name</th>
                                 <th>Attending</th>
-                                <th>Guest Count<br/>(Total)</th>
+                                <th>Guest Count<br/>(Total: {totalAttendingGuests})</th>
                                 <th>Adults</th>
                                 <th>Kids</th>
                                 <th>Email</th>
