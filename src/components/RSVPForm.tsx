@@ -455,12 +455,14 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       const apiUrl = backendUrl.endsWith('/rsvp') ? backendUrl : `${backendUrl}/rsvp`;
       const response = await axios.post(apiUrl, payload);
       if ((response.status === 200 || response.status === 201) && (response.data?.message?.toLowerCase().includes('updated') || response.data?.rsvp?.isModified)) {
+        setFinalResponse({ firstName, lastName, attending });
         setSubmissionStatus('updated');
         setFormError(null);
         if (onSubmit) onSubmit();
         return;
       }
       if (response.status === 200 || response.status === 201) {
+        setFinalResponse({ firstName, lastName, attending });
         setSubmissionStatus('submitted');
         setFormError(null);
         if (onSubmit) onSubmit();
@@ -605,7 +607,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
 
   const renderContent = () => {
     if (submissionStatus === 'submitted') {
-      const attendingMessage = finalResponse.attending ? "We can't wait to celebrate with you! 🎉" : "You'll be missed!";
+      const attendingMessage = finalResponse?.attending ? "We can't wait to celebrate with you! 🎉" : "You'll be missed!";
       return (
         <div style={{ textAlign: 'center', position: 'relative' }}>
           <button 
@@ -614,7 +616,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
           >
             &times;
           </button>
-          <h2 style={{...h2Style}}>Thank You, {finalResponse.firstName}!</h2>
+          <h2 style={{...h2Style}}>Thank You, {finalResponse?.firstName || firstName}!</h2>
           <p style={{color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>{attendingMessage}</p>
           {/* Optional: Show summary of what was submitted */}
         </div>
