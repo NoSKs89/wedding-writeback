@@ -189,6 +189,8 @@ const Navbar: React.FC<NavbarProps> = ({
   scrollToAutoElement,
   includeAutoNav = false
 }) => {
+  // Move modalStack to the top so it's available for all hooks
+  const [modalStack, setModalStack] = useState<Array<{ id: string, item: any }>>([]);
   console.log('🚀 Navbar Component Mounted:', {
     timestamp: Date.now(),
     props: {
@@ -320,15 +322,7 @@ const Navbar: React.FC<NavbarProps> = ({
     config: config.gentle
   });
 
-  // Transition for sidebar items - use gentle config to avoid wobbly effect
-  const sidebarTransitions = useTransition(isHamburgerOpen ? items : [], {
-    from: { opacity: 0, transform: 'translateX(-50px)' },
-    enter: { opacity: 1, transform: 'translateX(0px)' },
-    leave: { opacity: 0, transform: 'translateX(-50px)' },
-    trail: 150,
-    config: config.gentle
-  });
-
+ 
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
@@ -340,6 +334,130 @@ const Navbar: React.FC<NavbarProps> = ({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // LOGGING: expandedItemId
+  useEffect(() => {
+    console.log('[MODAL] expandedItemId:', expandedItemId);
+  }, [expandedItemId]);
+
+  // A. SidebarItems construction (guarantee only one divider and one set of auto-nav items)
+  const sidebarItems = useMemo(() => {
+    const normal = items.map(item => ({
+      ...item,
+      isAutoNav: false,
+      type: 'normal',
+      id: `nav-${item.id}`,
+      sequence: undefined
+    }));
+    const autoNav = (navbarIncludeAutoNav && includeAutoNav && autoElements.length > 0)
+      ? autoElements.map((autoElement, index) => {
+          const matchingElement = experienceSettings?.elements?.find((el: any) => el.id === autoElement.elementId);
+          const elementName = matchingElement?.name || matchingElement?.content?.name || `Auto ${autoElement.sequence}`;
+          return {
+            id: `auto-nav-${autoElement.elementId}`,
+            title: elementName,
+            isAutoNav: true,
+            type: 'autoNav',
+            sequence: autoElement.sequence as number | undefined,
+            backgroundColor: '#4a90e2',
+            textColor: '#fff',
+            textContent: '',
+            imageUrl: undefined,
+            position: 0,
+            showTitleWhenOpened: false,
+            shrinkToFitContent: false,
+          };
+        }) : [];
+    let result = [...normal];
+    if (autoNav.length > 0) {
+      // Add a divider with all required properties (dummy values for unused fields)
+      result.push({
+        id: 'divider-auto-nav',
+        type: 'divider',
+        isAutoNav: false,
+        sequence: undefined,
+        title: '',
+        textContent: '',
+        imageUrl: undefined,
+        backgroundColor: '',
+        textColor: '',
+        position: 0,
+        showTitleWhenOpened: false,
+        shrinkToFitContent: false,
+      });
+      result = result.concat(autoNav as any);
+    }
+    // LOGGING: Sidebar items structure
+    console.log('[SIDEBAR_ITEMS_BUILD] result:', result);
+    return result;
+  }, [items, navbarIncludeAutoNav, includeAutoNav, autoElements, experienceSettings]);
+
+
+  // LOGGING: Sidebar items
+  useEffect(() => {
+    console.log('[SIDEBAR_ITEMS] sidebarItems:', sidebarItems);
+    sidebarItems.forEach((item, idx) => {
+      console.log(`[SIDEBAR_RENDER] index=${idx}`, item);
+    });
+  }, [sidebarItems]);
+
+  // LOGGING: Modal stack
+  useEffect(() => {
+    console.log('[MODAL_STACK_STATE]', modalStack);
+  }, [modalStack]);
+
+  const sidebarTransitions = useTransition(isHamburgerOpen ? sidebarItems : [], {
+    from: { opacity: 0, transform: 'translateX(-50px)' },
+    enter: { opacity: 1, transform: 'translateX(0px)' },
+    leave: { opacity: 0, transform: 'translateX(-50px)' },
+    trail: 150,
+    config: config.gentle
+  });
+
+
+  // B. Decoupled Modal Stack
+  // LOGGING: Modal stack
+  useEffect(() => {
+    console.log('[MODAL_STACK]', modalStack);
+  }, [modalStack]);
+
+  // Open modal for a normal item
+  const openModal = (item: any) => {
+    setModalStack([{ id: item.id, item }]);
+  };
+
+  // Animate out and then open new modal
+  const handleSidebarItemClick = (item: any) => {
+    console.log('[SIDEBAR CLICK]', { item }); // <-- Add this log
+    if (item.type === 'divider') return;
+    if (item.isAutoNav) {
+      // If a modal is open, close it and close the sidebar
+      if (modalStack.length > 0) {
+        setModalStack([]);
+        setIsHamburgerOpen(false);
+      }
+      if (scrollToAutoElement) {
+        const autoIndex = sidebarItems.filter(i => i.type === 'autoNav').findIndex(i => i.id === item.id);
+        scrollToAutoElement(autoIndex);
+        setIsHamburgerOpen(false);
+      }
+      return;
+    }
+    // Only normal items open modal
+    if (modalStack.length > 0 && modalStack[0].id === item.id) {
+      setModalStack([]); // close
+      return;
+    }
+    if (modalStack.length > 0) {
+      // Animate out current modal, then open new one
+      setModalStack([]);
+      setTimeout(() => {
+        setModalStack([{ id: item.id, item }]);
+      }, 250); // match modal close animation duration
+    } else {
+      setModalStack([{ id: item.id, item }]);
+    }
+  };
 
   // Render hamburger icon with better styling
   const renderHamburger = () => (
@@ -399,7 +517,7 @@ const Navbar: React.FC<NavbarProps> = ({
             right: 0,
             bottom: 0,
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            zIndex: 99998, // Higher than backdrop
+            zIndex: 1000, // Lowered to ensure modal is always on top
           }}
           onClick={() => setIsHamburgerOpen(false)}
         />
@@ -433,158 +551,83 @@ const Navbar: React.FC<NavbarProps> = ({
             Menu
           </h2>
           
-          {sidebarTransitions((style, item) => (
-            <animated.div
-              key={item.id}
-              style={{
-                opacity: style.opacity,
-                marginBottom: '15px',
-                padding: '15px',
-                backgroundColor: item.backgroundColor,
-                borderRadius: '8px',
-                cursor: 'pointer',
-                transition: 'transform 0.2s ease',
-                border: '1px solid rgba(0,0,0,0.1)',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0px)';
-              }}
-              onClick={() => {
-                setExpandedItemId(item.id === expandedItemId ? null : item.id);
-                // Don't close sidebar when clicking items
-              }}
-            >
-              <h3 style={{ 
-                margin: 0, 
-                color: item.textColor,
-                fontSize: '18px',
-                fontWeight: '600'
-              }}>
-                {item.title}
-              </h3>
-            </animated.div>
-          ))}
-
-          {/* Auto-Nav Items */}
-          {(() => {
-            const shouldShowAutoNav = navbarIncludeAutoNav && includeAutoNav && autoElements.length > 0;
-            console.log('🔍 Auto-Nav Condition Check:', {
-              timestamp: Date.now(),
-              navbarIncludeAutoNav,
-              includeAutoNav,
-              autoElementsLength: autoElements.length,
-              shouldShowAutoNav,
-              autoElements: autoElements
-            });
-            return shouldShowAutoNav;
-          })() && (
-            <>
-              {/* Divider */}
-              <div style={{
-                margin: '20px 0 15px 0',
-                borderTop: '2px solid #e0e0e0',
-                position: 'relative'
-              }}>
-                <span style={{
-                  position: 'absolute',
-                  top: '-10px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  backgroundColor: 'white',
-                  padding: '0 10px',
-                  color: '#666',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px'
-                }}>
-                  Auto Navigation
-                </span>
-              </div>
-              
-              {/* Spacer to prevent overlap */}
-              <div style={{ height: '15px' }}></div>
-
-              {/* Auto-Nav Items */}
-              {autoElements.map((autoElement, index) => {
-                // Find the corresponding element to get its name
-                const matchingElement = experienceSettings?.elements?.find((el: any) => el.id === autoElement.elementId);
-                console.log('🔍 Auto-Nav Element Name Lookup:', {
-                  timestamp: Date.now(),
-                  autoElementId: autoElement.elementId,
-                  autoSequence: autoElement.sequence,
-                  matchingElement: matchingElement,
-                  elementName: matchingElement?.name,
-                  contentName: matchingElement?.content?.name,
-                  finalName: matchingElement?.name || matchingElement?.content?.name || `Auto ${autoElement.sequence}`
-                });
-                
-                const elementName = matchingElement?.name || 
-                                   matchingElement?.content?.name || 
-                                   `Auto ${autoElement.sequence}`;
-                
-                return (
-                  <div
-                    key={`auto-nav-${autoElement.elementId}`}
-                    style={{
-                      marginBottom: '12px',
-                      padding: '12px 15px',
-                      backgroundColor: '#4a90e2', // Different color for auto-nav items
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      border: '1px solid rgba(74, 144, 226, 0.3)',
-                      boxShadow: '0 2px 8px rgba(74, 144, 226, 0.2)',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(74, 144, 226, 0.3)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0px)';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(74, 144, 226, 0.2)';
-                    }}
-                    onClick={() => {
-                      if (scrollToAutoElement) {
-                        scrollToAutoElement(index);
-                        setIsHamburgerOpen(false); // Close sidebar when clicking auto-nav item
-                      }
-                    }}
-                  >
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between'
+          {sidebarTransitions((style, item) => {
+            if (item.type === 'divider') {
+              return (
+                <animated.div key={item.id} style={{ ...style, margin: '20px 0 15px 0', width: '100%' }}>
+                  <div style={{
+                    borderTop: '2px solid #e0e0e0',
+                    position: 'relative',
+                    width: '100%',
+                    marginBottom: '0',
+                  }}>
+                    <span style={{
+                      position: 'absolute',
+                      top: '-10px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      backgroundColor: 'white',
+                      padding: '0 10px',
+                      color: '#666',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      textTransform: 'uppercase',
+                      letterSpacing: '1px',
+                      zIndex: 1
                     }}>
-                      <h3 style={{ 
-                        margin: 0, 
-                        color: '#ffffff',
-                        fontSize: '16px',
-                        fontWeight: '600'
-                      }}>
-                        {elementName}
-                      </h3>
-                      <span style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                        color: '#ffffff',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        padding: '4px 8px',
-                        borderRadius: '12px',
-                        minWidth: '20px',
-                        textAlign: 'center'
-                      }}>
-                        {autoElement.sequence}
-                      </span>
-                    </div>
+                      Auto Navigation
+                    </span>
                   </div>
-                );
-              })}
-            </>
-          )}
+                  {/* Spacer to prevent overlap */}
+                  <div style={{ height: '15px' }}></div>
+                </animated.div>
+              );
+            }
+            return (
+              <animated.div
+                key={item.id}
+                style={{
+                  opacity: style.opacity,
+                  marginBottom: '15px',
+                  padding: '15px',
+                  backgroundColor: item.isAutoNav ? '#4a90e2' : item.backgroundColor,
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s ease',
+                  border: item.isAutoNav ? '1px solid rgba(74, 144, 226, 0.3)' : '1px solid rgba(0,0,0,0.1)',
+                  boxShadow: item.isAutoNav ? '0 2px 8px rgba(74, 144, 226, 0.2)' : undefined,
+                  color: item.isAutoNav ? '#fff' : item.textColor,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0px)'; }}
+                onClick={() => handleSidebarItemClick(item)}
+              >
+                <h3 style={{
+                  margin: 0,
+                  color: item.isAutoNav ? '#fff' : item.textColor,
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  flex: 1
+                }}>{item.title}</h3>
+                {item.isAutoNav && (
+                  <span style={{
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: '#fff',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    minWidth: '20px',
+                    textAlign: 'center',
+                    marginLeft: '10px'
+                  }}>{item.sequence}</span>
+                )}
+              </animated.div>
+            );
+          })}
         </div>
       </animated.div>
     </>
@@ -690,8 +733,12 @@ const Navbar: React.FC<NavbarProps> = ({
 
   // Debug indicator removed
 
-  // Get the expanded item for modal
-  const expandedItem = expandedItemId ? items.find(item => item.id === expandedItemId) : null;
+  // Find expanded item from sidebarItems (for modal)
+  const expandedItem = useMemo(() => {
+    const found = sidebarItems.find(item => item.id === expandedItemId && item.type === 'normal');
+    console.log('[MODAL] expandedItem lookup:', { expandedItemId, found });
+    return found;
+  }, [expandedItemId, sidebarItems]);
 
   // Process content into sequential animation pieces - always call useMemo
   const sequentialContentPieces = useMemo(() => {
@@ -744,19 +791,6 @@ const Navbar: React.FC<NavbarProps> = ({
     return pieces;
   }, [expandedItem?.title, expandedItem?.showTitleWhenOpened, expandedItem?.textContent, expandedItem?.imageUrl]);
 
-  // Modal animation - slides in from bottom center - always call useSpring
-  const modalSpring = useSpring({
-    from: {
-      opacity: 0,
-      transform: 'translateY(100vh) scale(0.8)',
-    },
-    to: {
-      opacity: expandedItem ? 1 : 0,
-      transform: expandedItem ? 'translateY(0) scale(1)' : 'translateY(100vh) scale(0.8)',
-    },
-    config: config.stiff,
-  });
-
   // Sequential content animation - each piece animates in sequence - always call useTransition
   const sequentialContentTransitions = useTransition(
     sequentialContentPieces, 
@@ -770,171 +804,165 @@ const Navbar: React.FC<NavbarProps> = ({
     }
   );
 
-  // Hamburger modal that animates in from bottom center
-  const HamburgerModal = () => {
-    if (!expandedItem) return null;
-
-    // Modal dimensions and position - responsive to shrinkToFitContent setting
+  // Move modalSpring hook outside of HamburgerModal so it is always called
+  const getModalDimensions = (expandedItem: any) => {
+    if (!expandedItem) return {
+      modalHeight: 0,
+      modalTop: 0,
+      modalWidth: 0,
+      modalLeft: 0,
+    };
     let modalHeight: number;
     let modalTop: number;
-    
     if (expandedItem.shrinkToFitContent) {
-      // Content-fit modal: smaller size for text content
-      modalHeight = Math.min(viewportDimensions.height * 0.6, 400); // Max 60vh or 400px
-      modalTop = (viewportDimensions.height - modalHeight) / 2; // Center vertically
+      modalHeight = Math.min(window.innerHeight * 0.6, 400);
+      modalTop = (window.innerHeight - modalHeight) / 2;
     } else {
-      // Fixed size modal: 90vh height as before (great for images)
-      modalHeight = viewportDimensions.height * 0.9; // 90vh
-      modalTop = viewportDimensions.height * 0.05; // 5vh from top
+      modalHeight = window.innerHeight * 0.9;
+      modalTop = window.innerHeight * 0.05;
     }
-    
-    const modalWidth = Math.min(viewportDimensions.width * 0.8, 500); // Reduced from 0.9 to 0.8 and 600 to 500
-    const modalLeft = (viewportDimensions.width - modalWidth) / 2; // Center horizontally
+    const modalWidth = Math.min(window.innerWidth * 0.8, 500);
+    const modalLeft = (window.innerWidth - modalWidth) / 2;
+    return { modalHeight, modalTop, modalWidth, modalLeft };
+  };
+
+  const expandedModalItem = modalStack.length > 0 ? modalStack[0].item : null;
+  const { modalHeight, modalTop, modalWidth, modalLeft } = getModalDimensions(expandedModalItem);
+  const modalSpring = useSpring({
+    opacity: expandedModalItem ? 1 : 0,
+    transform: expandedModalItem ? 'translateY(0)' : 'translateY(100px)',
+    config: { tension: 280, friction: 30 },
+    reset: false,
+  });
+
+  // Refactor HamburgerModal to accept style as a prop
+  const HamburgerModal = ({ expandedItem, onClose, style, modalHeight, modalTop, modalWidth, modalLeft }: { expandedItem: any, onClose: () => void, style: any, modalHeight: number, modalTop: number, modalWidth: number, modalLeft: number }) => {
+    // Add logging for modal render
+    console.log('[MODAL_RENDER]', { expandedItem });
+    if (!expandedItem) return null;
 
     return (
-      <>
-        {/* Modal */}
-        <animated.div
+      <animated.div
+        style={{
+          position: 'fixed',
+          top: modalTop,
+          left: modalLeft,
+          width: modalWidth,
+          height: modalHeight,
+          backgroundColor: expandedItem.backgroundColor || 'white',
+          borderRadius: 12,
+          zIndex: 2147483647,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          cursor: 'default',
+          padding: expandedItem.shrinkToFitContent ? '12px' : '8px',
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          ...style,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
           style={{
-            position: 'fixed',
-            top: modalTop,
-            left: modalLeft,
-            width: modalWidth,
-            height: modalHeight,
-            backgroundColor: expandedItem.backgroundColor,
-            borderRadius: 12,
-            zIndex: 100001,
+            position: 'absolute',
+            top: '15px',
+            right: '15px',
+            background: 'rgba(255, 255, 255, 0.2)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '30px',
+            height: '30px',
+            color: expandedItem.textColor || '#333',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 100002,
+          }}
+        >
+          ×
+        </button>
+        {/* Modal content */}
+        <div
+          className="hamburger-modal-content"
+          style={{
+            opacity: 1,
+            width: '100%',
+            height: '100%',
+            overflow: 'auto',
+            padding: expandedItem.shrinkToFitContent ? '15px 15px 20px 15px' : '10px 10px 16px 10px',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'flex-start',
+            justifyContent: 'center',
             alignItems: 'center',
-            cursor: 'default',
-            padding: expandedItem.shrinkToFitContent ? '12px' : '8px',
-            overflow: 'hidden',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-            ...modalSpring,
+            gap: expandedItem.shrinkToFitContent ? '22px' : '16px',
+            boxSizing: 'border-box',
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE and Edge
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close button */}
-          <button
-            onClick={() => setExpandedItemId(null)}
-            style={{
-              position: 'absolute',
-              top: '15px',
-              right: '15px',
-              background: 'rgba(255, 255, 255, 0.2)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '30px',
-              height: '30px',
-              color: expandedItem.textColor,
-              fontSize: '18px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 100002,
-            }}
-          >
-            ×
-          </button>
-
-          {/* Animated content */}
-          <animated.div
-            className="hamburger-modal-content"
-            style={{
-              opacity: 1, // Sequential content handles its own opacity
-              width: '100%',
-              height: '100%',
-              overflow: 'hidden', // Prevent scrollbars completely
-              // Responsive padding based on modal type with increased bottom padding
-              padding: expandedItem.shrinkToFitContent ? '15px 15px 20px 15px' : '10px 10px 16px 10px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center', // Center content vertically within modal
-              alignItems: 'center',
-              // Responsive gap based on modal type - increased for better spacing
-              gap: expandedItem.shrinkToFitContent ? '22px' : '16px',
-              boxSizing: 'border-box',
-              // Additional scrollbar prevention for all browsers
-              scrollbarWidth: 'none', // Firefox
-              msOverflowStyle: 'none', // IE and Edge
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* CSS for WebKit scrollbar hiding */}
-            <style>
-              {`
-                .hamburger-modal-content::-webkit-scrollbar {
-                  display: none !important;
-                  width: 0 !important;
-                  height: 0 !important;
-                }
-                .hamburger-modal-content {
-                  -webkit-overflow-scrolling: touch;
-                }
-              `}
-            </style>
-            {sequentialContentTransitions((style, piece) => (
-              <animated.div style={style} key={piece.id}>
-                {piece.type === 'title' && (
-                  <h2 style={{
-                    color: expandedItem.textColor,
-                    fontSize: '24px', // Auto-calculated 4px larger than content
-                    fontWeight: 'bold',
-                    textAlign: 'center',
-                    margin: '0',
-                    padding: '0 5px', // Reduced padding
-                  }}>
-                    {piece.content}
-                  </h2>
-                )}
-                {piece.type === 'text-line' && (
-                  <div style={{
-                    color: expandedItem.textColor,
-                    fontSize: '16px',
-                    lineHeight: '1.4',
-                    whiteSpace: 'normal', // Allow text to wrap naturally
-                    margin: '0',
-                    padding: '0 5px',
-                    textAlign: 'center',
-                    maxWidth: '100%',
-                    wordWrap: 'break-word', // Ensure long words wrap properly
-                    overflowWrap: 'break-word', // Additional wrap support
-                    hyphens: 'auto', // Enable hyphenation for better wrapping
-                  }}>
-                    {convertTextToLinksAndElements(
-                      piece.content as string, 
-                      '#4A9EFF', // Bright blue that works on most backgrounds
-                      '#FFD700'  // Gold hover color for clear distinction
-                    )}
-                  </div>
-                )}
-                {piece.type === 'image' && (
-                  <img
-                    src={piece.content as string}
-                    alt="Modal content"
-                    style={{
-                      width: '95%', // Use 95% of modal width
-                      // Responsive height based on shrinkToFitContent setting
-                      maxHeight: expandedItem.shrinkToFitContent 
-                        ? `${modalHeight * 0.7}px` // 70% for content-fit modals
-                        : `${modalHeight * 0.92}px`, // 92% for fixed-size modals (images)
-                      objectFit: 'contain',
-                      borderRadius: '8px',
-                      margin: '0 auto', // Remove top/bottom margin, center horizontally
-                      display: 'block',
-                      // Maintain aspect ratio and center the image
-                      alignSelf: 'center',
-                    }}
-                  />
-                )}
-              </animated.div>
-            ))}
-          </animated.div>
-        </animated.div>
-      </>
+          {/* Hide scrollbars for all browsers */}
+          <style>
+            {`
+              .hamburger-modal-content::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+              }
+              .hamburger-modal-content {
+                -webkit-overflow-scrolling: touch;
+              }
+            `}
+          </style>
+          {expandedItem.showTitleWhenOpened && expandedItem.title && (
+            <h2 style={{
+              color: expandedItem.textColor || '#000',
+              fontSize: '24px',
+              fontWeight: 'bold',
+              textAlign: 'center',
+              margin: 0,
+            }}>{expandedItem.title}</h2>
+          )}
+          {expandedItem.imageUrl && (
+            <img
+              src={expandedItem.imageUrl}
+              alt="Modal content"
+              style={{
+                width: '95%',
+                maxHeight: expandedItem.shrinkToFitContent ? `${modalHeight * 0.7}px` : `${modalHeight * 0.92}px`,
+                objectFit: 'contain',
+                borderRadius: '8px',
+                margin: '0 auto',
+                display: 'block',
+                alignSelf: 'center',
+              }}
+            />
+          )}
+          {expandedItem.textContent && expandedItem.textContent.split('\n').map((line: string, idx: number) => (
+            <div
+              key={idx}
+              style={{
+                color: expandedItem.textColor || '#333',
+                fontSize: '16px',
+                lineHeight: '1.5',
+                textAlign: 'center',
+                whiteSpace: 'normal',
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
+                hyphens: 'auto',
+              }}
+            >
+              {convertTextToLinksAndElements(line, '#4A9EFF', '#FFD700')}
+            </div>
+          ))}
+        </div>
+      </animated.div>
     );
   };
 
@@ -944,7 +972,17 @@ const Navbar: React.FC<NavbarProps> = ({
         <>
           {renderHamburger()}
           {renderSidebar()}
-          <HamburgerModal />
+          {modalStack.length > 0 && (
+            <HamburgerModal
+              expandedItem={modalStack[0].item}
+              onClose={() => setModalStack([])}
+              style={modalSpring}
+              modalHeight={modalHeight}
+              modalTop={modalTop}
+              modalWidth={modalWidth}
+              modalLeft={modalLeft}
+            />
+          )}
         </>
       ) : (
         renderNavbar()
