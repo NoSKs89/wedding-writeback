@@ -504,6 +504,9 @@ const Navbar: React.FC<NavbarProps> = ({
                   Auto Navigation
                 </span>
               </div>
+              
+              {/* Spacer to prevent overlap */}
+              <div style={{ height: '15px' }}></div>
 
               {/* Auto-Nav Items */}
               {autoElements.map((autoElement, index) => {
