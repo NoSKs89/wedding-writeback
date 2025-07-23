@@ -2332,7 +2332,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 150
                       : element.type === 'component' && element.name === 'Prompt Form'
                       ? 140
-                      : (element.type === 'component' && element.name === 'Navbar') || (element.type === 'navbar' && element.name === 'Navbar')
+                      : (element.type === 'component' && element.name === 'Navbar')
                       ? 125
                       : element.type === 'component' && element.name === 'Bottom Navbar'
                       ? 125
@@ -2414,6 +2414,9 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
               experienceSettings={experienceSettingsFromApp}
               overallFontFamily={overallFontFamily}
               navbarType={navbarContent.navbarType}
+              autoElements={autoElements}
+              scrollToAutoElement={scrollToAutoElement}
+              includeAutoNav={experienceSettingsFromApp?.autoNavigationEnabled}
             />
           );
         });

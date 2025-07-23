@@ -50,6 +50,10 @@ interface NavbarProps {
   overallFontFamily?: any;
   layoutSettingsFromPreview?: any;
   navbarType: 'bottom' | 'top' | 'hamburger';
+  // Auto-nav props
+  autoElements?: Array<{elementId: number, sequence: number, endPosition: number}>;
+  scrollToAutoElement?: (autoIndex: number) => void;
+  includeAutoNav?: boolean;
 }
 
 // Utility function to convert text to links and format bold text
@@ -180,7 +184,10 @@ const Navbar: React.FC<NavbarProps> = ({
   experienceSettings,
   overallFontFamily,
   layoutSettingsFromPreview,
-  navbarType
+  navbarType,
+  autoElements = [],
+  scrollToAutoElement,
+  includeAutoNav = false
 }) => {
   console.log('🚀 Navbar Component Mounted:', {
     timestamp: Date.now(),
@@ -194,7 +201,11 @@ const Navbar: React.FC<NavbarProps> = ({
       weddingId,
       elementId: element?.id,
       navbarType,
-      hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview
+      hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
+      autoElements: autoElements,
+      autoElementsLength: autoElements?.length || 0,
+      includeAutoNav: includeAutoNav,
+      hasScrollToAutoElement: !!scrollToAutoElement
     }
   });
 
@@ -202,6 +213,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [viewportDimensions, setViewportDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
+  const [navbarIncludeAutoNav, setNavbarIncludeAutoNav] = useState<boolean>(false);
 
   // Load navbar items
   useEffect(() => {
@@ -245,6 +257,14 @@ const Navbar: React.FC<NavbarProps> = ({
           } else {
             console.log('⚠️ No items found in navbar settings data');
           }
+          
+          // Load includeAutoNav setting
+          const loadedIncludeAutoNav = data.includeAutoNav || false;
+          console.log('✅ Setting navbar includeAutoNav:', {
+            timestamp: Date.now(),
+            includeAutoNav: loadedIncludeAutoNav
+          });
+          setNavbarIncludeAutoNav(loadedIncludeAutoNav);
         } else {
           console.log('⚠️ No data found in navbar settings response');
         }
@@ -447,6 +467,121 @@ const Navbar: React.FC<NavbarProps> = ({
               </h3>
             </animated.div>
           ))}
+
+          {/* Auto-Nav Items */}
+          {(() => {
+            const shouldShowAutoNav = navbarIncludeAutoNav && includeAutoNav && autoElements.length > 0;
+            console.log('🔍 Auto-Nav Condition Check:', {
+              timestamp: Date.now(),
+              navbarIncludeAutoNav,
+              includeAutoNav,
+              autoElementsLength: autoElements.length,
+              shouldShowAutoNav,
+              autoElements: autoElements
+            });
+            return shouldShowAutoNav;
+          })() && (
+            <>
+              {/* Divider */}
+              <div style={{
+                margin: '20px 0 15px 0',
+                borderTop: '2px solid #e0e0e0',
+                position: 'relative'
+              }}>
+                <span style={{
+                  position: 'absolute',
+                  top: '-10px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  backgroundColor: 'white',
+                  padding: '0 10px',
+                  color: '#666',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px'
+                }}>
+                  Auto Navigation
+                </span>
+              </div>
+
+              {/* Auto-Nav Items */}
+              {autoElements.map((autoElement, index) => {
+                // Find the corresponding element to get its name
+                const matchingElement = experienceSettings?.elements?.find((el: any) => el.id === autoElement.elementId);
+                console.log('🔍 Auto-Nav Element Name Lookup:', {
+                  timestamp: Date.now(),
+                  autoElementId: autoElement.elementId,
+                  autoSequence: autoElement.sequence,
+                  matchingElement: matchingElement,
+                  elementName: matchingElement?.name,
+                  contentName: matchingElement?.content?.name,
+                  finalName: matchingElement?.name || matchingElement?.content?.name || `Auto ${autoElement.sequence}`
+                });
+                
+                const elementName = matchingElement?.name || 
+                                   matchingElement?.content?.name || 
+                                   `Auto ${autoElement.sequence}`;
+                
+                return (
+                  <div
+                    key={`auto-nav-${autoElement.elementId}`}
+                    style={{
+                      marginBottom: '12px',
+                      padding: '12px 15px',
+                      backgroundColor: '#4a90e2', // Different color for auto-nav items
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      border: '1px solid rgba(74, 144, 226, 0.3)',
+                      boxShadow: '0 2px 8px rgba(74, 144, 226, 0.2)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(74, 144, 226, 0.3)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0px)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(74, 144, 226, 0.2)';
+                    }}
+                    onClick={() => {
+                      if (scrollToAutoElement) {
+                        scrollToAutoElement(index);
+                        setIsHamburgerOpen(false); // Close sidebar when clicking auto-nav item
+                      }
+                    }}
+                  >
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between'
+                    }}>
+                      <h3 style={{ 
+                        margin: 0, 
+                        color: '#ffffff',
+                        fontSize: '16px',
+                        fontWeight: '600'
+                      }}>
+                        {elementName}
+                      </h3>
+                      <span style={{
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        color: '#ffffff',
+                        fontSize: '12px',
+                        fontWeight: 'bold',
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        minWidth: '20px',
+                        textAlign: 'center'
+                      }}>
+                        {autoElement.sequence}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
       </animated.div>
     </>

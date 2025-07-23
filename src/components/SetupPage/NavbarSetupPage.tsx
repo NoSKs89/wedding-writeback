@@ -18,12 +18,18 @@ interface NavbarItem {
 interface NavbarSettings {
   items: NavbarItem[];
   navbarType: 'bottom' | 'top' | 'hamburger';
+  includeAutoNav?: boolean;
+}
+
+interface ExperienceSettings {
+  autoNavigationEnabled: boolean;
 }
 
 const NavbarSetupPage: React.FC = () => {
   const { weddingId } = useParams<{ weddingId: string }>();
   const [items, setItems] = useState<NavbarItem[]>([]);
   const [navbarType, setNavbarType] = useState<'bottom' | 'top' | 'hamburger'>('bottom');
+  const [includeAutoNav, setIncludeAutoNav] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -31,6 +37,31 @@ const NavbarSetupPage: React.FC = () => {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // Experience settings state
+  const [experienceSettings, setExperienceSettings] = useState<ExperienceSettings | null>(null);
+  const [isLoadingExperienceSettings, setIsLoadingExperienceSettings] = useState(true);
+
+  // Fetch experience settings to check if auto navigation is enabled
+  useEffect(() => {
+    const loadExperienceSettings = async () => {
+      if (!weddingId) return;
+      try {
+        const apiBase = getApiBaseUrl();
+        const response = await axios.get(`${apiBase}/weddings/${weddingId}/experience-settings`);
+        if (response.data && response.data.data) {
+          setExperienceSettings(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error loading experience settings:', error);
+        // Set default experience settings if loading fails
+        setExperienceSettings({ autoNavigationEnabled: false });
+      } finally {
+        setIsLoadingExperienceSettings(false);
+      }
+    };
+    loadExperienceSettings();
+  }, [weddingId]);
 
   useEffect(() => {
     const loadNavbarSettings = async () => {
@@ -43,13 +74,16 @@ const NavbarSetupPage: React.FC = () => {
           const data = response.data.data;
           const loadedItems = data.items || [];
           const loadedNavbarType = data.navbarType || 'bottom';
+          const loadedIncludeAutoNav = data.includeAutoNav || false;
           
           // Update both states consistently
           setItems(loadedItems);
           setNavbarType(loadedNavbarType);
+          setIncludeAutoNav(loadedIncludeAutoNav);
           setNavbarSettings({
             items: loadedItems,
-            navbarType: loadedNavbarType
+            navbarType: loadedNavbarType,
+            includeAutoNav: loadedIncludeAutoNav
           });
         }
       } catch (error) {
@@ -69,6 +103,7 @@ const NavbarSetupPage: React.FC = () => {
       await axios.post(`${apiBase}/weddings/${weddingId}/navbar-settings`, {
         items,
         navbarType,
+        includeAutoNav,
         isEnabled: true // Maintain legacy field
       });
       setSaveMessage('Settings saved successfully!');
@@ -240,13 +275,72 @@ const NavbarSetupPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Navbar Type Selector */}
+      {/* Navbar Type Selector and Auto-Nav Checkbox */}
       <div style={{ 
         display: 'flex', 
-        justifyContent: 'flex-end', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
         marginBottom: '20px',
         width: '100%'
       }}>
+        {/* Auto-Nav Checkbox */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '10px',
+          position: 'relative'
+        }}>
+          <label style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            cursor: experienceSettings?.autoNavigationEnabled ? 'pointer' : 'not-allowed',
+            opacity: experienceSettings?.autoNavigationEnabled ? 1 : 0.5,
+            position: 'relative'
+          }}>
+            <input
+              type="checkbox"
+              checked={includeAutoNav}
+              onChange={(e) => {
+                if (experienceSettings?.autoNavigationEnabled) {
+                  setIncludeAutoNav(e.target.checked);
+                  setNavbarSettings(prev => ({
+                    ...prev,
+                    includeAutoNav: e.target.checked
+                  }));
+                }
+              }}
+              disabled={!experienceSettings?.autoNavigationEnabled || isLoadingExperienceSettings}
+              style={{
+                margin: 0,
+                cursor: experienceSettings?.autoNavigationEnabled ? 'pointer' : 'not-allowed'
+              }}
+            />
+            <span style={{ fontWeight: 'bold' }}>Include Auto-Nav</span>
+          </label>
+          
+          {/* Tooltip for disabled state */}
+          {!experienceSettings?.autoNavigationEnabled && !isLoadingExperienceSettings && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: '0',
+              backgroundColor: '#333',
+              color: 'white',
+              padding: '8px 12px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              whiteSpace: 'nowrap',
+              zIndex: 1000,
+              marginTop: '5px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)'
+            }}>
+              Must Enable In Setup/Experience
+            </div>
+          )}
+        </div>
+
+        {/* Navbar Type Selector */}
         <label style={{ 
           display: 'flex', 
           alignItems: 'center', 

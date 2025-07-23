@@ -1177,7 +1177,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 150
               : el.type === 'component' && el.name === 'Prompt Form'
               ? 140
-              : (el.type === 'component' && el.name === 'Navbar') || (el.type === 'navbar' && el.name === 'Navbar')
+              : (el.type === 'component' && el.name === 'Navbar')
               ? 130
               : (renderableElements.length - index) + 10,
           pointerEvents: el.type === 'component' && (el.name === 'RSVP Form' || el.name === 'Prompt Form') ? 'none' : 'auto',
@@ -1432,6 +1432,9 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
                 overallFontFamily={overallFontFamily}
                 layoutSettingsFromPreview={layoutSettingsFromPreview}
                 navbarType={navbarContent.navbarType}
+                autoElements={autoElements}
+                scrollToAutoElement={scrollToAutoElement}
+                includeAutoNav={experienceSettingsFromApp?.autoNavigationEnabled}
               />
             );
           })
