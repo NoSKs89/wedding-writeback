@@ -67,11 +67,9 @@ const NavbarSetupPage: React.FC = () => {
     try {
       const apiBase = getApiBaseUrl();
       await axios.post(`${apiBase}/weddings/${weddingId}/navbar-settings`, {
-        data: {
-          items,
-          navbarType,
-          isEnabled: true // Maintain legacy field
-        }
+        items,
+        navbarType,
+        isEnabled: true // Maintain legacy field
       });
       setSaveMessage('Settings saved successfully!');
       setTimeout(() => setSaveMessage(null), 3000);

@@ -213,9 +213,9 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
         // Legacy bottom navbar support
         onUpdate({ type: 'component', content: 'Bottom Navbar', name: 'Bottom Navbar' });
     } else if (newTypeValue === 'navbar') {
-        // Initialize navbar with default type 'bottom'
+        // Initialize navbar with default type 'bottom' - save as component type like other components
         onUpdate({ 
-          type: 'navbar', 
+          type: 'component', 
           content: { 
             navbarType: 'bottom',
             items: [] 
@@ -412,17 +412,22 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       dropdownValue = 'component-scrapbook';
     } else if (element.name === 'Bottom Navbar') {
       dropdownValue = 'component-bottom-navbar';
+    } else if (element.name === 'Navbar') {
+      dropdownValue = 'navbar';
     } else {
       dropdownValue = 'empty';
     }
   } else if (element.type === 'background-image') {
     dropdownValue = 'background-image';
+  } else if (element.type === 'navbar') {
+    // Handle legacy navbar type
+    dropdownValue = 'navbar';
   } else {
     dropdownValue = element.type;
   }
 
   const [navbarType, setNavbarType] = useState<'bottom' | 'top' | 'hamburger'>(
-    element.type === 'navbar' && typeof element.content === 'object' && 'navbarType' in element.content
+    ((element.type === 'component' && element.name === 'Navbar') || (element.type === 'navbar' && element.name === 'Navbar')) && typeof element.content === 'object' && element.content && 'navbarType' in element.content
       ? (element.content as { navbarType: 'bottom' | 'top' | 'hamburger' }).navbarType
       : element.type === 'component' && element.content === 'Bottom Navbar'
       ? 'bottom' // Legacy support
@@ -432,7 +437,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
   const handleNavbarTypeChange = (e: ChangeEvent<HTMLSelectElement>) => {
     const newType = e.target.value as 'bottom' | 'top' | 'hamburger';
     setNavbarType(newType);
-    if (element.type === 'navbar' && typeof element.content === 'object') {
+    if (((element.type === 'component' && element.name === 'Navbar') || (element.type === 'navbar' && element.name === 'Navbar')) && typeof element.content === 'object' && element.content) {
       onUpdate({
         content: {
           ...element.content,
@@ -494,7 +499,7 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
           </div>
         </div>
 
-        {element.type === 'navbar' && (
+        {((element.type === 'component' && element.name === 'Navbar') || (element.type === 'navbar' && element.name === 'Navbar')) && (
           <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <label style={{fontSize: '0.9rem'}}>Navbar Type:</label>
             <div style={selectContainerStyle}>

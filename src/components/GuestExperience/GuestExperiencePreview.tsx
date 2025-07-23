@@ -8,7 +8,6 @@ import RSVPForm from '../RSVPForm';
 import PromptForm from '../PromptForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
-import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
 import ElementWrapper from '../ElementWrapper';
 import ScrollHint from '../ScrollHint';
@@ -22,7 +21,7 @@ import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMa
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
-import Navbar from './Navbar'; // Changed from BottomNavbar
+import Navbar from './Navbar';
 
 // --- TYPE DEFINITIONS ---
 interface WeddingData {
@@ -1150,28 +1149,12 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               elementSticky={el.sticky}
             />
           );
-        } else if (el.name === 'Bottom Navbar') {
-          // Bottom Navbar will be rendered outside parallax structure, so skip here
-          return null;
         } else if (el.name === 'Navbar') {
-          const navbarContent = typeof el.content === 'object' ? el.content : { navbarType: 'bottom', items: [] };
-          const folderName = generateElementFolderName(el);
-          componentToRender = (
-            <Navbar
-              scrollY={scrollY}
-              startPosition={el.sticky.start}
-              endPosition={el.sticky.end}
-              windowHeight={windowHeight}
-              TOTAL_PAGES={TOTAL_PAGES}
-              styleControls={elementControls[folderName]}
-              weddingId={weddingId}
-              element={el}
-              experienceSettings={experienceSettingsFromApp}
-              overallFontFamily={overallFontFamily}
-              layoutSettingsFromPreview={layoutSettingsFromPreview}
-              navbarType={navbarContent.navbarType}
-            />
-          );
+          // Navbar renders outside parallax but we need ElementWrapper for controls
+          componentToRender = null; // Will render outside parallax
+        } else if (el.name === 'Bottom Navbar') {
+          // Legacy Bottom Navbar - skip rendering as it's replaced by Navbar
+          componentToRender = null;
         }
         break;
       default: return null;
@@ -1194,8 +1177,8 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               ? 150
               : el.type === 'component' && el.name === 'Prompt Form'
               ? 140
-              : el.type === 'component' && el.name === 'Bottom Navbar'
-              ? 125
+              : (el.type === 'component' && el.name === 'Navbar') || (el.type === 'navbar' && el.name === 'Navbar')
+              ? 130
               : (renderableElements.length - index) + 10,
           pointerEvents: el.type === 'component' && (el.name === 'RSVP Form' || el.name === 'Prompt Form') ? 'none' : 'auto',
           backgroundColor: (el.type === 'background-image' || el.type === 'background-video') 
@@ -1425,29 +1408,34 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
         </Parallax>
       </div>
 
-      {/* Render Bottom Navbar outside parallax structure */}
-      {renderableElements
-        .filter(element => element.type === 'component' && element.name === 'Bottom Navbar')
-        .map(element => {
-          const bottomNavbarFolderName = generateElementFolderName(element);
-          return (
-            <BottomNavbar 
-              key={`bottom-navbar-${element.id}`}
-              scrollY={scrollYWithPhysics}
-              startPosition={element.sticky.start}
-              endPosition={element.sticky.end}
-              windowHeight={windowHeight}
-              TOTAL_PAGES={TOTAL_PAGES}
-              styleControls={elementControls[bottomNavbarFolderName]}
-              weddingId={weddingId}
-              element={element}
-              experienceSettings={experienceSettingsFromApp}
-              overallFontFamily={overallFontFamily}
-              layoutSettingsFromPreview={layoutSettingsFromPreview}
-            />
-          );
-        })
-      }
+              {/* Render Navbar outside parallax structure */}
+        {renderableElements
+          .filter(element => 
+            (element.type === 'component' && element.name === 'Navbar') || 
+            (element.type === 'navbar' && element.name === 'Navbar')
+          )
+          .map(element => {
+            const navbarFolderName = generateElementFolderName(element);
+            const navbarContent = typeof element.content === 'object' ? element.content : { navbarType: 'bottom', items: [] };
+            return (
+              <Navbar 
+                key={`navbar-${element.id}`}
+                scrollY={scrollYWithPhysics}
+                startPosition={element.sticky.start}
+                endPosition={element.sticky.end}
+                windowHeight={windowHeight}
+                TOTAL_PAGES={TOTAL_PAGES}
+                styleControls={elementControls[navbarFolderName]}
+                weddingId={weddingId}
+                element={element}
+                experienceSettings={experienceSettingsFromApp}
+                overallFontFamily={overallFontFamily}
+                layoutSettingsFromPreview={layoutSettingsFromPreview}
+                navbarType={navbarContent.navbarType}
+              />
+            );
+          })
+        }
 
           <>
             <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />

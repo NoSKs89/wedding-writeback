@@ -1,7 +1,7 @@
 export interface ElementConfig {
   id: number;
   name: string;
-  type: 'text' | 'photo' | 'background-image' | 'component' | 'empty' | 'video' | 'background-video';
+  type: 'text' | 'photo' | 'background-image' | 'component' | 'empty' | 'video' | 'background-video' | 'navbar'; // Temporarily keep 'navbar' for backward compatibility
   content: any;
   timelineColor: string;
   autoSequence?: number | null; // Auto navigation sequence number (1, 2, 3, etc.) or null if not in auto sequence

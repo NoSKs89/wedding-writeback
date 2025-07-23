@@ -26,7 +26,7 @@ export interface TimelineMarker {
 
 export interface ElementConfig {
   id: number; // Now 1-8
-  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video' | 'navbar';
+  type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video' | 'navbar'; // Temporarily keep 'navbar' for backward compatibility
   content: string | File | React.ComponentType<any> | null | { 
     maxImages?: number;
     disableS3?: boolean;
@@ -271,7 +271,20 @@ const ExperienceSetupPage: React.FC = () => {
             const settingsResponse = await axios.get<{ data: ExperienceSettings }>(`${apiBase}/weddings/${weddingId}/experience-settings`);
             if (settingsResponse.data && settingsResponse.data.data) {
               const { elements: savedElements, markers: savedMarkers, timelineLength: savedTimelineLength, defaultLayoutSlotDesktop: savedDefaultLayoutSlotDesktop, defaultLayoutSlotMobile: savedDefaultLayoutSlotMobile, autoNavigationEnabled: savedAutoNavigationEnabled } = settingsResponse.data.data;
-              setElements(savedElements);
+              
+              // Migrate legacy navbar elements to component type
+              const migratedElements = savedElements.map(element => {
+                if (element.type === 'navbar' && element.name === 'Navbar') {
+                  console.log('🔄 Migrating legacy navbar element:', element.id);
+                  return {
+                    ...element,
+                    type: 'component' as const
+                  };
+                }
+                return element;
+              });
+              
+              setElements(migratedElements);
               setMarkers(savedMarkers);
               setTimelineLength(savedTimelineLength);
               setDefaultLayoutSlotDesktop(savedDefaultLayoutSlotDesktop || 1);
@@ -306,6 +319,27 @@ const ExperienceSetupPage: React.FC = () => {
     }
   }, [weddingId]);
 
+  // Migration effect to convert legacy navbar elements to component type
+  useEffect(() => {
+    if (elements.length > 0) {
+      const hasLegacyNavbar = elements.some(el => el.type === 'navbar' && el.name === 'Navbar');
+      if (hasLegacyNavbar) {
+        console.log('🔄 Migrating legacy navbar elements to component type...');
+        const migratedElements = elements.map(element => {
+          if (element.type === 'navbar' && element.name === 'Navbar') {
+            console.log('🔄 Converting element', element.id, 'from navbar to component type');
+            return {
+              ...element,
+              type: 'component' as const
+            };
+          }
+          return element;
+        });
+        setElements(migratedElements);
+      }
+    }
+  }, [elements.length]); // Only run when elements array length changes
+
   // --- Memoized Timeline Markers ---
   // This recalculates markers whenever elements or their configured content change.
   const activeMarkers = useMemo(() => {
@@ -323,7 +357,7 @@ const ExperienceSetupPage: React.FC = () => {
           const fullText = el.content.trim();
           textPreviewContent = fullText.length > 9 ? fullText.substring(0, 9) + '...' : fullText;
         } else if (el.type === 'component') {
-          iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Prompt Form' ? '📝' : el.name === 'Scrapbook' ? '📚' : '⚙️';
+          iconPreviewContent = el.name === 'RSVP Form' ? '📅' : el.name === 'Prompt Form' ? '📝' : el.name === 'Scrapbook' ? '📚' : el.name === 'Navbar' ? '🍔' : '⚙️';
         } else if (el.type === 'photo' && typeof el.content === 'string') {
           previewImageUrl = el.content;
         } else if (el.type === 'video' && typeof el.content === 'string') { // Added for video preview

@@ -668,8 +668,8 @@ const NavbarItemButton: React.FC<NavbarItemButtonProps> = ({
     modalTop = viewportDimensions.height * 0.05; // 5vh from top
   }
   
-  const modalWidth = Math.min(viewportDimensions.width * 0.9, 600);
-  const modalLeft = Math.max(0, (viewportDimensions.width - modalWidth) / 4);
+  const modalWidth = Math.min(viewportDimensions.width * 0.8, 500); // Reduced from 0.9 to 0.8 and 600 to 500
+  const modalLeft = (viewportDimensions.width - modalWidth) / 2;
   
   // console.log('Modal positioning calculations:', {
   //   viewportHeight: viewportDimensions.height,

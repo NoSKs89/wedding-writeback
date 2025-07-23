@@ -8,7 +8,6 @@ import RSVPForm from '../RSVPForm';
 import PromptForm from '../PromptForm';
 import InteractiveScrapbook from './InteractiveScrapbook';
 import ShiftingBackgroundColors from './ShiftingBackgroundColors';
-import BottomNavbar from './BottomNavbar';
 import FontGrabber from '../FontGrabber';
 import ScrollHint from '../ScrollHint';
 import ElementWrapper from '../ElementWrapper';
@@ -23,7 +22,7 @@ import { ElementConfig, ExperienceSettings as ExperienceSettingsType, TimelineMa
 import { getApiBaseUrl } from '../../config/apiConfig';
 import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
-import Navbar from './Navbar'; // Changed from BottomNavbar
+import Navbar from './Navbar';
 
 
 // --- TYPE DEFINITIONS ---
@@ -333,12 +332,82 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- DERIVED STATE & MEMOIZATIONS ---
   const { elements: elementsFromBlueprint = [], markers: markersFromBlueprint = [] } = experienceSettingsFromApp || {};
+  
+  // Add immediate logging when experienceSettingsFromApp changes
+  useEffect(() => {
+    console.log('🔄 Experience Settings Changed:', {
+      timestamp: Date.now(),
+      hasExperienceSettings: !!experienceSettingsFromApp,
+      experienceSettingsKeys: experienceSettingsFromApp ? Object.keys(experienceSettingsFromApp) : 'none',
+      elementsCount: elementsFromBlueprint.length,
+      markersCount: markersFromBlueprint.length,
+      rawExperienceSettings: experienceSettingsFromApp
+    });
+  }, [experienceSettingsFromApp, elementsFromBlueprint.length, markersFromBlueprint.length]);
+  
+  console.log('📋 Experience Settings Analysis:', {
+    timestamp: Date.now(),
+    hasExperienceSettings: !!experienceSettingsFromApp,
+    elementsFromBlueprintCount: elementsFromBlueprint.length,
+    markersFromBlueprintCount: markersFromBlueprint.length,
+    allElements: elementsFromBlueprint.map(el => ({ id: el.id, type: el.type, name: el.name, content: el.content })),
+    allMarkers: markersFromBlueprint.map(m => ({ elementId: m.elementId, type: m.type, position: m.position })),
+    navbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Navbar'),
+    bottomNavbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Bottom Navbar'),
+    allComponentElements: elementsFromBlueprint.filter(el => el.type === 'component').map(el => ({ id: el.id, name: el.name, content: el.content })),
+    elementsWithMarkers: elementsFromBlueprint.map(el => {
+      const startMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'start');
+      const endMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'end');
+      return {
+        id: el.id,
+        name: el.name,
+        type: el.type,
+        hasStartMarker: !!startMarker,
+        hasEndMarker: !!endMarker,
+        startPosition: startMarker?.position,
+        endPosition: endMarker?.position
+      };
+    }),
+    fullExperienceSettings: experienceSettingsFromApp
+  });
   const TOTAL_PAGES = useMemo(() => (experienceSettingsFromApp?.timelineLength > 0 && windowHeight > 0 ? Math.max(1.1, experienceSettingsFromApp.timelineLength / windowHeight) : 3), [experienceSettingsFromApp?.timelineLength, windowHeight]);
 
   const renderableElements: ElementDefinition[] = useMemo(() => {
-    if (!elementsFromBlueprint.length || !markersFromBlueprint.length) return [];
+    console.log('🏗️ Creating Renderable Elements:', {
+      timestamp: Date.now(),
+      elementsFromBlueprintCount: elementsFromBlueprint.length,
+      markersFromBlueprintCount: markersFromBlueprint.length,
+      TOTAL_PAGES,
+      elementsFromBlueprint: elementsFromBlueprint.map(el => ({ id: el.id, type: el.type, name: el.name })),
+      markersFromBlueprint: markersFromBlueprint.map(m => ({ elementId: m.elementId, type: m.type, position: m.position }))
+    });
+    
+    if (!elementsFromBlueprint.length || !markersFromBlueprint.length) {
+      console.log('❌ No elements or markers from blueprint, returning empty array');
+      return [];
+    }
+    
     const pageMultiplier = TOTAL_PAGES > 1 ? TOTAL_PAGES - 1 : 0;
-    return elementsFromBlueprint.map((element): ElementDefinition | null => {
+    const result = elementsFromBlueprint.map((element): ElementDefinition | null => {
+      // Log each element being processed
+      console.log('🔍 Processing Element:', {
+        timestamp: Date.now(),
+        elementId: element?.id,
+        elementName: element?.name,
+        elementType: element?.type,
+        hasId: !!element?.id,
+        isNotEmpty: element?.type !== 'empty',
+        startMarker: markersFromBlueprint.find(m => m.elementId === element?.id && m.type === 'start'),
+        endMarker: markersFromBlueprint.find(m => m.elementId === element?.id && m.type === 'end'),
+        willBeIncluded: !!(element && element.id && element.type !== 'empty' && 
+          markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'start') &&
+          markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'end')),
+        // Special logging for navbar elements
+        isNavbarElement: element?.type === 'navbar' || (element?.type === 'component' && element?.name === 'Navbar'),
+        isLegacyNavbar: element?.type === 'navbar',
+        isNewNavbar: element?.type === 'component' && element?.name === 'Navbar'
+      });
+      
       if (!element || !element.id || element.type === 'empty') return null;
       const startMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'start');
       const endMarker = markersFromBlueprint.find(m => m.elementId === element.id && m.type === 'end');
@@ -348,6 +417,15 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
       const actualEndPage = Math.max(pageOffset + 0.1, endPageOffset);
       return { ...element, key: `ge-el-${element.id}`, sticky: { start: pageOffset, end: actualEndPage }, pageOffset };
     }).filter((el): el is ElementDefinition => el !== null);
+    
+    console.log('✅ Renderable Elements Created:', {
+      timestamp: Date.now(),
+      resultCount: result.length,
+      result: result.map(el => ({ id: el.id, type: el.type, name: el.name, sticky: el.sticky })),
+      navbarElements: result.filter(el => el.type === 'component' && el.name === 'Navbar')
+    });
+    
+    return result;
   }, [elementsFromBlueprint, markersFromBlueprint, TOTAL_PAGES]);
 
   const [displayedImagesAndTheirData, setDisplayedImagesAndTheirData] = useState<DisplayedImage[]>([]);
@@ -1520,8 +1598,33 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const maxScrollableHeight = useMemo(() => (TOTAL_PAGES - 1) * windowHeight, [TOTAL_PAGES, windowHeight]);
   const scrollYWithPhysics = useMemo(() => applyParallaxPhysics(scrollY, maxScrollableHeight), [scrollY, maxScrollableHeight, applyParallaxPhysics]);
   
-  // Update the navbar element finder
-  const navbarElement = useMemo(() => renderableElements.find(el => el.type === 'navbar'), [renderableElements]);
+  // Update the navbar element finder - look for Navbar component elements
+  const navbarElement = useMemo(() => {
+    // Temporarily support both legacy 'navbar' type and new 'component' type
+    const found = renderableElements.find(el => 
+      (el.type === 'component' && el.name === 'Navbar') || 
+      (el.type === 'navbar' && el.name === 'Navbar')
+    );
+    console.log('🔍 Navbar Element Detection:', {
+      timestamp: Date.now(),
+      totalRenderableElements: renderableElements.length,
+      renderableElementTypes: renderableElements.map(el => ({ type: el.type, name: el.name, id: el.id })),
+      foundNavbarElement: found,
+      foundNavbarElementDetails: found ? {
+        id: found.id,
+        type: found.type,
+        name: found.name,
+        sticky: found.sticky,
+        content: found.content
+      } : null,
+      // Debug info
+      allNavbarElements: renderableElements.filter(el => 
+        (el.type === 'component' && el.name === 'Navbar') || 
+        (el.type === 'navbar' && el.name === 'Navbar')
+      )
+    });
+    return found;
+  }, [renderableElements]);
   const navbarFolderName = navbarElement ? generateElementFolderName(navbarElement) : null;
 
   // Get the scrapbook element to determine its folder name
@@ -2200,11 +2303,13 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
                       TOTAL_PAGES={TOTAL_PAGES}
                       elementSticky={element.sticky}
-
                     />;
+                  } else if (element.name === 'Navbar') {
+                    // REMOVE: Do not render Navbar here, it will be rendered outside parallax structure
+                    contentToRender = null;
                   } else if (element.name === 'Bottom Navbar') {
-                    // Bottom Navbar renders outside parallax but we need ElementWrapper for controls
-                    contentToRender = null; // Will render outside parallax
+                    // Legacy Bottom Navbar - skip rendering as it's replaced by Navbar
+                    contentToRender = null;
                   } else { return null; }
                   break;
                 default: return null;
@@ -2227,6 +2332,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 150
                       : element.type === 'component' && element.name === 'Prompt Form'
                       ? 140
+                      : (element.type === 'component' && element.name === 'Navbar') || (element.type === 'navbar' && element.name === 'Navbar')
+                      ? 125
                       : element.type === 'component' && element.name === 'Bottom Navbar'
                       ? 125
                       : (elementsFromBlueprint.length - (element.id || 0) + 1),
@@ -2252,27 +2359,61 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         </Parallax>
       </div>
 
-      {/* Render Bottom Navbar outside parallax structure */}
+      {/* Render Navbar outside parallax structure */}
       {(() => {
-        const bottomNavbarElements = renderableElements.filter(element => element.type === 'component' && element.name === 'Bottom Navbar');
+        // Temporarily support both legacy 'navbar' type and new 'component' type
+        const navbarElements = renderableElements.filter(element => 
+          (element.type === 'component' && element.name === 'Navbar') || 
+          (element.type === 'navbar' && element.name === 'Navbar')
+        );
         
-        return bottomNavbarElements.map(element => {
+        console.log('🎯 Navbar Rendering Section:', {
+          timestamp: Date.now(),
+          totalRenderableElements: renderableElements.length,
+          navbarElementsFound: navbarElements.length,
+          navbarElements: navbarElements.map(el => ({
+            id: el.id,
+            type: el.type,
+            name: el.name,
+            sticky: el.sticky,
+            content: el.content
+          })),
+          willRenderNavbars: navbarElements.length > 0
+        });
+        
+        return navbarElements.map(element => {
           const folderName = generateElementFolderName(element);
-          const bottomNavbarValues = controlValues[folderName] || {};
+          const navbarValues = controlValues[folderName] || {};
+          const navbarContent = typeof element.content === 'object' ? element.content : { navbarType: 'bottom', items: [] };
+          
+          console.log('🎨 Rendering Navbar Element:', {
+            timestamp: Date.now(),
+            elementId: element.id,
+            folderName,
+            navbarValues,
+            navbarContent,
+            navbarType: navbarContent.navbarType,
+            stickyStart: element.sticky.start,
+            stickyEnd: element.sticky.end,
+            scrollY: scrollYWithPhysics,
+            windowHeight,
+            TOTAL_PAGES
+          });
           
           return (
-            <BottomNavbar 
-              key={`bottom-navbar-${element.id}`}
+            <Navbar 
+              key={`navbar-${element.id}`}
               scrollY={scrollYWithPhysics}
               startPosition={element.sticky.start}
               endPosition={element.sticky.end}
               windowHeight={windowHeight}
               TOTAL_PAGES={TOTAL_PAGES}
-              styleControls={bottomNavbarValues}
+              styleControls={navbarValues}
               weddingId={weddingIdFromApp}
               element={element}
               experienceSettings={experienceSettingsFromApp}
               overallFontFamily={overallFontFamily}
+              navbarType={navbarContent.navbarType}
             />
           );
         });
