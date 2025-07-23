@@ -461,15 +461,48 @@ exports.handler = async (event, context) => {
           // --- Duplicate RSVP Check ---
           if (email) {
             const normalizedEmail = email.toLowerCase();
-            const isDuplicate = wedding.rsvps && wedding.rsvps.some(rsvp => 
+            const existingRsvpIndex = wedding.rsvps && wedding.rsvps.findIndex(rsvp => 
                 rsvp.firstName && rsvp.firstName.toLowerCase() === firstName.toLowerCase() &&
                 rsvp.lastName && rsvp.lastName.toLowerCase() === lastName.toLowerCase() &&
                 rsvp.email && rsvp.email.toLowerCase() === normalizedEmail
             );
 
-            if (isDuplicate) {
-                console.log(`[ROUTE /api/rsvp] Duplicate RSVP detected for ${firstName} ${lastName} with email ${email}`);
-                return createResponse(409, { message: `An RSVP for ${firstName} ${lastName} with this email has already been submitted.` }, requestOrigin);
+            if (existingRsvpIndex !== -1) {
+                console.log(`[ROUTE /api/rsvp] Updating existing RSVP for ${firstName} ${lastName} with email ${email}`);
+                
+                // Update the existing RSVP
+                const updatedRsvp = {
+                    ...wedding.rsvps[existingRsvpIndex],
+                    attending,
+                    guestCount: attending ? guestCount : 0,
+                    adultCount: attending && validation.sanitized.adultCount ? validation.sanitized.adultCount : (attending ? guestCount : 0),
+                    kidsCount: attending && validation.sanitized.kidsCount ? validation.sanitized.kidsCount : 0,
+                    bringingKids: attending ? (validation.sanitized.bringingKids || false) : false,
+                    message: message || '',
+                    mealChoices: attending ? (mealChoices || {}) : {},
+                    lastModifiedAt: new Date(),
+                    isModified: true
+                };
+
+                // Update the RSVP in the array
+                wedding.rsvps[existingRsvpIndex] = updatedRsvp;
+                wedding.markModified('rsvps'); // Mark the array as modified
+                
+                // Add to history
+                wedding.rsvpHistory.push({
+                    event: 'RSVP Updated',
+                    details: `${firstName} ${lastName} (${attending ? 'Attending' : 'Not Attending'})${attending && updatedRsvp.bringingKids ? ` - ${updatedRsvp.adultCount} adults, ${updatedRsvp.kidsCount} kids` : attending ? ` - ${guestCount} guests` : ''}`
+                });
+
+                // Save the wedding document
+                await wedding.save();
+
+                console.log(`[ROUTE /api/rsvp] Successfully updated RSVP for ${firstName} ${lastName} in wedding ${weddingId}.`);
+                
+                return createResponse(200, { 
+                    message: `RSVP updated successfully for ${firstName} ${lastName}.`,
+                    rsvp: updatedRsvp
+                }, requestOrigin);
             }
           }
           // --- End Duplicate Check ---

@@ -166,7 +166,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const [expandedMeal, setExpandedMeal] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isAttending, setIsAttending] = useState<boolean | null>(null);
-  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error'>('idle');
+  const [submissionStatus, setSubmissionStatus] = useState<'idle' | 'submitting' | 'submitted' | 'error' | 'duplicate' | 'updated'>('idle');
   const [finalResponse, setFinalResponse] = useState<any>(null);
   const [isClosed, setIsClosed] = useState(false);
 
@@ -394,14 +394,15 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     }
 
     // Validate required fields - first name and last name
-    if (!firstName || !firstName.trim()) {
-      setFormError("Please enter your first name.");
+    if (!firstName || !firstName.trim() || !lastName || !lastName.trim()) {
+      setFormError('Please enter your first and last name.');
       setSubmissionStatus('error');
       return;
     }
 
-    if (!lastName || !lastName.trim()) {
-      setFormError("Please enter your last name.");
+    // Validate email
+    if (!validateEmail(email)) {
+      setFormError('Please enter a valid email address.');
       setSubmissionStatus('error');
       return;
     }
@@ -410,13 +411,6 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     const attending = explicitAttendingStatus !== undefined ? explicitAttendingStatus : isAttending;
     const totalGuests = getTotalGuestCount();
     
-    // Validate email if provided
-    if (email && !validateEmail(email)) {
-      setFormError("Please correct the email address before submitting.");
-      setSubmissionStatus('error');
-      return;
-    }
-
     // Validate meal selections if attending plated dinner
     if (attending && isPlated && totalGuests > 1) {
       if (getTotalSelectedMealQuantity() !== totalGuests) {
@@ -458,15 +452,29 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
     };
 
     try {
-      const response = await axios.post(backendUrl, payload);
-      setFinalResponse(response.data);
-      setSubmissionStatus('submitted');
-      
-      // Call the onSubmit callback if provided
-      if (onSubmit) {
-        onSubmit();
+      const apiUrl = backendUrl.endsWith('/rsvp') ? backendUrl : `${backendUrl}/rsvp`;
+      const response = await axios.post(apiUrl, payload);
+      if ((response.status === 200 || response.status === 201) && (response.data?.message?.toLowerCase().includes('updated') || response.data?.rsvp?.isModified)) {
+        setSubmissionStatus('updated');
+        setFormError(null);
+        if (onSubmit) onSubmit();
+        return;
       }
+      if (response.status === 200 || response.status === 201) {
+        setSubmissionStatus('submitted');
+        setFormError(null);
+        if (onSubmit) onSubmit();
+        return;
+      }
+      setSubmissionStatus('error');
+      setFormError('Unexpected server response.');
     } catch (err: any) {
+      // Check for duplicate RSVP (409)
+      if (err.response && err.response.status === 409) {
+        setFinalResponse({ firstName, lastName, attending });
+        setSubmissionStatus('duplicate');
+        return;
+      }
       console.error("Error submitting RSVP:", err);
       const errorMessage = err.response?.data?.message || 'There was an error submitting your RSVP. Please try again.';
       setFormError(errorMessage);
@@ -609,6 +617,27 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
           <h2 style={{...h2Style}}>Thank You, {finalResponse.firstName}!</h2>
           <p style={{color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>{attendingMessage}</p>
           {/* Optional: Show summary of what was submitted */}
+        </div>
+      );
+    } else if (submissionStatus === 'duplicate') {
+      // Show special message for duplicate RSVP
+      return (
+        <div style={{ textAlign: 'center', position: 'relative' }}>
+          <button 
+            onClick={() => setIsClosed(true)}
+            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: selectedTheme.textColor }}
+          >
+            &times;
+          </button>
+          <h2 style={{...h2Style}}>Thanks! We adjusted your reservation!</h2>
+          <p style={{color: selectedTheme.textColor, fontFamily: formTextFontFamily}}>Your RSVP is already on file. If you made changes, we've updated your reservation.</p>
+        </div>
+      );
+    } else if (submissionStatus === 'updated') {
+      return (
+        <div style={{ textAlign: 'center', padding: '30px 0' }}>
+          <h2 style={{ marginBottom: '10px' }}>Thanks, your reservation has been updated!</h2>
+          <p>Your RSVP has been changed. If you made changes, we've updated your reservation.</p>
         </div>
       );
     } else if (submissionStatus === 'error') {

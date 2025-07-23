@@ -124,12 +124,9 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete, allowKid
                             <tr>
                                 <th>Name</th>
                                 <th>Attending</th>
-                                <th>
-                                    Guest Count
-                                    <span style={{ fontSize: '0.8em', fontWeight: 'normal', marginLeft: '4px' }}>
-                                        ({totalAttendingGuests} total{allowKids && totalKids > 0 ? `: ${totalAdults} adults, ${totalKids} kids` : allowKids ? '' : `: ${totalAttendingGuests} adults`})
-                                    </span>
-                                </th>
+                                <th>Guest Count<br/>(Total)</th>
+                                <th>Adults</th>
+                                <th>Kids</th>
                                 <th>Email</th>
                                 <th>Meal Choices</th>
                                 <th>Message</th>
@@ -151,7 +148,9 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete, allowKid
                                                     {rsvp.attending ? <CheckIcon /> : <XIcon />}
                                                 </div>
                                             </td>
-                                            <td>{guestBreakdown.display}</td>
+                                            <td>{(rsvp.adultCount || 0) + (rsvp.kidsCount || 0)}</td>
+                                            <td>{rsvp.adultCount || 0}</td>
+                                            <td>{rsvp.kidsCount || 0}</td>
                                             <td>{rsvp.email || 'N/A'}</td>
                                             <td>{formatMealChoices(rsvp.mealChoices)}</td>
                                             <td className={styles.messageCell}>{rsvp.message || 'N/A'}</td>
