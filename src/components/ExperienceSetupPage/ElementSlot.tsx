@@ -52,6 +52,12 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
       : ''
   );
 
+  const [disableS3, setDisableS3] = useState<boolean>(
+    (element.type === 'component' && element.name === 'Scrapbook' && typeof element.content === 'object' && element.content && 'disableS3' in element.content)
+      ? (element.content as { disableS3: boolean }).disableS3
+      : false
+  );
+
   // Local state for auto sequence
   const [autoSequenceValue, setAutoSequenceValue] = useState<string>(
     element.autoSequence ? element.autoSequence.toString() : 'none'
@@ -254,9 +260,20 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
     setMaxScrapbookImages(value); // Keep as string for input field flexibility
     const numValue = parseInt(value, 10);
     if (!isNaN(numValue) && numValue > 0) {
-      onUpdate({ content: { maxImages: numValue } as { maxImages: number } });
+      onUpdate({ content: { maxImages: numValue, disableS3 } as { maxImages: number, disableS3: boolean } });
     } else if (value === '') { // Allow clearing the input
-      onUpdate({ content: { maxImages: undefined } as { maxImages?: number } }); // Or some other way to signify "no limit" or "default"
+      onUpdate({ content: { maxImages: undefined, disableS3 } as { maxImages?: number, disableS3: boolean } }); // Or some other way to signify "no limit" or "default"
+    }
+  };
+
+  const handleDisableS3Change = (e: ChangeEvent<HTMLInputElement>) => {
+    const newDisableS3 = e.target.checked;
+    setDisableS3(newDisableS3);
+    if (element.type === 'component' && element.name === 'Scrapbook') {
+      const maxImages = typeof element.content === 'object' && element.content && 'maxImages' in element.content
+        ? (element.content as { maxImages?: number }).maxImages
+        : undefined;
+      onUpdate({ content: { maxImages, disableS3: newDisableS3 } });
     }
   };
 
@@ -516,24 +533,32 @@ const ElementSlot: React.FC<ElementSlotProps> = ({
           </div>
         )}
 
-        {element.type === 'component' && element.name && (
-          <div>
-            <p style={{fontSize: '0.9em', color: '#333'}}>Selected Component: <strong>{element.name}</strong></p>
-            {element.name === 'Scrapbook' && (
-              <div style={{ marginTop: '10px' }}>
-                <label htmlFor={`max-images-${element.id}`} style={{...labelStyle, marginRight: '5px'}}>Max Images:</label>
+        {element.type === 'component' && element.name === 'Scrapbook' && (
+          <div style={{ marginTop: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
+              <label htmlFor={`max-images-${element.id}`} style={{...labelStyle, marginRight: '5px'}}>Max Images:</label>
+              <input
+                type="number"
+                id={`max-images-${element.id}`}
+                value={maxScrapbookImages}
+                onChange={handleMaxImagesChange}
+                min="1"
+                style={{...numberInputStyle, width: '60px'}}
+                placeholder="e.g. 15"
+              />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{...labelStyle, cursor: 'pointer', userSelect: 'none'}}>
                 <input
-                  type="number"
-                  id={`max-images-${element.id}`}
-                  value={maxScrapbookImages}
-                  onChange={handleMaxImagesChange}
-                  min="1"
-                  style={{...numberInputStyle, width: '60px'}}
-                  placeholder="e.g. 15"
+                  type="checkbox"
+                  checked={disableS3}
+                  onChange={handleDisableS3Change}
+                  style={{ marginRight: '5px' }}
                 />
-                <p style={{...recommendedTextStyle, fontSize: '0.7rem', margin: '3px 0 0 0'}}>Recommends &lt; 15 for Load Times</p>
-              </div>
-            )}
+                Disable S3 Loading
+              </label>
+            </div>
+            <p style={{...recommendedTextStyle, fontSize: '0.7rem', margin: '3px 0 0 0'}}>Recommends &lt; 15 for Load Times</p>
           </div>
         )}
       </div>

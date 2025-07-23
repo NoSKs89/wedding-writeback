@@ -27,7 +27,10 @@ export interface TimelineMarker {
 export interface ElementConfig {
   id: number; // Now 1-8
   type: 'empty' | 'photo' | 'text' | 'component' | 'background-image' | 'video' | 'background-video'; // Added 'background-video'
-  content: string | File | React.ComponentType<any> | null | { maxImages?: number }; // URL for photo/video, text content, component type, or scrapbook config
+  content: string | File | React.ComponentType<any> | null | { 
+    maxImages?: number;
+    disableS3?: boolean; // Added to control S3 loading
+  }; // URL for photo/video, text content, component type, or scrapbook config
   name?: string; // e.g., 'RSVPForm' or uploaded file name
   timelineColor: string; // Unique color for this element's markers
   autoSequence?: number | null; // Auto navigation sequence number (1, 2, 3, etc.) or null if not in auto sequence

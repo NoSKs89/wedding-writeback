@@ -26,8 +26,32 @@ const useWeddingData = (weddingId) => {
           axios.get(`${apiBase}/weddings/${weddingId}/experience-settings`)
         ]);
 
-        setWeddingData(weddingDataRes.data);
-        // The experience settings are nested in a `data` property from the backend
+        // Find scrapbook element settings
+        const scrapbookElement = experienceSettingsRes.data.data?.elements?.find(
+          el => el.type === 'component' && el.name === 'Scrapbook'
+        );
+
+        const scrapbookSettings = scrapbookElement?.content || {};
+        const { maxImages, disableS3 } = scrapbookSettings;
+
+        // Process wedding data based on scrapbook settings
+        const processedData = { ...weddingDataRes.data };
+        
+        if (processedData.scrapbookImages && Array.isArray(processedData.scrapbookImages)) {
+          if (disableS3) {
+            // If S3 is disabled, replace with broken links
+            processedData.scrapbookImages = Array(maxImages || 8).fill(null).map((_, i) => ({
+              fileName: `https://broken-link-${i}.jpg`,
+              caption: `Placeholder Image ${i + 1}`,
+              id: `placeholder-${i}`
+            }));
+          } else if (maxImages && maxImages > 0) {
+            // If maxImages is set, limit the number of images
+            processedData.scrapbookImages = processedData.scrapbookImages.slice(0, maxImages);
+          }
+        }
+
+        setWeddingData(processedData);
         setExperienceSettings(experienceSettingsRes.data.data);
 
       } catch (err) {
