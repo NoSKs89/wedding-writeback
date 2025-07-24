@@ -1497,7 +1497,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
               position: 'fixed',
               top: '50%',
               transform: 'translateY(-50%)',
-              zIndex: 1200,
+              zIndex: 150,
               border: 'none',
               cursor: isDisabled ? 'not-allowed' : 'pointer',
               color: isDisabled ? '#888888' : arrowTextColor,

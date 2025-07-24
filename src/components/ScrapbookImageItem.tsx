@@ -65,9 +65,9 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
 
   // Z-index logic (memoized for performance)
   const finalZIndex = useMemo(() => {
-    const Z_INDEX_BASE = initialStyle.zIndex || 1;
-    const Z_INDEX_HOVER = 100;
-    const Z_INDEX_LAST_PUT_DOWN = 5;
+    const Z_INDEX_BASE = initialStyle.zIndex || 200; // Increased from 1 to 200
+    const Z_INDEX_HOVER = 300; // Increased from 100 to 300
+    const Z_INDEX_LAST_PUT_DOWN = 250; // Increased from 5 to 250
 
     if (isHiddenForFocus) return Z_INDEX_BASE;
     if (isHovered) return Z_INDEX_HOVER;
@@ -96,7 +96,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
       ...restStyle,
       zIndex: finalZIndex,
       cursor: isHiddenForFocus || !propsOnClick ? 'default' : 'pointer',
-      pointerEvents: isHiddenForFocus ? 'none' : 'auto',
+      pointerEvents: (isHiddenForFocus ? 'none' : 'auto') as 'none' | 'auto',
       // GPU acceleration hints
       willChange: 'transform, opacity',
       backfaceVisibility: 'hidden' as const,

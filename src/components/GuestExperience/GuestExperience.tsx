@@ -345,31 +345,31 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     });
   }, [experienceSettingsFromApp, elementsFromBlueprint.length, markersFromBlueprint.length]);
   
-  console.log('📋 Experience Settings Analysis:', {
-    timestamp: Date.now(),
-    hasExperienceSettings: !!experienceSettingsFromApp,
-    elementsFromBlueprintCount: elementsFromBlueprint.length,
-    markersFromBlueprintCount: markersFromBlueprint.length,
-    allElements: elementsFromBlueprint.map(el => ({ id: el.id, type: el.type, name: el.name, content: el.content })),
-    allMarkers: markersFromBlueprint.map(m => ({ elementId: m.elementId, type: m.type, position: m.position })),
-    navbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Navbar'),
-    bottomNavbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Bottom Navbar'),
-    allComponentElements: elementsFromBlueprint.filter(el => el.type === 'component').map(el => ({ id: el.id, name: el.name, content: el.content })),
-    elementsWithMarkers: elementsFromBlueprint.map(el => {
-      const startMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'start');
-      const endMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'end');
-      return {
-        id: el.id,
-        name: el.name,
-        type: el.type,
-        hasStartMarker: !!startMarker,
-        hasEndMarker: !!endMarker,
-        startPosition: startMarker?.position,
-        endPosition: endMarker?.position
-      };
-    }),
-    fullExperienceSettings: experienceSettingsFromApp
-  });
+  // console.log('📋 Experience Settings Analysis:', {
+  //   timestamp: Date.now(),
+  //   hasExperienceSettings: !!experienceSettingsFromApp,
+  //   elementsFromBlueprintCount: elementsFromBlueprint.length,
+  //   markersFromBlueprintCount: markersFromBlueprint.length,
+  //   allElements: elementsFromBlueprint.map(el => ({ id: el.id, type: el.type, name: el.name, content: el.content })),
+  //   allMarkers: markersFromBlueprint.map(m => ({ elementId: m.elementId, type: m.type, position: m.position })),
+  //   navbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Navbar'),
+  //   bottomNavbarElements: elementsFromBlueprint.filter(el => el.type === 'component' && el.name === 'Bottom Navbar'),
+  //   allComponentElements: elementsFromBlueprint.filter(el => el.type === 'component').map(el => ({ id: el.id, name: el.name, content: el.content })),
+  //   elementsWithMarkers: elementsFromBlueprint.map(el => {
+  //     const startMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'start');
+  //     const endMarker = markersFromBlueprint.find(m => m.elementId === el.id && m.type === 'end');
+  //     return {
+  //       id: el.id,
+  //       name: el.name,
+  //       type: el.type,
+  //       hasStartMarker: !!startMarker,
+  //       hasEndMarker: !!endMarker,
+  //       startPosition: startMarker?.position,
+  //       endPosition: endMarker?.position
+  //     };
+  //   }),
+  //   fullExperienceSettings: experienceSettingsFromApp
+  // });
   const TOTAL_PAGES = useMemo(() => (experienceSettingsFromApp?.timelineLength > 0 && windowHeight > 0 ? Math.max(1.1, experienceSettingsFromApp.timelineLength / windowHeight) : 3), [experienceSettingsFromApp?.timelineLength, windowHeight]);
 
   const renderableElements: ElementDefinition[] = useMemo(() => {
@@ -1110,6 +1110,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const imageReturningToScrapbookRef = useRef(imageReturningToScrapbook);
   const pendingImageToFocusRef = useRef(pendingImageToFocus);
   const scrapbookImageRefs = useRef<(HTMLImageElement | null)[]>([]);
+  const isAnimatingRef = useRef<boolean>(false);
 
   const initialGradient = useMemo(() => {
     const gradientControls = controlValues['Dynamic Background Gradient'] || {};
@@ -1470,8 +1471,14 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     };
   }, []);
 
-  const activeSpringConfigGuest: SpringConfigPreset = springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default;
-  const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default;
+  const activeSpringConfigGuest: SpringConfigPreset = useMemo(() => 
+    springConfigPresets[selectedSpringPresetKeyGuest as keyof typeof springConfigPresets] || springConfigPresets.default,
+    [selectedSpringPresetKeyGuest]
+  );
+  const activeParallaxPhysicsGuest: ParallaxPhysicsPreset = useMemo(() => 
+    parallaxPhysicsPresets[selectedParallaxPhysicsPresetKey as keyof typeof parallaxPhysicsPresets] || parallaxPhysicsPresets.default,
+    [selectedParallaxPhysicsPresetKey]
+  );
   
   // Helper function to apply parallax physics to scroll values
   const applyParallaxPhysics = useCallback((rawScrollValue: number, maxValue?: number): number => {
@@ -1636,7 +1643,16 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- ANIMATION HOOKS ---
   const backdropSpring = useSpring({ opacity: focusedImage ? 1 : 0, pointerEvents: focusedImage ? 'auto' : 'none', config: activeSpringConfigGuest });
-  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({ opacity: 0, top: '50%', left: '50%', width: '0px', height: '0px', transform: 'translate(-50%, -50%) rotate(0deg) scale(0.5)', config: activeSpringConfigGuest }));
+  const [focusedImageContainerSpring, focusedImageApi] = useSpring(() => ({
+    opacity: 0,
+    top: '50%',
+    left: '50%',
+    width: '0px',
+    height: '0px',
+    // Match the structure used in the animation!
+    transform: 'translate(0px, 0px) rotate(0deg) scale(1)',
+    config: activeSpringConfigGuest
+  }));
   const infoBoxSpring = useSpring({ opacity: focusedImage ? 1 : 0, transform: focusedImage ? 'translateY(0px)' : 'translateY(20px)', config: activeSpringConfigGuest, delay: focusedImage ? 300 : 0 });
   
   // Loading screen fade animation
@@ -1852,17 +1868,68 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
 
   const handleImageClick = useCallback((details: any) => {
+															 
+							
+			  
+								 
+						   
+											  
+										
+	   
+
     const { imageSrc, initialStyle, currentBoundingClientRect: rect, imageElement, index } = details;
+	
     let naturalDims = imageNaturalDimensions.find(dim => dim.src === imageSrc);
+							   
+										   
     if (!naturalDims?.width) { if (imageElement?.naturalWidth > 0) naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc }; else return; }
+			  
+																									
+				
+	   
+	 
+	
     const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === index);
     if (!itemData) return;
+																					  
+			 
+	 
+	
     const baseRot = parseRotationFromStyle(initialStyle.transform);
     const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0);
     const clickedDetails: FocusedImageState = { ...itemData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: index };
+												
+				   
+							  
+								
+								  
+									
+											  
+									   
+										 
+						  
+	  
+	
+																	  
+							
+					 
+			  
+				 
+				  
+			  
+	   
+	
+						
+																				 
     if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedDetails); setFocusedImage(null); }
+											  
+							 
+			 
+																		 
     else { setFocusedImage(clickedDetails); }
+	 
   }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollYWithPhysics, focusedImage]);
+  
 
   // --- LOADING GUARD ---
   if (isSwitchingSlots || !experienceSettingsFromApp) {
@@ -2315,6 +2382,12 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                 default: return null;
               }
 
+              // Skip rendering navbar elements as ParallaxLayers since they're rendered outside parallax structure
+              if ((element.type === 'component' && element.name === 'Navbar') || 
+                  (element.type === 'component' && element.name === 'Bottom Navbar')) {
+                return null;
+              }
+
               return (
                 <ParallaxLayer key={element.key} sticky={element.sticky as ParallaxLayerProps['sticky']} style={{ 
                   ...centerStyle, 
@@ -2332,10 +2405,6 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       ? 150
                       : element.type === 'component' && element.name === 'Prompt Form'
                       ? 140
-                      : (element.type === 'component' && element.name === 'Navbar')
-                      ? 125
-                      : element.type === 'component' && element.name === 'Bottom Navbar'
-                      ? 125
                       : (elementsFromBlueprint.length - (element.id || 0) + 1),
                   pointerEvents: element.type === 'component' && (element.name === 'RSVP Form' || element.name === 'Prompt Form') ? 'none' : 'auto',
                   backgroundColor: (element.type === 'background-image' || element.type === 'background-video') 
@@ -2367,38 +2436,38 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           (element.type === 'navbar' && element.name === 'Navbar')
         );
         
-        console.log('🎯 Navbar Rendering Section:', {
-          timestamp: Date.now(),
-          totalRenderableElements: renderableElements.length,
-          navbarElementsFound: navbarElements.length,
-          navbarElements: navbarElements.map(el => ({
-            id: el.id,
-            type: el.type,
-            name: el.name,
-            sticky: el.sticky,
-            content: el.content
-          })),
-          willRenderNavbars: navbarElements.length > 0
-        });
+        // console.log('🎯 Navbar Rendering Section:', {
+        //   timestamp: Date.now(),
+        //   totalRenderableElements: renderableElements.length,
+        //   navbarElementsFound: navbarElements.length,
+        //   navbarElements: navbarElements.map(el => ({
+        //     id: el.id,
+        //     type: el.type,
+        //     name: el.name,
+        //     sticky: el.sticky,
+        //     content: el.content
+        //   })),
+        //   willRenderNavbars: navbarElements.length > 0
+        // });
         
         return navbarElements.map(element => {
           const folderName = generateElementFolderName(element);
           const navbarValues = controlValues[folderName] || {};
           const navbarContent = typeof element.content === 'object' ? element.content : { navbarType: 'bottom', items: [] };
           
-          console.log('🎨 Rendering Navbar Element:', {
-            timestamp: Date.now(),
-            elementId: element.id,
-            folderName,
-            navbarValues,
-            navbarContent,
-            navbarType: navbarContent.navbarType,
-            stickyStart: element.sticky.start,
-            stickyEnd: element.sticky.end,
-            scrollY: scrollYWithPhysics,
-            windowHeight,
-            TOTAL_PAGES
-          });
+          // console.log('🎨 Rendering Navbar Element:', {
+          //   timestamp: Date.now(),
+          //   elementId: element.id,
+          //   folderName,
+          //   navbarValues,
+          //   navbarContent,
+          //   navbarType: navbarContent.navbarType,
+          //   stickyStart: element.sticky.start,
+          //   stickyEnd: element.sticky.end,
+          //   scrollY: scrollYWithPhysics,
+          //   windowHeight,
+          //   TOTAL_PAGES
+          // });
           
           return (
             <Navbar 
@@ -2476,7 +2545,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             const baseStyle: React.CSSProperties = {
               position: 'fixed',
               top: '50%',
-              zIndex: 2000,
+              zIndex: 150,
               border: 'none',
               cursor: isDisabled ? 'not-allowed' : 'pointer',
               lineHeight: 1,

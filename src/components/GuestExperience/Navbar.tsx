@@ -191,25 +191,25 @@ const Navbar: React.FC<NavbarProps> = ({
 }) => {
   // Move modalStack to the top so it's available for all hooks
   const [modalStack, setModalStack] = useState<Array<{ id: string, item: any }>>([]);
-  console.log('🚀 Navbar Component Mounted:', {
-    timestamp: Date.now(),
-    props: {
-      scrollY,
-      startPosition,
-      endPosition,
-      windowHeight,
-      TOTAL_PAGES,
-      styleControls,
-      weddingId,
-      elementId: element?.id,
-      navbarType,
-      hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
-      autoElements: autoElements,
-      autoElementsLength: autoElements?.length || 0,
-      includeAutoNav: includeAutoNav,
-      hasScrollToAutoElement: !!scrollToAutoElement
-    }
-  });
+  // console.log('🚀 Navbar Component Mounted:', {
+  //   timestamp: Date.now(),
+  //   props: {
+  //     scrollY,
+  //     startPosition,
+  //     endPosition,
+  //     windowHeight,
+  //     TOTAL_PAGES,
+  //     styleControls,
+  //     weddingId,
+  //     elementId: element?.id,
+  //     navbarType,
+  //     hasLayoutSettingsFromPreview: !!layoutSettingsFromPreview,
+  //     autoElements: autoElements,
+  //     autoElementsLength: autoElements?.length || 0,
+  //     includeAutoNav: includeAutoNav,
+  //     hasScrollToAutoElement: !!scrollToAutoElement
+  //   }
+  // });
 
   const [items, setItems] = useState<NavbarItem[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
@@ -282,20 +282,20 @@ const Navbar: React.FC<NavbarProps> = ({
   const progress = Math.min(1, Math.max(0, (scrollY - startPosition * windowHeight) / ((endPosition - startPosition) * windowHeight)));
   const opacity = startPosition === endPosition ? 1 : (scrollY >= startPosition * windowHeight ? 1 : progress);
   
-  console.log('👁️ Navbar Visibility Calculation:', {
-    timestamp: Date.now(),
-    scrollY,
-    startPosition,
-    endPosition,
-    windowHeight,
-    startPixel: startPosition * windowHeight,
-    endPixel: endPosition * windowHeight,
-    progress,
-    opacity,
-    isAlwaysVisible: startPosition === endPosition,
-    navbarType,
-    itemCount: items.length
-  });
+  // console.log('👁️ Navbar Visibility Calculation:', {
+  //   timestamp: Date.now(),
+  //   scrollY,
+  //   startPosition,
+  //   endPosition,
+  //   windowHeight,
+  //   startPixel: startPosition * windowHeight,
+  //   endPixel: endPosition * windowHeight,
+  //   progress,
+  //   opacity,
+  //   isAlwaysVisible: startPosition === endPosition,
+  //   navbarType,
+  //   itemCount: items.length
+  // });
 
   // Spring for navbar visibility - handle legacy bottom navbar behavior
   const navbarSpring = useSpring({
@@ -721,15 +721,15 @@ const Navbar: React.FC<NavbarProps> = ({
     </animated.div>
   );
 
-  console.log('🎭 Navbar Render Decision:', {
-    timestamp: Date.now(),
-    navbarType,
-    willRenderHamburger: navbarType === 'hamburger',
-    willRenderNavbar: navbarType !== 'hamburger',
-    itemCount: items.length,
-    opacity,
-    isVisible: opacity > 0
-  });
+  // console.log('🎭 Navbar Render Decision:', {
+  //   timestamp: Date.now(),
+  //   navbarType,
+  //   willRenderHamburger: navbarType === 'hamburger',
+  //   willRenderNavbar: navbarType !== 'hamburger',
+  //   itemCount: items.length,
+  //   opacity,
+  //   isVisible: opacity > 0
+  // });
 
   // Debug indicator removed
 
