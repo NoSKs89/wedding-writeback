@@ -3832,42 +3832,107 @@ const PortalOverlayWithLogging = ({
             pointerEvents: 'none',
           }}
         >
-          <div onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100vw', height: '100vh', position: 'relative' }}>
-            {/* Animated image centered in viewport, not full screen */}
-            <animated.img
-              key={imageKey}
-              className="focused-image"
-              src={imageSrc}
-              alt={imageAlt}
-              style={{
-                position: 'fixed',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                width: focusedImageContainerSpring.width,
-                height: focusedImageContainerSpring.height,
-                opacity: focusedImageContainerSpring.opacity,
-                objectFit: 'contain',
-                boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
-                border: '10px solid white',
-                borderRadius: '3px',
-                zIndex: 9999,
-                pointerEvents: 'auto',
-              }}
-            />
-            {focusedImage && (
-              <>
-                <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
-                <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
-                {showCaptions && (
-                  <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' }}>
-                    <p style={{ margin: 0 }}>{focusedImage.altText}</p>
-                    {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
-                  </animated.div>
-                )}
-              </>
-            )}
-          </div>
+          {/* Remove the full-viewport div that was blocking backdrop clicks */}
+          {/* Animated image centered in viewport, not full screen */}
+          <animated.img
+            key={imageKey}
+            className="focused-image"
+            src={imageSrc}
+            alt={imageAlt}
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: focusedImageContainerSpring.width,
+              height: focusedImageContainerSpring.height,
+              opacity: focusedImageContainerSpring.opacity,
+              objectFit: 'contain',
+              boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+              border: '10px solid white',
+              borderRadius: '3px',
+              zIndex: 9999,
+              pointerEvents: 'auto',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCloseFocusedImage(); // Close modal when clicking on the image itself
+            }}
+          />
+          {focusedImage && (
+            <>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handlePreviousImage(e);
+                }}
+                style={{ 
+                  position: 'fixed', 
+                  top: '50%', 
+                  left: '20px', 
+                  zIndex: 1002, 
+                  transform: 'translateY(-50%)', 
+                  background: 'rgba(0,0,0,0.5)', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '50%', 
+                  width: '40px', 
+                  height: '40px', 
+                  fontSize: '20px', 
+                  cursor: 'pointer',
+                  pointerEvents: 'auto'
+                }}
+              >
+                &#8592;
+              </button>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleNextImage(e);
+                }}
+                style={{ 
+                  position: 'fixed', 
+                  top: '50%', 
+                  right: '20px', 
+                  zIndex: 1002, 
+                  transform: 'translateY(-50%)', 
+                  background: 'rgba(0,0,0,0.5)', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '50%', 
+                  width: '40px', 
+                  height: '40px', 
+                  fontSize: '20px', 
+                  cursor: 'pointer',
+                  pointerEvents: 'auto'
+                }}
+              >
+                &#8594;
+              </button>
+              {showCaptions && (
+                <animated.div 
+                  style={{ 
+                    ...infoBoxSpring, 
+                    position: 'fixed', 
+                    bottom: '30px', 
+                    left: '50%', 
+                    transform: 'translateX(-50%)', 
+                    zIndex: 1002, 
+                    background: 'rgba(0,0,0,0.7)', 
+                    color: 'white', 
+                    padding: '10px 20px', 
+                    borderRadius: '5px', 
+                    textAlign: 'center',
+                    pointerEvents: 'auto'
+                  }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <p style={{ margin: 0 }}>{focusedImage.altText}</p>
+                  {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
+                </animated.div>
+              )}
+            </>
+          )}
         </animated.div>
       )}
     </>
