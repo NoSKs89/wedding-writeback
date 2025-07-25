@@ -1201,7 +1201,7 @@ const GuestExperiencePreview: React.FC<GuestExperiencePreviewProps> = ({
   };
 
   return (
-    <UserInfoProvider>
+            <UserInfoProvider weddingId={weddingId}>
       <animated.div style={{
         position: 'fixed',
         top: '10px',

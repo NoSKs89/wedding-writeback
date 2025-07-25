@@ -2806,7 +2806,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
   // --- MAIN RENDER ---
   return (
-    <UserInfoProvider>
+            <UserInfoProvider weddingId={weddingIdFromApp}>
       <FontGrabber fonts={googleFontsToLoad} />
 
       {/* Loading Screen Overlay - shows on top of main experience during preloading */}

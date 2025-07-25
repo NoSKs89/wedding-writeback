@@ -95,7 +95,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
 
   const weddingId = weddingData.customId || weddingData.id;
   const { isSetupMode } = useSetupMode();
-  const { userInfo } = useUserInfo();
+  const { userInfo, markFormSubmitted } = useUserInfo();
   
   // console.log('[PROMPT FORM DEBUG] Initial state:', {
   //   weddingId,
@@ -296,6 +296,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
       const response = await axios.post(`${backendUrl}/prompt-responses`, payload);
       setFinalResponse(response.data);
       setSubmissionStatus('submitted');
+      markFormSubmitted('promptForm'); // Mark prompt form as submitted
       
       // Call the onSubmit callback if provided
       if (onSubmit) {

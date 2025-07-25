@@ -93,7 +93,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
   const weddingId = weddingData.customId || weddingData.id;
   const { isPlated = false, allowKids = true, platedOptions = [] } = weddingData;
   const { isSetupMode } = useSetupMode();
-  const { updateUserInfo } = useUserInfo();
+  const { updateUserInfo, markFormSubmitted } = useUserInfo();
   
   // ADDED: Create a default set of values from the schema
   const defaultStyleValues = useMemo(() => Object.entries(rsvpFormControlsSchema).reduce((acc: any, [key, val]: [string, any]) => {
@@ -458,6 +458,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         setFinalResponse({ firstName, lastName, attending });
         setSubmissionStatus('updated');
         setFormError(null);
+        markFormSubmitted('rsvp'); // Mark RSVP as submitted
         if (onSubmit) onSubmit();
         return;
       }
@@ -465,6 +466,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
         setFinalResponse({ firstName, lastName, attending });
         setSubmissionStatus('submitted');
         setFormError(null);
+        markFormSubmitted('rsvp'); // Mark RSVP as submitted
         if (onSubmit) onSubmit();
         return;
       }
@@ -475,6 +477,7 @@ const RSVPForm = forwardRef<HTMLDivElement, RSVPFormProps>(({ weddingData, backe
       if (err.response && err.response.status === 409) {
         setFinalResponse({ firstName, lastName, attending });
         setSubmissionStatus('duplicate');
+        markFormSubmitted('rsvp'); // Mark RSVP as submitted even for duplicates
         return;
       }
       console.error("Error submitting RSVP:", err);

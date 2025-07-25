@@ -3,6 +3,7 @@ import { useSpring, animated, useTransition, config, useSpringRef, useChain } fr
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { useUserInfo } from '../../contexts/UserInfoContext';
 
 interface NavbarItem {
   id: string;
@@ -14,6 +15,7 @@ interface NavbarItem {
   position: number;
   showTitleWhenOpened: boolean;
   shrinkToFitContent: boolean;
+  isFormSubmitted?: boolean; // Add optional property for form submission status
 }
 
 interface NavbarStyleControls {
@@ -216,6 +218,18 @@ const Navbar: React.FC<NavbarProps> = ({
   const [viewportDimensions, setViewportDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [isHamburgerOpen, setIsHamburgerOpen] = useState(false);
   const [navbarIncludeAutoNav, setNavbarIncludeAutoNav] = useState<boolean>(false);
+  
+  // Form submission tracking
+  const { formSubmissions } = useUserInfo();
+  
+  // DEBUG: Log form submissions state
+  console.log('🔍 [FORM_SUBMISSIONS_DEBUG] formSubmissions:', {
+    timestamp: Date.now(),
+    formSubmissions,
+    rsvpSubmitted: formSubmissions?.rsvpSubmitted,
+    promptFormSubmitted: formSubmissions?.promptFormSubmitted,
+    hasFormSubmissions: !!formSubmissions
+  });
 
   // Load navbar items
   useEffect(() => {
@@ -353,6 +367,68 @@ const Navbar: React.FC<NavbarProps> = ({
       ? autoElements.map((autoElement, index) => {
           const matchingElement = experienceSettings?.elements?.find((el: any) => el.id === autoElement.elementId);
           const elementName = matchingElement?.name || matchingElement?.content?.name || `Auto ${autoElement.sequence}`;
+          
+          // DEBUG: Log matching element details
+          console.log('🔍 [MATCHING_ELEMENT_DEBUG]', {
+            timestamp: Date.now(),
+            autoElementId: autoElement.elementId,
+            matchingElement: matchingElement ? {
+              id: matchingElement.id,
+              type: matchingElement.type,
+              name: matchingElement.name,
+              contentType: matchingElement.content?.type,
+              contentName: matchingElement.content?.name
+            } : null,
+            elementName,
+            hasMatchingElement: !!matchingElement
+          });
+          
+          // Check if this auto element corresponds to a form that has been submitted
+          const isFormSubmitted = (() => {
+            if (!matchingElement) {
+              console.log('❌ [FORM_CHECK] No matching element found for autoElement:', autoElement.elementId);
+              return false;
+            }
+            
+            // Check if this is an RSVP form
+            if (matchingElement.type === 'rsvp' || 
+                (matchingElement.content && matchingElement.content.type === 'rsvp') ||
+                elementName.toLowerCase().includes('rsvp')) {
+              const result = formSubmissions.rsvpSubmitted;
+              console.log('✅ [FORM_CHECK] RSVP form detected:', {
+                autoElementId: autoElement.elementId,
+                elementName,
+                formSubmissions: formSubmissions,
+                rsvpSubmitted: formSubmissions.rsvpSubmitted,
+                result
+              });
+              return result;
+            }
+            
+            // Check if this is a prompt form
+            if (matchingElement.type === 'promptform' || 
+                (matchingElement.content && matchingElement.content.type === 'promptform') ||
+                elementName.toLowerCase().includes('prompt')) {
+              const result = formSubmissions.promptFormSubmitted;
+              console.log('✅ [FORM_CHECK] Prompt form detected:', {
+                autoElementId: autoElement.elementId,
+                elementName,
+                formSubmissions: formSubmissions,
+                promptFormSubmitted: formSubmissions.promptFormSubmitted,
+                result
+              });
+              return result;
+            }
+            
+            console.log('❌ [FORM_CHECK] No form type detected for element:', {
+              autoElementId: autoElement.elementId,
+              elementName,
+              elementType: matchingElement.type,
+              contentType: matchingElement.content?.type
+            });
+            return false;
+          })();
+          
           return {
             id: `auto-nav-${autoElement.elementId}`,
             title: elementName,
@@ -366,7 +442,22 @@ const Navbar: React.FC<NavbarProps> = ({
             position: 0,
             showTitleWhenOpened: false,
             shrinkToFitContent: false,
+            isFormSubmitted, // Add form submission status
           };
+          
+          // DEBUG: Log final auto-nav item
+          console.log('🔍 [AUTO_NAV_ITEM_DEBUG]', {
+            timestamp: Date.now(),
+            autoElementId: autoElement.elementId,
+            elementName,
+            isFormSubmitted,
+            finalItem: {
+              id: `auto-nav-${autoElement.elementId}`,
+              title: elementName,
+              isAutoNav: true,
+              isFormSubmitted
+            }
+          });
         }) : [];
     let result = [...normal];
     if (autoNav.length > 0) {
@@ -389,8 +480,22 @@ const Navbar: React.FC<NavbarProps> = ({
     }
     // LOGGING: Sidebar items structure
     console.log('[SIDEBAR_ITEMS_BUILD] result:', result);
+    
+    // DEBUG: Log auto-nav items with form submission status
+    const autoNavItems = result.filter(item => item.isAutoNav);
+    console.log('🔍 [SIDEBAR_AUTO_NAV_DEBUG] Auto-nav items with form status:', {
+      timestamp: Date.now(),
+      autoNavItems: autoNavItems.map(item => ({
+        id: item.id,
+        title: item.title,
+        isAutoNav: item.isAutoNav,
+        isFormSubmitted: item.isFormSubmitted
+      })),
+      totalAutoNavItems: autoNavItems.length
+    });
+    
     return result;
-  }, [items, navbarIncludeAutoNav, includeAutoNav, autoElements, experienceSettings]);
+  }, [items, navbarIncludeAutoNav, includeAutoNav, autoElements, experienceSettings, formSubmissions]);
 
 
   // LOGGING: Sidebar items
@@ -600,30 +705,84 @@ const Navbar: React.FC<NavbarProps> = ({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                                     // Apply darker styling for submitted forms
+                   ...(item.isAutoNav && item.isFormSubmitted && {
+                     backgroundColor: '#2d5a8b', // Darker blue background
+                     border: '1px solid rgba(74, 144, 226, 0.5)', // Slightly more visible border
+                   }),
+                  position: 'relative', // For checkmark positioning
                 }}
                 onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0px)'; }}
-                onClick={() => handleSidebarItemClick(item)}
+                onClick={() => {
+                  // DEBUG: Log rendering of auto-nav item
+                  if (item.isAutoNav) {
+                    console.log('🎨 [RENDER_AUTO_NAV_DEBUG] Rendering auto-nav item:', {
+                      timestamp: Date.now(),
+                      itemId: item.id,
+                      itemTitle: item.title,
+                      isFormSubmitted: item.isFormSubmitted,
+                      willShowCheckmark: item.isFormSubmitted,
+                      willApplyOpacity: item.isFormSubmitted
+                    });
+                  }
+                  handleSidebarItemClick(item);
+                }}
               >
                 <h3 style={{
                   margin: 0,
-                  color: item.isAutoNav ? '#fff' : item.textColor,
+                  color: item.isAutoNav
+                    ? (item.isFormSubmitted ? '#cfd8dc' : '#fff')
+                    : item.textColor,
                   fontSize: '18px',
                   fontWeight: '600',
-                  flex: 1
+                  flex: 1,
+                  textDecoration: item.isAutoNav && item.isFormSubmitted ? 'line-through' : undefined,
+                  textDecorationThickness: item.isAutoNav && item.isFormSubmitted ? '2px' : undefined,
+                  textDecorationColor: item.isAutoNav && item.isFormSubmitted ? '#607d8b' : undefined,
+                  textDecorationSkipInk: 'auto',
+                  opacity: item.isAutoNav && item.isFormSubmitted ? 0.85 : 1,
+                  transition: 'color 0.2s, text-decoration 0.2s, opacity 0.2s',
                 }}>{item.title}</h3>
                 {item.isAutoNav && (
-                  <span style={{
-                    backgroundColor: 'rgba(255,255,255,0.2)',
-                    color: '#fff',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    padding: '4px 8px',
-                    borderRadius: '12px',
-                    minWidth: '20px',
-                    textAlign: 'center',
-                    marginLeft: '10px'
-                  }}>{item.sequence}</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {/* Green checkmark for submitted forms */}
+                    {item.isFormSubmitted && (
+                      <>
+                        {console.log('✅ [CHECKMARK_DEBUG] Rendering checkmark for item:', {
+                          timestamp: Date.now(),
+                          itemId: item.id,
+                          itemTitle: item.title,
+                          isFormSubmitted: item.isFormSubmitted
+                        })}
+                        <span style={{
+                          color: '#4CAF50',
+                          fontSize: '16px',
+                          fontWeight: 'bold',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: '20px',
+                          height: '20px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(76, 175, 80, 0.2)',
+                          border: '2px solid #4CAF50',
+                        }}>
+                          ✓
+                        </span>
+                      </>
+                    )}
+                    <span style={{
+                      backgroundColor: 'rgba(255,255,255,0.2)',
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      minWidth: '20px',
+                      textAlign: 'center'
+                    }}>{item.sequence}</span>
+                  </div>
                 )}
               </animated.div>
             );
