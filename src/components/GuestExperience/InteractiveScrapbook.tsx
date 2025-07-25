@@ -142,6 +142,7 @@ interface InteractiveScrapbookProps {
   layoutControlsFromProp: any;
   TOTAL_PAGES?: number; // Add TOTAL_PAGES for opacity calculations
   elementSticky: { start: number; end: number };
+  animationParentRef?: React.RefObject<HTMLDivElement | null>; // <-- Add this line
 }
 
 const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProps>((props, ref) => {
@@ -160,6 +161,7 @@ const InteractiveScrapbook = forwardRef<HTMLDivElement, InteractiveScrapbookProp
     layoutControlsFromProp,
     TOTAL_PAGES = 3,
     elementSticky,
+    animationParentRef, // <-- Add this line
   } = props;
 
   // --- Helper: Calculate Dynamic Parallax Values (renamed for clarity) ---

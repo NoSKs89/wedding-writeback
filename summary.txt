@@ -1,0 +1,237 @@
+# Wedding Write-Back - Scrapbook Image Focus Bug Debugging Summary
+
+## Current Status (May 2024)
+The application has a persistent visual glitch where clicked scrapbook images briefly appear in a focused overlay and then disappear or "flicker away." This issue has evolved through multiple debugging phases and is currently being investigated with extensive logging.
+
+## Latest Debugging Approach (May 2024)
+
+### 1. Extensive Logging Implementation
+
+#### A. ScrapbookImageItem.tsx - Click Event Logging
+- **Comprehensive Click Event Tracking**: Added detailed logging for all click events including event targets, DOM state, and real-time element properties
+- **DOM State Logging**: Logs bounding rect, z-index, pointer-events, transform, computed styles, inline styles, and element properties
+- **Event Propagation Path**: Tracks the complete event propagation path through the DOM
+- **Real-time Element Properties**: Logs naturalWidth, naturalHeight, src, alt, complete status, and currentSrc
+- **Parent Element Analysis**: Tracks parent element properties including position and overflow settings
+- **Component State Tracking**: Logs all component state variables including hover states, loading states, and focus states
+
+#### B. GuestExperience.tsx - Image Click Handler Logging
+- **Click Details Analysis**: Comprehensive logging of the details object passed from ScrapbookImageItem
+- **Real-time DOM State**: Logs current DOM state of the clicked element including computed styles and inline styles
+- **Natural Dimensions Tracking**: Logs whether natural dimensions are cached or retrieved from the element
+- **Item Data Validation**: Logs the found item data and validates its existence
+- **Rotation Calculations**: Detailed logging of base rotation, dynamic rotation, and final rotation calculations
+- **State Transition Tracking**: Logs current state before changes and tracks all state transitions
+- **Timing Information**: Tracks exact timing of state changes with timestamps
+
+#### C. Animation Effect Logging
+- **Animation Effect Lifecycle**: Comprehensive logging of the animation effect lifecycle
+- **DOM State During Animation**: Logs DOM state of the image element during animation setup
+- **RequestAnimationFrame Tracking**: Logs the requestAnimationFrame callback execution
+- **Bounding Rect Re-measurement**: Logs the re-measured bounding rect for animation
+- **Animation Parameters**: Detailed logging of all animation parameters including from/to positions and dimensions
+- **Spring Animation Config**: Logs the complete spring animation configuration
+- **Return Animation Tracking**: Logs return animation calculations and target element information
+
+#### D. PortalOverlayWithLogging Component Logging
+- **Portal Rendering Lifecycle**: Tracks portal overlay rendering and mounting/unmounting
+- **DOM Element Lifecycle**: Comprehensive DOM element lifecycle tracking with multiple check intervals
+- **Style Forcing Debug**: Logs before/after styles when forcing known-good CSS properties
+- **Element State Validation**: Validates element existence, connection, visibility, and computed styles
+- **Bounding Rect Tracking**: Logs bounding rect information for the focused image element
+- **Render Props Analysis**: Logs all render props and their values
+
+### 2. Key Logging Categories Implemented
+
+#### Event Target Logging
+- Event target vs currentTarget analysis
+- Event propagation path through DOM
+- Click coordinates (client, page, screen, offset)
+- Event properties (button, keys, timestamps)
+
+#### DOM State Logging
+- Element existence and connection status
+- Computed styles vs inline styles
+- Bounding rect measurements
+- Parent element analysis
+- Z-index and stacking context
+
+#### State Transition Logging
+- FocusedImage state changes
+- ImageReturningToScrapbook state changes
+- PendingImageToFocus state changes
+- State setter wrapper logging with timestamps and stack traces
+
+#### Animation Parameter Logging
+- Initial vs target dimensions
+- Position calculations
+- Rotation calculations
+- Spring animation configuration
+- RequestAnimationFrame timing
+
+#### Portal Lifecycle Logging
+- Portal mounting/unmounting
+- DOM element creation/destruction
+- Style application and forcing
+- Element visibility and opacity tracking
+
+## Key Code Sections
+
+### ScrapbookImageItem.tsx - Enhanced Click Handler
+```typescript
+const handleClick = useCallback((event: React.MouseEvent<HTMLImageElement>) => {
+  // Comprehensive event logging
+  console.log('[SCRAPBOOK_CLICK_START] ===== CLICK EVENT STARTED =====', {
+    timestamp: Date.now(),
+    eventType: event.type,
+    // ... extensive event details
+  });
+
+  // DOM state logging
+  console.log('[SCRAPBOOK_DOM_STATE] ===== COMPREHENSIVE DOM STATE =====', {
+    timestamp: Date.now(),
+    elementExists: !!imgElement,
+    elementConnected: imgElement.isConnected,
+    // ... comprehensive DOM state
+  });
+
+  // Event propagation path
+  console.log('[SCRAPBOOK_EVENT_PATH] ===== EVENT PROPAGATION PATH =====', {
+    timestamp: Date.now(),
+    eventPath: (event.nativeEvent as Event).composedPath().map((target: EventTarget, index: number) => ({
+      // ... event path details
+    }))
+  });
+}, [dependencies]);
+```
+
+### GuestExperience.tsx - Enhanced Image Click Handler
+```typescript
+const handleImageClick = useCallback((details: any) => {
+  console.log('[GUEST_EXP_CLICK_START] ===== HANDLE IMAGE CLICK STARTED =====', {
+    timestamp: Date.now(),
+    detailsReceived: !!details,
+    // ... click start details
+  });
+
+  // Real-time DOM state logging
+  if (imageElement) {
+    const computedStyle = window.getComputedStyle(imageElement);
+    console.log('[GUEST_EXP_DOM_STATE] ===== REAL-TIME DOM STATE =====', {
+      timestamp: Date.now(),
+      // ... comprehensive DOM state
+    });
+  }
+
+  // State transition logging
+  console.log('[GUEST_EXP_STATE_BEFORE] ===== STATE BEFORE CHANGES =====', {
+    timestamp: Date.now(),
+    focusedImage: focusedImage ? { /* ... */ } : null,
+    // ... state details
+  });
+}, [dependencies]);
+```
+
+### Animation Effect Logging
+```typescript
+useEffect(() => {
+  console.log('[ANIMATION_EFFECT_START] ===== ANIMATION EFFECT STARTED =====', {
+    timestamp: Date.now(),
+    focusedImage: focusedImage ? { /* ... */ } : null,
+    // ... animation start details
+  });
+
+  if (focusedImage && focusedImage.imageElement) {
+    console.log('[ANIMATION_EFFECT_FOCUS] ===== STARTING FOCUS ANIMATION =====', {
+      timestamp: Date.now(),
+      // ... focus animation details
+    });
+
+    requestAnimationFrame(() => {
+      console.log('[ANIMATION_EFFECT_RAF] ===== REQUESTANIMATIONFRAME CALLBACK =====', {
+        timestamp: Date.now(),
+        // ... RAF details
+      });
+      // ... animation logic
+    });
+  }
+}, [dependencies]);
+```
+
+### PortalOverlayWithLogging Component
+```typescript
+const PortalOverlayWithLogging = ({ /* props */ }) => {
+  console.log('[PORTAL_OVERLAY_RENDER] ===== PORTAL OVERLAY RENDERING =====', {
+    timestamp: Date.now(),
+    // ... render details
+  });
+
+  useEffect(() => {
+    console.log('[PORTAL_RENDERED] ===== OVERLAY MOUNTED =====', {
+      timestamp: Date.now(),
+      // ... mount details
+    });
+
+    const checkElement = () => {
+      const img = document.querySelector('.focused-image') as HTMLElement | null;
+      console.log('[DOM_CHECK] ===== COMPREHENSIVE DOM CHECK =====', {
+        timestamp: Date.now(),
+        // ... comprehensive DOM check
+      });
+    };
+    // ... lifecycle tracking
+  }, [dependencies]);
+};
+```
+
+## Debugging Strategy
+
+### 1. Comprehensive Event Tracking
+- Track every click event from initial trigger to final state change
+- Log event targets, propagation paths, and timing
+- Validate event handling at each step
+
+### 2. DOM State Validation
+- Log real-time DOM state of clicked elements
+- Track element existence, connection, and visibility
+- Monitor style changes and computed properties
+
+### 3. State Transition Analysis
+- Track all state changes with timestamps and stack traces
+- Validate state consistency across components
+- Monitor state clearing and reset logic
+
+### 4. Animation Parameter Validation
+- Log all animation calculations and parameters
+- Track RequestAnimationFrame timing and execution
+- Validate bounding rect measurements
+
+### 5. Portal Lifecycle Monitoring
+- Track portal mounting/unmounting cycles
+- Monitor DOM element creation and destruction
+- Validate style application and forcing
+
+## Next Steps
+
+1. **Analyze Logs**: Review the extensive logging output to identify the exact point where the image disappears
+2. **State Clearing Investigation**: Look for any logic that might be clearing the focusedImage state prematurely
+3. **Animation Timing Analysis**: Check if there are timing issues between state changes and animation execution
+4. **Portal Rendering Validation**: Ensure the portal is rendering correctly and the DOM elements are properly created
+5. **Style Conflict Resolution**: Identify any CSS conflicts that might be causing the image to disappear
+
+## Expected Log Output
+
+When clicking a scrapbook image, the logs should show:
+1. `[SCRAPBOOK_CLICK_START]` - Click event initiated
+2. `[SCRAPBOOK_DOM_STATE]` - Current DOM state of clicked element
+3. `[SCRAPBOOK_EVENT_PATH]` - Event propagation path
+4. `[GUEST_EXP_CLICK_START]` - GuestExperience click handler started
+5. `[GUEST_EXP_DOM_STATE]` - Real-time DOM state validation
+6. `[GUEST_EXP_STATE_BEFORE]` - State before changes
+7. `[SET_FOCUSED_IMAGE]` - State setter called
+8. `[ANIMATION_EFFECT_START]` - Animation effect triggered
+9. `[PORTAL_OVERLAY_RENDER]` - Portal overlay rendering
+10. `[PORTAL_RENDERED]` - Portal mounted
+11. `[DOM_CHECK]` - DOM element validation
+
+Any deviation from this sequence or premature state clearing will be clearly visible in the logs. 

@@ -96,7 +96,7 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
       ...restStyle,
       zIndex: finalZIndex,
       cursor: isHiddenForFocus || !propsOnClick ? 'default' : 'pointer',
-      pointerEvents: (isHiddenForFocus ? 'none' : 'auto') as 'none' | 'auto',
+      pointerEvents: 'auto' as 'auto' | 'none', // DEBUG: force pointer-events auto for all images
       // GPU acceleration hints
       willChange: 'transform, opacity',
       backfaceVisibility: 'hidden' as const,
@@ -128,30 +128,280 @@ const ScrapbookImageItem = React.forwardRef<HTMLImageElement, ScrapbookImageItem
     return () => observer.disconnect();
   }, [enableLazyLoading, shouldLoad]);
 
-  const handleClick = useCallback(() => {
-    if (isHiddenForFocus) return;
+  const handleClick = useCallback((event: React.MouseEvent<HTMLImageElement>) => {
+    console.log('[SCRAPBOOK_CLICK_START] ===== CLICK EVENT STARTED =====', {
+      timestamp: Date.now(),
+      eventType: event.type,
+      eventPhase: event.eventPhase,
+      bubbles: event.bubbles,
+      cancelable: event.cancelable,
+      defaultPrevented: event.defaultPrevented,
+      isTrusted: event.isTrusted,
+      timeStamp: event.timeStamp
+    });
 
-    if (imgRef.current) {
-      const currentImageElement = imgRef.current;
-      const rect = currentImageElement.getBoundingClientRect();
-      const details: ScrapbookClickDetails = {
-        imageSrc,
-        altText,
-        initialStyle,
-        currentBoundingClientRect: rect,
-        imageElement: currentImageElement,
+    if (isHiddenForFocus) {
+      console.log('[SCRAPBOOK_CLICK_BLOCKED] Image is hidden for focus, ignoring click');
+      return;
+    }
+
+    if (!imgRef.current) {
+      console.warn('[SCRAPBOOK_CLICK_ERROR] imgRef.current is null, cannot process click');
+      return;
+    }
+
+    const imgElement = imgRef.current;
+    const rect = imgElement.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(imgElement);
+    
+    // Log comprehensive DOM state
+    console.log('[SCRAPBOOK_DOM_STATE] ===== COMPREHENSIVE DOM STATE =====', {
+      timestamp: Date.now(),
+      elementExists: !!imgElement,
+      elementConnected: imgElement.isConnected,
+      elementTagName: imgElement.tagName,
+      elementClassName: imgElement.className,
+      elementId: imgElement.id,
+      
+      // Bounding rect details
+      boundingRect: {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        top: rect.top,
+        left: rect.left,
+        right: rect.right,
+        bottom: rect.bottom,
+        toJSON: rect.toJSON()
+      },
+      
+      // Computed styles
+      computedStyles: {
+        position: computedStyle.position,
+        display: computedStyle.display,
+        visibility: computedStyle.visibility,
+        opacity: computedStyle.opacity,
+        zIndex: computedStyle.zIndex,
+        pointerEvents: computedStyle.pointerEvents,
+        transform: computedStyle.transform,
+        top: computedStyle.top,
+        left: computedStyle.left,
+        width: computedStyle.width,
+        height: computedStyle.height,
+        backfaceVisibility: computedStyle.backfaceVisibility,
+        willChange: computedStyle.willChange,
+        transition: computedStyle.transition,
+        cursor: computedStyle.cursor,
+        boxShadow: computedStyle.boxShadow,
+        border: computedStyle.border,
+        borderRadius: computedStyle.borderRadius
+      },
+      
+      // Inline styles
+      inlineStyles: {
+        position: imgElement.style.position,
+        display: imgElement.style.display,
+        visibility: imgElement.style.visibility,
+        opacity: imgElement.style.opacity,
+        zIndex: imgElement.style.zIndex,
+        pointerEvents: imgElement.style.pointerEvents,
+        transform: imgElement.style.transform,
+        top: imgElement.style.top,
+        left: imgElement.style.left,
+        width: imgElement.style.width,
+        height: imgElement.style.height,
+        backfaceVisibility: imgElement.style.backfaceVisibility,
+        willChange: imgElement.style.willChange,
+        transition: imgElement.style.transition,
+        cursor: imgElement.style.cursor,
+        boxShadow: imgElement.style.boxShadow,
+        border: imgElement.style.border,
+        borderRadius: imgElement.style.borderRadius
+      },
+      
+      // Element properties
+      elementProperties: {
+        naturalWidth: imgElement.naturalWidth,
+        naturalHeight: imgElement.naturalHeight,
+        src: imgElement.src,
+        alt: imgElement.alt,
+        complete: imgElement.complete,
+        currentSrc: imgElement.currentSrc
+      },
+      
+      // Parent element info
+      parentElement: {
+        exists: !!imgElement.parentElement,
+        tagName: imgElement.parentElement?.tagName,
+        className: imgElement.parentElement?.className,
+        id: imgElement.parentElement?.id,
+        computedPosition: imgElement.parentElement ? window.getComputedStyle(imgElement.parentElement).position : 'N/A',
+        computedOverflow: imgElement.parentElement ? window.getComputedStyle(imgElement.parentElement).overflow : 'N/A'
+      },
+      
+      // Event details
+      eventDetails: {
+        target: {
+          tagName: (event.target as HTMLElement)?.tagName,
+          className: (event.target as HTMLElement)?.className,
+          id: (event.target as HTMLElement)?.id,
+          isSameAsImgRef: event.target === imgElement
+        },
+        currentTarget: {
+          tagName: event.currentTarget?.tagName,
+          className: event.currentTarget?.className,
+          id: event.currentTarget?.id,
+          isSameAsImgRef: event.currentTarget === imgElement
+        },
+        clientX: event.clientX,
+        clientY: event.clientY,
+        pageX: event.pageX,
+        pageY: event.pageY,
+        screenX: event.screenX,
+        screenY: event.screenY,
+        offsetX: (event.nativeEvent as MouseEvent).offsetX,
+        offsetY: (event.nativeEvent as MouseEvent).offsetY,
+        button: event.button,
+        buttons: event.buttons,
+        ctrlKey: event.ctrlKey,
+        shiftKey: event.shiftKey,
+        altKey: event.altKey,
+        metaKey: event.metaKey
+      },
+      
+      // Component state
+      componentState: {
         index,
+        isHiddenForFocus,
+        isHovered,
+        shouldLoad,
+        enableLazyLoading,
         lastPutDownIndex,
-      };
-      if (typeof propsOnClick === 'function') {
+        imageSrc,
+        altText
+      },
+      
+      // Static styles from component
+      staticStyles: {
+        zIndex: staticStyles.zIndex,
+        pointerEvents: staticStyles.pointerEvents,
+        cursor: staticStyles.cursor,
+        willChange: staticStyles.willChange,
+        backfaceVisibility: staticStyles.backfaceVisibility
+      }
+    });
+
+    // Log event propagation path
+    console.log('[SCRAPBOOK_EVENT_PATH] ===== EVENT PROPAGATION PATH =====', {
+      timestamp: Date.now(),
+      eventPath: (event.nativeEvent as Event).composedPath().map((target: EventTarget, index: number) => ({
+        index,
+        tagName: (target as HTMLElement)?.tagName,
+        className: (target as HTMLElement)?.className,
+        id: (target as HTMLElement)?.id,
+        isImgElement: target === imgElement,
+        isPortalRoot: (target as HTMLElement)?.id === 'portal-root',
+        isRoot: (target as HTMLElement)?.id === 'root'
+      }))
+    });
+
+    // Log initial style object
+    console.log('[SCRAPBOOK_INITIAL_STYLE] ===== INITIAL STYLE OBJECT =====', {
+      timestamp: Date.now(),
+      initialStyle: {
+        ...initialStyle,
+        // Log all properties explicitly
+        position: initialStyle.position,
+        width: initialStyle.width,
+        height: initialStyle.height,
+        top: initialStyle.top,
+        left: initialStyle.left,
+        transform: initialStyle.transform,
+        border: initialStyle.border,
+        boxShadow: initialStyle.boxShadow,
+        opacity: initialStyle.opacity,
+        zIndex: initialStyle.zIndex,
+        transition: initialStyle.transition,
+        cursor: initialStyle.cursor,
+        pointerEvents: initialStyle.pointerEvents,
+        willChange: initialStyle.willChange,
+        backfaceVisibility: initialStyle.backfaceVisibility
+      }
+    });
+
+    const details: ScrapbookClickDetails = {
+      imageSrc,
+      altText,
+      initialStyle,
+      currentBoundingClientRect: rect,
+      imageElement: imgElement,
+      index,
+      lastPutDownIndex,
+    };
+
+    console.log('[SCRAPBOOK_CLICK_DETAILS] ===== CLICK DETAILS OBJECT =====', {
+      timestamp: Date.now(),
+      details: {
+        imageSrc: details.imageSrc,
+        altText: details.altText,
+        index: details.index,
+        lastPutDownIndex: details.lastPutDownIndex,
+        currentBoundingClientRect: {
+          x: details.currentBoundingClientRect.x,
+          y: details.currentBoundingClientRect.y,
+          width: details.currentBoundingClientRect.width,
+          height: details.currentBoundingClientRect.height,
+          top: details.currentBoundingClientRect.top,
+          left: details.currentBoundingClientRect.left,
+          right: details.currentBoundingClientRect.right,
+          bottom: details.currentBoundingClientRect.bottom
+        },
+        imageElement: {
+          exists: !!details.imageElement,
+          tagName: details.imageElement?.tagName,
+          className: details.imageElement?.className,
+          id: details.imageElement?.id,
+          naturalWidth: details.imageElement?.naturalWidth,
+          naturalHeight: details.imageElement?.naturalHeight,
+          src: details.imageElement?.src
+        }
+      }
+    });
+
+    if (typeof propsOnClick === 'function') {
+      console.log('[SCRAPBOOK_CALLING_ONCLICK] ===== CALLING PARENT ONCLICK =====', {
+        timestamp: Date.now(),
+        propsOnClickType: typeof propsOnClick,
+        propsOnClickName: propsOnClick.name || 'anonymous',
+        willCallWithDetails: true
+      });
+      
+      try {
         propsOnClick(details);
-      } else {
-        console.warn("ScrapbookImageItem: propsOnClick is not a function!", propsOnClick);
+        console.log('[SCRAPBOOK_ONCLICK_SUCCESS] ===== PARENT ONCLICK CALLED SUCCESSFULLY =====', {
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        console.error('[SCRAPBOOK_ONCLICK_ERROR] ===== ERROR IN PARENT ONCLICK =====', {
+          timestamp: Date.now(),
+          error: error,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+          errorStack: error instanceof Error ? error.stack : 'No stack trace'
+        });
       }
     } else {
-      console.warn("ScrapbookImageItem: local imgRef.current is null, cannot call propsOnClick.");
+      console.warn('[SCRAPBOOK_ONCLICK_WARNING] ===== PROPSONCLICK IS NOT A FUNCTION =====', {
+        timestamp: Date.now(),
+        propsOnClickType: typeof propsOnClick,
+        propsOnClickValue: propsOnClick
+      });
     }
-  }, [isHiddenForFocus, imageSrc, altText, initialStyle, index, lastPutDownIndex, propsOnClick]);
+
+    console.log('[SCRAPBOOK_CLICK_END] ===== CLICK EVENT COMPLETED =====', {
+      timestamp: Date.now()
+    });
+  }, [isHiddenForFocus, imageSrc, altText, initialStyle, index, lastPutDownIndex, propsOnClick, staticStyles, isHovered, shouldLoad, enableLazyLoading]);
 
   const setRefs = useCallback((node: HTMLImageElement | null) => {
     (imgRef as React.MutableRefObject<HTMLImageElement | null>).current = node;

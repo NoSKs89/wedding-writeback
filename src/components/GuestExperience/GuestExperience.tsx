@@ -23,6 +23,7 @@ import { getApiBaseUrl } from '../../config/apiConfig';
 import { updateThemeColor, resetThemeColor, darkenColorForStatusBar, getActualGradientStartColor } from '../../utils/themeColor';
 import '../../App.css';
 import Navbar from './Navbar';
+import Portal from '../Portal';
 
 
 // --- TYPE DEFINITIONS ---
@@ -67,6 +68,7 @@ interface FocusedImageState {
   itemScrollSensitivity?: number;
   itemDynamicRotationRange?: number;
   initialStyle: CSSProperties;
+  imageElement?: HTMLImageElement;
 }
 
 interface DisplayedImage {
@@ -325,7 +327,8 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   const controlValues = useLevaStore(state => state.controlValues);
 
   const [windowHeight, setWindowHeight] = useState(() => typeof window !== 'undefined' ? window.innerHeight : 700);
-
+  const animationParentRef = useRef<HTMLDivElement | null>(null);
+  
   // --- PRE-RENDERING STATE ---
   const [scrapbookImagesPreRendered, setScrapbookImagesPreRendered] = useState(false);
   const preRenderContainerRef = useRef<HTMLDivElement | null>(null);
@@ -1804,35 +1807,414 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     return () => { isMounted = false; };
   }, [isScrapbookEnabled, weddingDataFromApp, renderableElements, controlValues]);
   
+  // --- Add logging wrappers for state setters if not present ---
+  const setFocusedImageWithLog = (val: any) => {
+    console.log('[SET_FOCUSED_IMAGE]', val ? { src: val.src, index: val.currentIndex } : null, { time: Date.now(), stack: new Error().stack });
+    setFocusedImage(val);
+  };
+  const setImageReturningToScrapbookWithLog = (val: any) => {
+    console.log('[SET_IMAGE_RETURNING_TO_SCRAPBOOK]', val ? { src: val.src, index: val.currentIndex } : null, { time: Date.now(), stack: new Error().stack });
+    setImageReturningToScrapbook(val);
+  };
+
+  // --- Add useEffect to log state changes ---
   useEffect(() => {
+    console.log('[FOCUSED_IMAGE_STATE]', { 
+      focusedImage: focusedImage ? { src: focusedImage.src, index: focusedImage.currentIndex } : null, 
+      imageReturningToScrapbook: imageReturningToScrapbook ? { src: imageReturningToScrapbook.src, index: imageReturningToScrapbook.currentIndex } : null, 
+      pendingImageToFocus: pendingImageToFocus ? { src: pendingImageToFocus.src, index: pendingImageToFocus.currentIndex } : null,
+      time: Date.now() 
+    });
+  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus]);
+
+  // --- Add useEffect to track render cycles ---
+  useEffect(() => {
+    console.log('[GUEST_EXPERIENCE_RENDER]', {
+      isScrapbookEnabled,
+      hasFocusedImage: !!focusedImage,
+      hasReturningImage: !!imageReturningToScrapbook,
+      hasPendingImage: !!pendingImageToFocus,
+      time: Date.now()
+    });
+  });
+
+  // --- Add useEffect to track portal rendering ---
+  useEffect(() => {
+    if (focusedImage || imageReturningToScrapbook) {
+      console.log('[PORTAL_SHOULD_RENDER]', {
+        focusedImage: focusedImage?.src,
+        imageReturningToScrapbook: imageReturningToScrapbook?.src,
+        time: Date.now()
+      });
+    }
+  }, [focusedImage, imageReturningToScrapbook]);
+
+  // --- In the effect that animates the focused image, add bounding rect log ---
+  useEffect(() => {
+    console.log('[ANIMATION_EFFECT_START] ===== ANIMATION EFFECT STARTED =====', {
+      timestamp: Date.now(),
+      focusedImage: focusedImage ? { 
+        src: focusedImage.src, 
+        index: focusedImage.currentIndex,
+        displayIndex: focusedImage.displayIndex,
+        hasImageElement: !!focusedImage.imageElement,
+        imageElementConnected: focusedImage.imageElement?.isConnected
+      } : null,
+      imageReturningToScrapbook: imageReturningToScrapbook ? { 
+        src: imageReturningToScrapbook.src, 
+        index: imageReturningToScrapbook.currentIndex,
+        displayIndex: imageReturningToScrapbook.displayIndex
+      } : null,
+      pendingImageToFocus: pendingImageToFocus ? { 
+        src: pendingImageToFocus.src, 
+        index: pendingImageToFocus.currentIndex,
+        displayIndex: pendingImageToFocus.displayIndex
+      } : null,
+      isScrapbookEnabled,
+      windowWidth,
+      windowHeight,
+      scrollYWithPhysics
+    });
+    
     if (!isScrapbookEnabled) {
-      if (focusedImage || imageReturningToScrapbook || pendingImageToFocus) { setFocusedImage(null); setImageReturningToScrapbook(null); setPendingImageToFocus(null); focusedImageApi.start({ opacity: 0, immediate: true }); }
+      if (focusedImage || imageReturningToScrapbook) { 
+        console.log('[ANIMATION_EFFECT] Disabling scrapbook, clearing states');
+        setFocusedImageWithLog(null); 
+        setImageReturningToScrapbookWithLog(null); 
+        focusedImageApi.start({ opacity: 0, immediate: true }); 
+      }
       return;
     }
-    if (focusedImage) {
-      const { targetWidth, targetHeight } = calculateFocusTargetDimensions(focusedImage.naturalWidth, focusedImage.naturalHeight, windowWidth, windowHeight);
-      const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5);
-      focusedImageApi.start({ from: { opacity: 0.5, top: `${focusedImage.initialTopPx}px`, left: `${focusedImage.initialLeftPx}px`, width: `${focusedImage.initialWidthPx}px`, height: `${focusedImage.initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${focusedImage.initialRotateDeg}deg) scale(1)` }, to: { opacity: 1, top: `${top}px`, left: `${left}px`, width: `${targetWidth}px`, height: `${targetHeight}px`, transform: 'translate(0px, 0px) rotate(0deg) scale(1)' } });
+    
+    // --- JUST-IN-TIME MEASUREMENT FIX FOR PARALLAX RACE CONDITION ---
+    if (focusedImage && focusedImage.imageElement) {
+      console.log('[ANIMATION_EFFECT_FOCUS] ===== STARTING FOCUS ANIMATION =====', {
+        timestamp: Date.now(),
+        src: focusedImage.src,
+        currentIndex: focusedImage.currentIndex,
+        displayIndex: focusedImage.displayIndex,
+        imageElement: {
+          exists: !!focusedImage.imageElement,
+          tagName: focusedImage.imageElement.tagName,
+          className: focusedImage.imageElement.className,
+          id: focusedImage.imageElement.id,
+          isConnected: focusedImage.imageElement.isConnected,
+          naturalWidth: focusedImage.imageElement.naturalWidth,
+          naturalHeight: focusedImage.imageElement.naturalHeight,
+          src: focusedImage.imageElement.src
+        }
+      });
+      
+      if (!focusedImage.imageElement.isConnected) {
+        console.warn('[SKIP_ANIMATION] Image element not in DOM');
+        return;
+      }
+      
+      // Log current DOM state of the image element
+      const computedStyle = window.getComputedStyle(focusedImage.imageElement);
+      console.log('[ANIMATION_EFFECT_DOM_STATE] ===== CURRENT DOM STATE =====', {
+        timestamp: Date.now(),
+        boundingRect: {
+          x: focusedImage.imageElement.getBoundingClientRect().x,
+          y: focusedImage.imageElement.getBoundingClientRect().y,
+          width: focusedImage.imageElement.getBoundingClientRect().width,
+          height: focusedImage.imageElement.getBoundingClientRect().height,
+          top: focusedImage.imageElement.getBoundingClientRect().top,
+          left: focusedImage.imageElement.getBoundingClientRect().left,
+          right: focusedImage.imageElement.getBoundingClientRect().right,
+          bottom: focusedImage.imageElement.getBoundingClientRect().bottom
+        },
+        computedStyles: {
+          position: computedStyle.position,
+          display: computedStyle.display,
+          visibility: computedStyle.visibility,
+          opacity: computedStyle.opacity,
+          zIndex: computedStyle.zIndex,
+          pointerEvents: computedStyle.pointerEvents,
+          transform: computedStyle.transform,
+          top: computedStyle.top,
+          left: computedStyle.left,
+          width: computedStyle.width,
+          height: computedStyle.height,
+          backfaceVisibility: computedStyle.backfaceVisibility,
+          willChange: computedStyle.willChange,
+          transition: computedStyle.transition,
+          cursor: computedStyle.cursor,
+          boxShadow: computedStyle.boxShadow,
+          border: computedStyle.border,
+          borderRadius: computedStyle.borderRadius
+        },
+        inlineStyles: {
+          position: focusedImage.imageElement.style.position,
+          display: focusedImage.imageElement.style.display,
+          visibility: focusedImage.imageElement.style.visibility,
+          opacity: focusedImage.imageElement.style.opacity,
+          zIndex: focusedImage.imageElement.style.zIndex,
+          pointerEvents: focusedImage.imageElement.style.pointerEvents,
+          transform: focusedImage.imageElement.style.transform,
+          top: focusedImage.imageElement.style.top,
+          left: focusedImage.imageElement.style.left,
+          width: focusedImage.imageElement.style.width,
+          height: focusedImage.imageElement.style.height,
+          backfaceVisibility: focusedImage.imageElement.style.backfaceVisibility,
+          willChange: focusedImage.imageElement.style.willChange,
+          transition: focusedImage.imageElement.style.transition,
+          cursor: focusedImage.imageElement.style.cursor,
+          boxShadow: focusedImage.imageElement.style.boxShadow,
+          border: focusedImage.imageElement.style.border,
+          borderRadius: focusedImage.imageElement.style.borderRadius
+        }
+      });
+      
+      requestAnimationFrame(() => {
+        console.log('[ANIMATION_EFFECT_RAF] ===== REQUESTANIMATIONFRAME CALLBACK =====', {
+          timestamp: Date.now(),
+          imageElementConnected: focusedImage.imageElement?.isConnected
+        });
+        
+        if (!focusedImage.imageElement?.isConnected) {
+          console.warn('[ANIMATION_ABORTED] Image element is no longer in DOM');
+          return;
+        }
+        
+        const currentRect = focusedImage.imageElement.getBoundingClientRect();
+        console.log('[ANIMATING_FROM] ===== RE-MEASURED BOUNDING RECT =====', {
+          timestamp: Date.now(),
+          rect: {
+            x: currentRect.x,
+            y: currentRect.y,
+            width: currentRect.width,
+            height: currentRect.height,
+            top: currentRect.top,
+            left: currentRect.left,
+            right: currentRect.right,
+            bottom: currentRect.bottom,
+            toJSON: currentRect.toJSON()
+          }
+        });
+        
+        // --- Add extra log for bounding rect, zIndex, pointerEvents, transform ---
+        console.log('[FOCUS_ANIMATION_START] ===== ANIMATION PARAMETERS =====', {
+          timestamp: Date.now(),
+          src: focusedImage.src,
+          rect: currentRect,
+          index: focusedImage.currentIndex,
+          zIndex: focusedImage.initialStyle?.zIndex,
+          pointerEvents: focusedImage.imageElement.style.pointerEvents,
+          transform: focusedImage.imageElement.style.transform,
+          initialStyle: {
+            position: focusedImage.initialStyle?.position,
+            width: focusedImage.initialStyle?.width,
+            height: focusedImage.initialStyle?.height,
+            top: focusedImage.initialStyle?.top,
+            left: focusedImage.initialStyle?.left,
+            transform: focusedImage.initialStyle?.transform,
+            border: focusedImage.initialStyle?.border,
+            boxShadow: focusedImage.initialStyle?.boxShadow,
+            opacity: focusedImage.initialStyle?.opacity,
+            zIndex: focusedImage.initialStyle?.zIndex,
+            transition: focusedImage.initialStyle?.transition,
+            cursor: focusedImage.initialStyle?.cursor,
+            pointerEvents: focusedImage.initialStyle?.pointerEvents,
+            willChange: focusedImage.initialStyle?.willChange,
+            backfaceVisibility: focusedImage.initialStyle?.backfaceVisibility
+          }
+        });
+        
+        if (currentRect.width === 0 || currentRect.height === 0) {
+          console.warn('[INVALID_RECT] Image is likely invisible or collapsed', {
+            timestamp: Date.now(),
+            rect: currentRect,
+            width: currentRect.width,
+            height: currentRect.height
+          });
+          return;
+        }
+        
+        const { initialWidthPx, initialHeightPx, initialRotateDeg, naturalWidth, naturalHeight, currentIndex } = focusedImage;
+        const { targetWidth, targetHeight } = calculateFocusTargetDimensions(naturalWidth, naturalHeight, windowWidth, windowHeight);
+        const { top, left } = getCenteredPosition(targetWidth, targetHeight, 1.5);
+        
+        console.log('[ANIMATION_EFFECT_CALC] ===== ANIMATION CALCULATIONS =====', {
+          timestamp: Date.now(),
+          initialDimensions: {
+            width: initialWidthPx,
+            height: initialHeightPx,
+            rotateDeg: initialRotateDeg
+          },
+          naturalDimensions: {
+            width: naturalWidth,
+            height: naturalHeight
+          },
+          targetDimensions: {
+            width: targetWidth,
+            height: targetHeight
+          },
+          positions: {
+            from: {
+              top: currentRect.top,
+              left: currentRect.left
+            },
+            to: {
+              top,
+              left
+            }
+          },
+          windowDimensions: {
+            width: windowWidth,
+            height: windowHeight
+          }
+        });
+        
+        console.log('[ANIMATION_EFFECT] Starting spring animation');
+        
+        const animationConfig = {
+          from: {
+            opacity: 0.5,
+            top: `${currentRect.top}px`,
+            left: `${currentRect.left}px`,
+            width: `${initialWidthPx}px`,
+            height: `${initialHeightPx}px`,
+            transform: `translate(0px, 0px) rotate(${initialRotateDeg}deg) scale(1)`
+          },
+          to: {
+            opacity: 1,
+            top: `${top}px`,
+            left: `${left}px`,
+            width: `${targetWidth}px`,
+            height: `${targetHeight}px`,
+            transform: 'translate(0px, 0px) rotate(0deg) scale(1)'
+          },
+          config: activeSpringConfigGuest
+        };
+        
+        console.log('[ANIMATION_EFFECT_CONFIG] ===== SPRING ANIMATION CONFIG =====', {
+          timestamp: Date.now(),
+          animationConfig,
+          springConfig: activeSpringConfigGuest
+        });
+        
+        focusedImageApi.start(animationConfig);
+        
+        console.log('[ANIMATION_EFFECT_FOCUS_END] ===== FOCUS ANIMATION STARTED =====', {
+          timestamp: Date.now()
+        });
+      });
     } else if (imageReturningToScrapbook) {
+      console.log('[ANIMATION_EFFECT_RETURN] ===== STARTING RETURN ANIMATION =====', {
+        timestamp: Date.now(),
+        src: imageReturningToScrapbook.src,
+        currentIndex: imageReturningToScrapbook.currentIndex,
+        displayIndex: imageReturningToScrapbook.displayIndex
+      });
+      
       const { currentIndex, initialWidthPx, initialHeightPx } = imageReturningToScrapbook;
       const targetEl = scrapbookImageRefs.current[currentIndex];
       const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === currentIndex);
+      
+      console.log('[ANIMATION_EFFECT_RETURN_TARGET] ===== RETURN TARGET INFO =====', {
+        timestamp: Date.now(),
+        targetEl: {
+          exists: !!targetEl,
+          tagName: targetEl?.tagName,
+          className: targetEl?.className,
+          id: targetEl?.id,
+          isConnected: targetEl?.isConnected
+        },
+        itemData: {
+          exists: !!itemData,
+          displayIndex: itemData?.displayIndex,
+          src: itemData?.src,
+          altText: itemData?.altText
+        }
+      });
+      
       if (targetEl && itemData) {
         const rect = targetEl.getBoundingClientRect();
         const baseRot = parseRotationFromStyle(itemData.initialStyle.transform);
         const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + currentIndex * 0.5) * (itemData.itemDynamicRotationRange || 0);
-        focusedImageApi.start({ to: { top: `${rect.top}px`, left: `${rect.left}px`, width: `${initialWidthPx}px`, height: `${initialHeightPx}px`, transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` }, onRest: () => { const current = imageReturningToScrapbookRef.current; setImageReturningToScrapbook(null); if (current) setLastPutDownIndex(current.currentIndex); const pending = pendingImageToFocusRef.current; if (pending) { setFocusedImage(pending); setPendingImageToFocus(null); } } });
+        
+        console.log('[ANIMATION_EFFECT_RETURN_CALC] ===== RETURN CALCULATIONS =====', {
+          timestamp: Date.now(),
+          targetRect: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            top: rect.top,
+            left: rect.left,
+            right: rect.right,
+            bottom: rect.bottom
+          },
+          rotation: {
+            baseRot,
+            dynamicRot,
+            finalRot: baseRot + dynamicRot
+          },
+          dimensions: {
+            initialWidthPx,
+            initialHeightPx
+          }
+        });
+        
+        focusedImageApi.start({ 
+          to: { 
+            top: `${rect.top}px`, 
+            left: `${rect.left}px`, 
+            width: `${initialWidthPx}px`, 
+            height: `${initialHeightPx}px`, 
+            transform: `translate(0px, 0px) rotate(${baseRot + dynamicRot}deg) scale(1)` 
+          }, 
+          onRest: () => { 
+            console.log('[ANIMATION_EFFECT_RETURN_COMPLETE] ===== RETURN ANIMATION COMPLETED =====', {
+              timestamp: Date.now()
+            });
+            const current = imageReturningToScrapbookRef.current; 
+            setImageReturningToScrapbookWithLog(null); 
+            if (current) setLastPutDownIndex(current.currentIndex); 
+            const pending = pendingImageToFocusRef.current; 
+            if (pending) { 
+              console.log('[ANIMATION_EFFECT_PENDING_FOCUS] ===== SETTING PENDING IMAGE =====', {
+                timestamp: Date.now(),
+                pending: {
+                  src: pending.src,
+                  currentIndex: pending.currentIndex,
+                  displayIndex: pending.displayIndex
+                }
+              });
+              setFocusedImageWithLog(pending); 
+              setPendingImageToFocus(null); 
+            } 
+          } 
+        });
         focusedImageApi.start({ to: { opacity: 0 }, config: { tension: 300, friction: 20 } });
       } else {
+        console.log('[ANIMATION_EFFECT] Target element not found, clearing states');
         focusedImageApi.start({ opacity: 0, immediate: true });
-        setImageReturningToScrapbook(null);
-        if (pendingImageToFocus) { setFocusedImage(pendingImageToFocus); setPendingImageToFocus(null); }
+        setImageReturningToScrapbookWithLog(null);
+        if (pendingImageToFocus) { 
+          console.log('[ANIMATION_EFFECT_PENDING_FOCUS_FALLBACK] ===== SETTING PENDING IMAGE (FALLBACK) =====', {
+            timestamp: Date.now(),
+            pendingImageToFocus: {
+              src: pendingImageToFocus.src,
+              currentIndex: pendingImageToFocus.currentIndex,
+              displayIndex: pendingImageToFocus.displayIndex
+            }
+          });
+          setFocusedImageWithLog(pendingImageToFocus); 
+          setPendingImageToFocus(null); 
+        }
       }
     } else {
+      console.log('[ANIMATION_EFFECT] No focused or returning image, hiding overlay');
       focusedImageApi.start({ opacity: 0, immediate: true });
     }
-  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollYWithPhysics, activeSpringConfigGuest]);
-  
+    
+    console.log('[ANIMATION_EFFECT_END] ===== ANIMATION EFFECT COMPLETED =====', {
+      timestamp: Date.now()
+    });
+  }, [focusedImage, imageReturningToScrapbook, pendingImageToFocus, focusedImageApi, windowWidth, windowHeight, displayedImagesAndTheirData, scrollYWithPhysics, activeSpringConfigGuest, isScrapbookEnabled, setFocusedImageWithLog, setImageReturningToScrapbookWithLog]);
+
   const handleCloseFocusedImage = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     if (focusedImage) { setImageReturningToScrapbook(focusedImage); setFocusedImage(null); setPendingImageToFocus(null); }
@@ -1848,7 +2230,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
     const rect = targetEl.getBoundingClientRect();
     const baseRot = parseRotationFromStyle(targetData.initialStyle.transform);
     const dynamicRot = Math.sin(scrollYWithPhysics * (targetData.itemScrollSensitivity || 0) + newDisplayIndex * 0.5) * (targetData.itemDynamicRotationRange || 0);
-    return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex };
+    return { ...targetData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: newDisplayIndex, imageElement: targetEl };
   }, [isScrapbookEnabled, displayedImagesAndTheirData, imageNaturalDimensions, scrollYWithPhysics]);
 
   const handlePreviousImage = useCallback((e: React.MouseEvent | { stopPropagation: () => void }) => {
@@ -1868,67 +2250,542 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
   }, [focusedImage, displayedImagesAndTheirData, updateAndFocusNewImage]);
 
   const handleImageClick = useCallback((details: any) => {
-															 
-							
-			  
-								 
-						   
-											  
-										
-	   
+    console.log('[GUEST_EXP_CLICK_START] ===== HANDLE IMAGE CLICK STARTED =====', {
+      timestamp: Date.now(),
+      detailsReceived: !!details,
+      detailsType: typeof details,
+      detailsKeys: details ? Object.keys(details) : 'no details'
+    });
 
-    const { imageSrc, initialStyle, currentBoundingClientRect: rect, imageElement, index } = details;
-	
+    const { imageSrc, initialStyle, currentBoundingClientRect: rect, imageElement, index, event } = details;
+    
+    // Log comprehensive details object
+    console.log('[GUEST_EXP_CLICK_DETAILS] ===== COMPREHENSIVE CLICK DETAILS =====', {
+      timestamp: Date.now(),
+      imageSrc,
+      index,
+      imageElement: {
+        exists: !!imageElement,
+        tagName: imageElement?.tagName,
+        className: imageElement?.className,
+        id: imageElement?.id,
+        isConnected: imageElement?.isConnected,
+        naturalWidth: imageElement?.naturalWidth,
+        naturalHeight: imageElement?.naturalHeight,
+        src: imageElement?.src,
+        alt: imageElement?.alt,
+        complete: imageElement?.complete
+      },
+      rect: {
+        x: rect?.x,
+        y: rect?.y,
+        width: rect?.width,
+        height: rect?.height,
+        top: rect?.top,
+        left: rect?.left,
+        right: rect?.right,
+        bottom: rect?.bottom,
+        toJSON: rect?.toJSON ? rect.toJSON() : 'no toJSON method'
+      },
+      initialStyle: {
+        position: initialStyle?.position,
+        width: initialStyle?.width,
+        height: initialStyle?.height,
+        top: initialStyle?.top,
+        left: initialStyle?.left,
+        transform: initialStyle?.transform,
+        border: initialStyle?.border,
+        boxShadow: initialStyle?.boxShadow,
+        opacity: initialStyle?.opacity,
+        zIndex: initialStyle?.zIndex,
+        transition: initialStyle?.transition,
+        cursor: initialStyle?.cursor,
+        pointerEvents: initialStyle?.pointerEvents,
+        willChange: initialStyle?.willChange,
+        backfaceVisibility: initialStyle?.backfaceVisibility
+      }
+    });
+
+    // Debug: log if imageElement is present and connected
+    console.log('[CLICKED_IMAGE] element present:', !!imageElement, imageElement?.isConnected, imageElement);
+    
+    // Log real-time DOM state of the clicked element
+    if (imageElement) {
+      const computedStyle = window.getComputedStyle(imageElement);
+      console.log('[GUEST_EXP_DOM_STATE] ===== REAL-TIME DOM STATE =====', {
+        timestamp: Date.now(),
+        elementExists: !!imageElement,
+        elementConnected: imageElement.isConnected,
+        elementTagName: imageElement.tagName,
+        elementClassName: imageElement.className,
+        elementId: imageElement.id,
+        
+        // Current bounding rect
+        currentBoundingRect: {
+          x: imageElement.getBoundingClientRect().x,
+          y: imageElement.getBoundingClientRect().y,
+          width: imageElement.getBoundingClientRect().width,
+          height: imageElement.getBoundingClientRect().height,
+          top: imageElement.getBoundingClientRect().top,
+          left: imageElement.getBoundingClientRect().left,
+          right: imageElement.getBoundingClientRect().right,
+          bottom: imageElement.getBoundingClientRect().bottom
+        },
+        
+        // Computed styles
+        computedStyles: {
+          position: computedStyle.position,
+          display: computedStyle.display,
+          visibility: computedStyle.visibility,
+          opacity: computedStyle.opacity,
+          zIndex: computedStyle.zIndex,
+          pointerEvents: computedStyle.pointerEvents,
+          transform: computedStyle.transform,
+          top: computedStyle.top,
+          left: computedStyle.left,
+          width: computedStyle.width,
+          height: computedStyle.height,
+          backfaceVisibility: computedStyle.backfaceVisibility,
+          willChange: computedStyle.willChange,
+          transition: computedStyle.transition,
+          cursor: computedStyle.cursor,
+          boxShadow: computedStyle.boxShadow,
+          border: computedStyle.border,
+          borderRadius: computedStyle.borderRadius
+        },
+        
+        // Inline styles
+        inlineStyles: {
+          position: imageElement.style.position,
+          display: imageElement.style.display,
+          visibility: imageElement.style.visibility,
+          opacity: imageElement.style.opacity,
+          zIndex: imageElement.style.zIndex,
+          pointerEvents: imageElement.style.pointerEvents,
+          transform: imageElement.style.transform,
+          top: imageElement.style.top,
+          left: imageElement.style.left,
+          width: imageElement.style.width,
+          height: imageElement.style.height,
+          backfaceVisibility: imageElement.style.backfaceVisibility,
+          willChange: imageElement.style.willChange,
+          transition: imageElement.style.transition,
+          cursor: imageElement.style.cursor,
+          boxShadow: imageElement.style.boxShadow,
+          border: imageElement.style.border,
+          borderRadius: imageElement.style.borderRadius
+        },
+        
+        // Element properties
+        elementProperties: {
+          naturalWidth: imageElement.naturalWidth,
+          naturalHeight: imageElement.naturalHeight,
+          src: imageElement.src,
+          alt: imageElement.alt,
+          complete: imageElement.complete,
+          currentSrc: imageElement.currentSrc
+        },
+        
+        // Parent element info
+        parentElement: {
+          exists: !!imageElement.parentElement,
+          tagName: imageElement.parentElement?.tagName,
+          className: imageElement.parentElement?.className,
+          id: imageElement.parentElement?.id,
+          computedPosition: imageElement.parentElement ? window.getComputedStyle(imageElement.parentElement).position : 'N/A',
+          computedOverflow: imageElement.parentElement ? window.getComputedStyle(imageElement.parentElement).overflow : 'N/A'
+        }
+      });
+    }
+
     let naturalDims = imageNaturalDimensions.find(dim => dim.src === imageSrc);
-							   
-										   
-    if (!naturalDims?.width) { if (imageElement?.naturalWidth > 0) naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc }; else return; }
-			  
-																									
-				
-	   
-	 
-	
+    if (!naturalDims?.width) {
+      if (imageElement?.naturalWidth > 0) {
+        naturalDims = { width: imageElement.naturalWidth, height: imageElement.naturalHeight, src: imageSrc };
+        console.log('[GUEST_EXP_NATURAL_DIMS] Using natural dimensions from element:', naturalDims);
+      } else {
+        console.warn('[IMAGE_NOT_READY] Image naturalWidth is 0', { imageSrc });
+        return;
+      }
+    } else {
+      console.log('[GUEST_EXP_NATURAL_DIMS] Using cached natural dimensions:', naturalDims);
+    }
+
     const itemData = displayedImagesAndTheirData.find(d => d.displayIndex === index);
-    if (!itemData) return;
-																					  
-			 
-	 
-	
+    if (!itemData) {
+      console.warn('[GUEST_EXP_ITEM_DATA] No item data found for index:', index);
+      return;
+    }
+    
+    console.log('[GUEST_EXP_ITEM_DATA] Found item data:', {
+      timestamp: Date.now(),
+      itemData: {
+        displayIndex: itemData.displayIndex,
+        src: itemData.src,
+        altText: itemData.altText,
+        description: itemData.description,
+        itemScrollSensitivity: itemData.itemScrollSensitivity,
+        itemDynamicRotationRange: itemData.itemDynamicRotationRange,
+        initialStyle: {
+          position: itemData.initialStyle?.position,
+          width: itemData.initialStyle?.width,
+          height: itemData.initialStyle?.height,
+          top: itemData.initialStyle?.top,
+          left: itemData.initialStyle?.left,
+          transform: itemData.initialStyle?.transform,
+          border: itemData.initialStyle?.border,
+          boxShadow: itemData.initialStyle?.boxShadow,
+          opacity: itemData.initialStyle?.opacity,
+          zIndex: itemData.initialStyle?.zIndex,
+          transition: itemData.initialStyle?.transition,
+          cursor: itemData.initialStyle?.cursor,
+          pointerEvents: itemData.initialStyle?.pointerEvents,
+          willChange: itemData.initialStyle?.willChange,
+          backfaceVisibility: itemData.initialStyle?.backfaceVisibility
+        }
+      }
+    });
+
     const baseRot = parseRotationFromStyle(initialStyle.transform);
     const dynamicRot = Math.sin(scrollYWithPhysics * (itemData.itemScrollSensitivity || 0) + index * 0.5) * (itemData.itemDynamicRotationRange || 0);
-    const clickedDetails: FocusedImageState = { ...itemData, initialTopPx: rect.top, initialLeftPx: rect.left, initialWidthPx: rect.width, initialHeightPx: rect.height, initialRotateDeg: baseRot + dynamicRot, naturalWidth: naturalDims.width, naturalHeight: naturalDims.height, currentIndex: index };
-												
-				   
-							  
-								
-								  
-									
-											  
-									   
-										 
-						  
-	  
-	
-																	  
-							
-					 
-			  
-				 
-				  
-			  
-	   
-	
-						
-																				 
-    if (focusedImage) { setImageReturningToScrapbook(focusedImage); setPendingImageToFocus(clickedDetails); setFocusedImage(null); }
-											  
-							 
-			 
-																		 
-    else { setFocusedImage(clickedDetails); }
-	 
-  }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollYWithPhysics, focusedImage]);
+
+    console.log('[GUEST_EXP_ROTATION_CALC] ===== ROTATION CALCULATIONS =====', {
+      timestamp: Date.now(),
+      baseRot,
+      dynamicRot,
+      finalRot: baseRot + dynamicRot,
+      scrollYWithPhysics,
+      itemScrollSensitivity: itemData.itemScrollSensitivity,
+      itemDynamicRotationRange: itemData.itemDynamicRotationRange,
+      index,
+      initialStyleTransform: initialStyle.transform
+    });
+
+    // --- PORTAL LOGIC: Use viewport coordinates directly ---
+    const relativeTop = rect.top;
+    const relativeLeft = rect.left;
+
+    console.log('[FOCUS_IMAGE] Image clicked (PORTAL):', {
+      index,
+      imageSrc,
+      rect,
+      relativeTop,
+      relativeLeft
+    });
+
+    const clickedDetails: FocusedImageState = { 
+      ...itemData, 
+      initialTopPx: relativeTop, 
+      initialLeftPx: relativeLeft, 
+      initialWidthPx: rect.width, 
+      initialHeightPx: rect.height, 
+      initialRotateDeg: baseRot + dynamicRot, 
+      naturalWidth: naturalDims.width, 
+      naturalHeight: naturalDims.height, 
+      currentIndex: index, 
+      imageElement 
+    };
+    
+    console.log('[FOCUS_IMAGE] FocusedImageState to set (PORTAL):', {
+      timestamp: Date.now(),
+      clickedDetails: {
+        src: clickedDetails.src,
+        altText: clickedDetails.altText,
+        description: clickedDetails.description,
+        initialTopPx: clickedDetails.initialTopPx,
+        initialLeftPx: clickedDetails.initialLeftPx,
+        initialWidthPx: clickedDetails.initialWidthPx,
+        initialHeightPx: clickedDetails.initialHeightPx,
+        initialRotateDeg: clickedDetails.initialRotateDeg,
+        naturalWidth: clickedDetails.naturalWidth,
+        naturalHeight: clickedDetails.naturalHeight,
+        currentIndex: clickedDetails.currentIndex,
+        displayIndex: clickedDetails.displayIndex,
+        itemScrollSensitivity: clickedDetails.itemScrollSensitivity,
+        itemDynamicRotationRange: clickedDetails.itemDynamicRotationRange,
+        imageElement: {
+          exists: !!clickedDetails.imageElement,
+          tagName: clickedDetails.imageElement?.tagName,
+          className: clickedDetails.imageElement?.className,
+          id: clickedDetails.imageElement?.id,
+          isConnected: clickedDetails.imageElement?.isConnected,
+          naturalWidth: clickedDetails.imageElement?.naturalWidth,
+          naturalHeight: clickedDetails.imageElement?.naturalHeight,
+          src: clickedDetails.imageElement?.src
+        },
+        initialStyle: {
+          position: clickedDetails.initialStyle?.position,
+          width: clickedDetails.initialStyle?.width,
+          height: clickedDetails.initialStyle?.height,
+          top: clickedDetails.initialStyle?.top,
+          left: clickedDetails.initialStyle?.left,
+          transform: clickedDetails.initialStyle?.transform,
+          border: clickedDetails.initialStyle?.border,
+          boxShadow: clickedDetails.initialStyle?.boxShadow,
+          opacity: clickedDetails.initialStyle?.opacity,
+          zIndex: clickedDetails.initialStyle?.zIndex,
+          transition: clickedDetails.initialStyle?.transition,
+          cursor: clickedDetails.initialStyle?.cursor,
+          pointerEvents: clickedDetails.initialStyle?.pointerEvents,
+          willChange: clickedDetails.initialStyle?.willChange,
+          backfaceVisibility: clickedDetails.initialStyle?.backfaceVisibility
+        }
+      }
+    });
+    
+    // Add timing information
+    const clickTime = Date.now();
+    console.log('[CLICK_TIMING] About to set focusedImage', { clickTime });
+    
+    // Log current state before changes
+    console.log('[GUEST_EXP_STATE_BEFORE] ===== STATE BEFORE CHANGES =====', {
+      timestamp: Date.now(),
+      focusedImage: focusedImage ? {
+        src: focusedImage.src,
+        currentIndex: focusedImage.currentIndex,
+        displayIndex: focusedImage.displayIndex
+      } : null,
+      imageReturningToScrapbook: imageReturningToScrapbook ? {
+        src: imageReturningToScrapbook.src,
+        currentIndex: imageReturningToScrapbook.currentIndex,
+        displayIndex: imageReturningToScrapbook.displayIndex
+      } : null,
+      pendingImageToFocus: pendingImageToFocus ? {
+        src: pendingImageToFocus.src,
+        currentIndex: pendingImageToFocus.currentIndex,
+        displayIndex: pendingImageToFocus.displayIndex
+      } : null
+    });
+    
+    if (focusedImage) {
+      console.log('[CLICK_TIMING] Setting imageReturningToScrapbook first', { clickTime });
+      setImageReturningToScrapbookWithLog(focusedImage);
+      console.log('[CLICK_TIMING] Setting pendingImageToFocus', { clickTime });
+      setPendingImageToFocus(clickedDetails);
+      console.log('[CLICK_TIMING] Setting focusedImage to null', { clickTime });
+      setFocusedImage(null);
+    } else {
+      console.log('[CLICK_TIMING] Setting focusedImage directly', { clickTime });
+      setFocusedImageWithLog(clickedDetails);
+    }
+    
+    // Add a timeout to check state after a short delay
+    setTimeout(() => {
+      console.log('[CLICK_TIMING] State check after 100ms', { 
+        clickTime, 
+        currentTime: Date.now(),
+        timeElapsed: Date.now() - clickTime,
+        focusedImage: focusedImage ? { src: focusedImage.src, index: focusedImage.currentIndex } : null,
+        pendingImageToFocus: pendingImageToFocus ? { src: pendingImageToFocus.src, index: pendingImageToFocus.currentIndex } : null
+      });
+    }, 100);
+
+    console.log('[GUEST_EXP_CLICK_END] ===== HANDLE IMAGE CLICK COMPLETED =====', {
+      timestamp: Date.now()
+    });
+
+    // EXTENSIVE LOGGING: Click/Focus event for scrapbook image
+    if (!details || !details.imageElement) {
+      console.warn('[HANDLE_IMAGE_CLICK] No imageElement in details:', details);
+    } else {
+      const img = details.imageElement;
+      const rect = img.getBoundingClientRect();
+      const computed = window.getComputedStyle(img);
+      console.log('[HANDLE_IMAGE_CLICK] ===== CLICK/FOCUS EVENT =====', {
+        timestamp: Date.now(),
+        src: img.src,
+        alt: img.alt,
+        tagName: img.tagName,
+        className: img.className,
+        id: img.id,
+        boundingRect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          left: rect.left,
+          bottom: rect.bottom,
+          right: rect.right
+        },
+        zIndex: computed.zIndex,
+        pointerEvents: computed.pointerEvents,
+        opacity: computed.opacity,
+        visibility: computed.visibility,
+        display: computed.display,
+        transform: computed.transform,
+        willChange: computed.willChange,
+        backfaceVisibility: computed.backfaceVisibility,
+        parent: img.parentElement ? {
+          tagName: img.parentElement.tagName,
+          className: img.parentElement.className,
+          id: img.parentElement.id
+        } : null
+      });
+    }
+
+    // EXTENSIVE LOGGING: Log all event and DOM state details for the clicked image
+    if (!details || !details.imageElement) {
+      console.warn('[HANDLE_IMAGE_CLICK] No imageElement in details', { details, timestamp: Date.now() });
+    } else {
+      const img = details.imageElement;
+      const rect = img.getBoundingClientRect();
+      const computed = window.getComputedStyle(img);
+      console.log('[HANDLE_IMAGE_CLICK] ===== CLICKED IMAGE DOM STATE =====', {
+        timestamp: Date.now(),
+        src: img.src,
+        alt: img.alt,
+        tagName: img.tagName,
+        className: img.className,
+        id: img.id,
+        boundingRect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          left: rect.left,
+          right: rect.right,
+          bottom: rect.bottom
+        },
+        zIndex: computed.zIndex,
+        pointerEvents: computed.pointerEvents,
+        opacity: computed.opacity,
+        visibility: computed.visibility,
+        display: computed.display,
+        transform: computed.transform,
+        willChange: computed.willChange,
+        backfaceVisibility: computed.backfaceVisibility,
+        position: computed.position,
+        parentTag: img.parentElement?.tagName,
+        parentClass: img.parentElement?.className,
+        parentId: img.parentElement?.id
+      });
+    }
+
+    // EXTENSIVE LOGGING: Click event and DOM state
+    if (details && details.imageElement) {
+      const img = details.imageElement;
+      const rect = img.getBoundingClientRect();
+      const computed = window.getComputedStyle(img);
+      console.log('[FOCUS_IMAGE_CLICK] ===== CLICKED IMAGE DOM STATE =====', {
+        timestamp: Date.now(),
+        src: img.src,
+        alt: img.alt,
+        tagName: img.tagName,
+        className: img.className,
+        id: img.id,
+        boundingRect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          left: rect.left,
+          bottom: rect.bottom,
+          right: rect.right
+        },
+        zIndex: computed.zIndex,
+        pointerEvents: computed.pointerEvents,
+        opacity: computed.opacity,
+        visibility: computed.visibility,
+        display: computed.display,
+        transform: computed.transform,
+        willChange: computed.willChange,
+        backfaceVisibility: computed.backfaceVisibility,
+        position: computed.position,
+        isConnected: img.isConnected,
+        parentTag: img.parentElement?.tagName,
+        parentClass: img.parentElement?.className,
+        parentId: img.parentElement?.id
+      });
+    }
+    // Log event details if available
+    if (details && details.event) {
+      const event = details.event;
+      console.log('[FOCUS_IMAGE_CLICK_EVENT] ===== EVENT DETAILS =====', {
+        timestamp: Date.now(),
+        eventType: event.type,
+        eventPhase: event.eventPhase,
+        bubbles: event.bubbles,
+        cancelable: event.cancelable,
+        defaultPrevented: event.defaultPrevented,
+        isTrusted: event.isTrusted,
+        timeStamp: event.timeStamp,
+        target: {
+          tagName: (event.target as HTMLElement)?.tagName,
+          className: (event.target as HTMLElement)?.className,
+          id: (event.target as HTMLElement)?.id
+        },
+        currentTarget: {
+          tagName: (event.currentTarget as HTMLElement)?.tagName,
+          className: (event.currentTarget as HTMLElement)?.className,
+          id: (event.currentTarget as HTMLElement)?.id
+        },
+        clientX: (event as any).clientX,
+        clientY: (event as any).clientY,
+        pageX: (event as any).pageX,
+        pageY: (event as any).pageY,
+        screenX: (event as any).screenX,
+        screenY: (event as any).screenY
+      });
+      // Log event propagation path
+      if ((event.nativeEvent as Event).composedPath) {
+        console.log('[FOCUS_IMAGE_CLICK_EVENT_PATH] ===== EVENT PROPAGATION PATH =====', {
+          timestamp: Date.now(),
+          eventPath: (event.nativeEvent as Event).composedPath().map((target: EventTarget, index: number) => ({
+            index,
+            tagName: (target as HTMLElement)?.tagName,
+            className: (target as HTMLElement)?.className,
+            id: (target as HTMLElement)?.id,
+            isImgElement: details.imageElement && target === details.imageElement
+          }))
+        });
+      }
+    }
+
+    // EXTENSIVE LOGGING: Click event and DOM state
+    console.log('[HANDLE_IMAGE_CLICK] ===== CLICK EVENT STARTED =====', {
+      timestamp: Date.now(),
+      eventType: event?.type,
+      event: event,
+      details,
+      imageElementPresent: !!details.imageElement,
+      imageElementTag: details.imageElement?.tagName,
+      imageElementClass: details.imageElement?.className,
+      imageElementId: details.imageElement?.id
+    });
+    if (details.imageElement) {
+      const rect = details.imageElement.getBoundingClientRect();
+      const computed = window.getComputedStyle(details.imageElement);
+      console.log('[HANDLE_IMAGE_CLICK] IMAGE DOM STATE', {
+        boundingRect: rect,
+        zIndex: computed.zIndex,
+        pointerEvents: computed.pointerEvents,
+        transform: computed.transform,
+        opacity: computed.opacity,
+        visibility: computed.visibility,
+        display: computed.display,
+        position: computed.position,
+        isConnected: details.imageElement.isConnected,
+        naturalWidth: (details.imageElement as HTMLImageElement).naturalWidth,
+        naturalHeight: (details.imageElement as HTMLImageElement).naturalHeight
+      });
+    } else {
+      console.warn('[HANDLE_IMAGE_CLICK] No imageElement present in details');
+    }
+    // Log event propagation path if event is present
+    if (event && (event as any).nativeEvent) {
+      const path = ((event as any).nativeEvent as Event).composedPath?.() || [];
+      console.log('[HANDLE_IMAGE_CLICK] EVENT PROPAGATION PATH', path.map((target: EventTarget, idx: number) => ({
+        idx,
+        tagName: (target as HTMLElement)?.tagName,
+        className: (target as HTMLElement)?.className,
+        id: (target as HTMLElement)?.id,
+        isImgElement: target === details.imageElement
+      })));
+    }
+  }, [imageNaturalDimensions, displayedImagesAndTheirData, scrollYWithPhysics, focusedImage, setFocusedImageWithLog, setImageReturningToScrapbookWithLog]);
   
 
   // --- LOADING GUARD ---
@@ -1961,7 +2818,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           left: 0,
           width: '100vw',
           height: '100vh',
-          background: '#fdf9f7', // Warm off-white to match logo background
+          background: '#fdf9f7',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -1970,91 +2827,91 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
           zIndex: 999999,
           color: selectedColorScheme.colors.text,
           fontFamily: 'Arial, sans-serif',
-          pointerEvents: 'none', // Allow interaction with content below when fading
-    }}>
-      {/* Wedding Logo */}
-      <div style={{
-        margin: '0 0 40px 0',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-      }}>
-        <img 
-          src="/Logo.png" 
-          alt="Wedding Logo" 
-          style={{
-            maxWidth: '112.5px', // 25% smaller than 150px
-            maxHeight: '112.5px',
-            objectFit: 'contain',
-            background: 'transparent',
-            mixBlendMode: 'multiply',
-          }}
-        />
-      </div>
+          pointerEvents: 'none',
+        }}>
+          {/* Wedding Logo */}
+          <div style={{
+            margin: '0 0 40px 0',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+          }}>
+            <img 
+              src="/Logo.png" 
+              alt="Wedding Logo" 
+              style={{
+                maxWidth: '112.5px', // 25% smaller than 150px
+                maxHeight: '112.5px',
+                objectFit: 'contain',
+                background: 'transparent',
+                mixBlendMode: 'multiply',
+              }}
+            />
+          </div>
 
-      {/* Animated Loading Icon */}
-      <div style={{
-        width: '80px',
-        height: '80px',
-        margin: '0 0 30px 0',
-        position: 'relative',
-      }}>
-        <div style={{
-          width: '100%',
-          height: '100%',
-          border: `4px solid #B07A8C40`, // Use logo pink color with alpha
-          borderTop: `4px solid #B07A8C`, // Use logo pink color
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }} />
-        <style>
-          {`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-            @keyframes pulse {
-              0%, 100% { opacity: 1; transform: scale(1); }
-              50% { opacity: 0.7; transform: scale(1.05); }
-            }
-            @keyframes shimmer {
-              0% { background-position: -200px 0; }
-              100% { background-position: 200px 0; }
-            }
-          `}
-        </style>
-      </div>
+          {/* Animated Loading Icon */}
+          <div style={{
+            width: '80px',
+            height: '80px',
+            margin: '0 0 30px 0',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              border: `4px solid #B07A8C40`, // Use logo pink color with alpha
+              borderTop: `4px solid #B07A8C`, // Use logo pink color
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <style>
+              {`
+                @keyframes spin {
+                  0% { transform: rotate(0deg); }
+                  100% { transform: rotate(360deg); }
+                }
+                @keyframes pulse {
+                  0%, 100% { opacity: 1; transform: scale(1); }
+                  50% { opacity: 0.7; transform: scale(1.05); }
+                }
+                @keyframes shimmer {
+                  0% { background-position: -200px 0; }
+                  100% { background-position: 200px 0; }
+                }
+              `}
+            </style>
+          </div>
 
-      {/* Loading Text */}
-      <h2 style={{
-        margin: '0 0 20px 0',
-        fontSize: '2rem',
-        fontWeight: '300',
-        textAlign: 'center',
-        animation: 'pulse 2s ease-in-out infinite',
-      }}>
-        Loading Experience
-      </h2>
+          {/* Loading Text */}
+          <h2 style={{
+            margin: '0 0 20px 0',
+            fontSize: '2rem',
+            fontWeight: '300',
+            textAlign: 'center',
+            animation: 'pulse 2s ease-in-out infinite',
+          }}>
+            Loading Experience
+          </h2>
 
-      {/* Progress Bar */}
-      <div style={{
-        width: '300px',
-        height: '6px',
-        backgroundColor: '#B07A8C20', // Use logo pink color with alpha for background
-        borderRadius: '3px',
-        overflow: 'hidden',
-        margin: '0 0 15px 0',
-      }}>
-        <div style={{
-          width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
-          height: '100%',
-          background: `#B07A8C`, // Use logo pink color for progress
-          borderRadius: '3px',
-          transition: 'width 0.3s ease',
-          backgroundSize: '200px 100%',
-          animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
-        }} />
-      </div>
+          {/* Progress Bar */}
+          <div style={{
+            width: '300px',
+            height: '6px',
+            backgroundColor: '#B07A8C20', // Use logo pink color with alpha for background
+            borderRadius: '3px',
+            overflow: 'hidden',
+            margin: '0 0 15px 0',
+          }}>
+            <div style={{
+              width: `${preloadTotal > 0 ? (preloadProgress / preloadTotal) * 100 : 0}%`,
+              height: '100%',
+              background: `#B07A8C`, // Use logo pink color for progress
+              borderRadius: '3px',
+              transition: 'width 0.3s ease',
+              backgroundSize: '200px 100%',
+              animation: preloadProgress < preloadTotal ? 'shimmer 1.5s infinite' : 'none',
+            }} />
+          </div>
 
           {/* Progress Text */}
           <p style={{
@@ -2199,6 +3056,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
             msOverflowStyle: 'none', // IE and Edge
           } : {})
         }}
+        ref={animationParentRef} // <-- Add ref here
       >
         <Parallax 
           ref={parallaxRef} 
@@ -2370,6 +3228,7 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
                       layoutControlsFromProp={controlValues[scrapbookElementFolderName]}
                       TOTAL_PAGES={TOTAL_PAGES}
                       elementSticky={element.sticky}
+                      animationParentRef={animationParentRef} // <-- Pass ref down
                     />;
                   } else if (element.name === 'Navbar') {
                     // REMOVE: Do not render Navbar here, it will be rendered outside parallax structure
@@ -2491,46 +3350,48 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
         });
       })()}
 
-      <>
-        <animated.div style={{ ...backdropSpring, position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0, 0, 0, 0.7)', zIndex: 1000 } as any} onClick={handleCloseFocusedImage} />
-        {isScrapbookEnabled && (focusedImage || imageReturningToScrapbook) && (
-          <animated.div {...bindFocusedImageDrag()} style={{ ...focusedImageContainerSpring, zIndex: 1001, position: 'fixed', touchAction: 'none' } as any}>
-            {(focusedImage || imageReturningToScrapbook) && (
-              <div onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100%', height: '100%', position: 'relative' }}>
-                <img src={focusedImage?.src || imageReturningToScrapbook?.src} alt={focusedImage?.altText || imageReturningToScrapbook?.altText} style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain', boxShadow: '0px 10px 30px rgba(0,0,0,0.5)', border: '10px solid white', borderRadius: '3px' }} />
-                {focusedImage && (
-                  <>
-                    <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
-                    <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
-                    {showCaptions && (
-                      <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' } as any}>
-                        <p style={{ margin: 0 }}>{focusedImage.altText}</p>
-                        {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
-                      </animated.div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-          </animated.div>
-        )}
-
-        {/* Scroll Hint */}
-        {(() => {
-          // Don't show scroll hint if auto navigation is enabled
-          if (experienceSettingsFromApp?.autoNavigationEnabled) {
-            return null;
-          }
-          
-          return (
-            <ScrollHint 
-              isVisible={showScrollHintVisible}
-              selectedColorScheme={{ colors: { primary: '#007bff', text: '#333333', accent: '#6c757d' } }}
-              shouldFade={shouldFadeHint}
-              fadeOnceDetected={fadeOnceDetected}
+      {(focusedImage || imageReturningToScrapbook) && (
+        <>
+          {console.log('[RENDERING_PORTAL_OVERLAY]', { 
+            focusedImage: focusedImage?.src, 
+            imageReturningToScrapbook: imageReturningToScrapbook?.src,
+            time: Date.now() 
+          })}
+          <Portal>
+            <PortalOverlayWithLogging
+              key={focusedImage?.src || imageReturningToScrapbook?.src}
+              focusedImage={focusedImage}
+              imageReturningToScrapbook={imageReturningToScrapbook}
+              bindFocusedImageDrag={bindFocusedImageDrag}
+              focusedImageContainerSpring={focusedImageContainerSpring}
+              backdropSpring={backdropSpring}
+              infoBoxSpring={infoBoxSpring}
+              handleCloseFocusedImage={handleCloseFocusedImage}
+              handlePreviousImage={handlePreviousImage}
+              handleNextImage={handleNextImage}
+              showCaptions={showCaptions}
+              isScrapbookEnabled={isScrapbookEnabled}
             />
-          );
-        })()}
+          </Portal>
+        </>
+      )}
+
+      {/* Scroll Hint */}
+      {(() => {
+        // Don't show scroll hint if auto navigation is enabled
+        if (experienceSettingsFromApp?.autoNavigationEnabled) {
+          return null;
+        }
+        
+        return (
+          <ScrollHint 
+            isVisible={showScrollHintVisible}
+            selectedColorScheme={{ colors: { primary: '#007bff', text: '#333333', accent: '#6c757d' } }}
+            shouldFade={shouldFadeHint}
+            fadeOnceDetected={fadeOnceDetected}
+          />
+        );
+      })()}
 
 
 
@@ -2538,131 +3399,479 @@ const GuestExperience: React.FC<GuestExperienceProps> = (props) => {
 
 
 
-        {/* Auto Navigation Arrows */}
-        {(() => {
-          // Generate arrow styles from controls
-          const generateArrowStyle = (isDisabled: boolean) => {
-            const baseStyle: React.CSSProperties = {
-              position: 'fixed',
-              top: '50%',
-              zIndex: 150,
-              border: 'none',
-              cursor: isDisabled ? 'not-allowed' : 'pointer',
-              lineHeight: 1,
-              color: isDisabled ? '#888888' : arrowTextColor,
-              fontSize: `${arrowFontSize}px`,
-              padding: `${arrowPadding}px`,
-              borderRadius: `${arrowBorderRadius}px`,
-              background: 'transparent',
-              backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
-              WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
-              opacity: isDisabled ? 0.2 : 1,
-            };
-
-            // Apply text shadow if enabled (shadow on the arrow symbol itself)
-            if (arrowShadowEnabled) {
-              baseStyle.textShadow = `${arrowShadowOffsetX}px ${arrowShadowOffsetY}px ${arrowShadowBlur}px ${arrowShadowColor}`;
-            }
-
-            // Apply border if enabled
-            if (arrowBorderEnabled) {
-              baseStyle.border = `${arrowBorderWidth}px solid ${isDisabled ? '#888888' : arrowBorderColor}`;
-            }
-
-            return baseStyle;
+      {/* Auto Navigation Arrows */}
+      {(() => {
+        // Generate arrow styles from controls
+        const generateArrowStyle = (isDisabled: boolean) => {
+          const baseStyle: React.CSSProperties = {
+            position: 'fixed',
+            top: '50%',
+            zIndex: 150,
+            border: 'none',
+            cursor: isDisabled ? 'not-allowed' : 'pointer',
+            lineHeight: 1,
+            color: isDisabled ? '#888888' : arrowTextColor,
+            fontSize: `${arrowFontSize}px`,
+            padding: `${arrowPadding}px`,
+            borderRadius: `${arrowBorderRadius}px`,
+            background: 'transparent',
+            backdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+            WebkitBackdropFilter: arrowBackdropBlur > 0 ? `blur(${arrowBackdropBlur}px)` : 'none',
+            opacity: isDisabled ? 0.2 : 1,
           };
 
-          // Always render arrows if auto navigation is enabled and we have auto elements
-          // Visibility is now controlled by animated opacity instead of conditional rendering
-          if (experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0) {
-            return (
-              <>
-                {/* Previous Arrow - Styled */}
-                <animated.button
-                  onClick={handleAutoPrevious}
-                  style={{
-                    ...generateArrowStyle(isAutoScrolling || currentAutoIndex <= 0),
-                    left: '20px',
-                    transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: arrowOpacity,
-                    transition: 'opacity 0.4s ease-in-out',
-                    pointerEvents: arrowsVisible ? 'auto' : 'none',
-                  }}
-                  disabled={isAutoScrolling || currentAutoIndex <= 0}
-                >
-                  &#8592;
-                </animated.button>
-
-                {/* Next Arrow - Styled */}
-                <animated.button
-                  onClick={handleAutoNext}
-                  style={{
-                    ...generateArrowStyle(isAutoScrolling || currentAutoIndex >= autoElements.length - 1),
-                    right: '20px',
-                    transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
-                    opacity: arrowOpacity,
-                    transition: 'opacity 0.4s ease-in-out',
-                    pointerEvents: arrowsVisible ? 'auto' : 'none',
-                  }}
-                  disabled={isAutoScrolling || currentAutoIndex >= autoElements.length - 1}
-                >
-                  &#8594;
-                </animated.button>
-
-
-              </>
-            );
-          } else {
-            if (focusedImage) {
-              console.log('[AUTO_NAV_DEBUG] 🖼️ HIDING AUTO ARROWS - Scrapbook image is focused');
-            } else {
-              console.log('[AUTO_NAV_DEBUG] ❌ NO AUTO ELEMENTS - Checking elementsFromBlueprint');
-              console.table(elementsFromBlueprint.map(el => ({ 
-                id: el.id, 
-                type: el.type, 
-                name: el.name, 
-                autoSequence: el.autoSequence,
-                hasAutoSequence: 'autoSequence' in el
-              })));
-            }
-            
-                          // Only show "No Auto Elements Found" message if there are truly no auto elements
-              // Don't show it when arrows are hidden due to focused scrapbook image
-              if (!focusedImage && autoElements.length === 0) {
-                return (
-                  <div
-                    style={{
-                      position: 'fixed',
-                      top: '10px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      zIndex: 2000,
-                      backgroundColor: 'rgba(255, 140, 0, 0.9)',
-                      color: 'white',
-                      padding: '15px 25px',
-                      borderRadius: '8px',
-                      fontSize: '16px',
-                      fontWeight: 'bold',
-                      textAlign: 'center',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
-                      maxWidth: '400px',
-                    }}
-                  >
-                    ⚠️ No Auto Elements Found<br/>
-                    <small style={{ fontSize: '12px', fontWeight: 'normal' }}>
-                      Check setup page and click "Save Configuration"
-                    </small>
-                  </div>
-                );
-              }
-              
-              // If scrapbook image is focused, return null (hide arrows without warning message)
-              return null;
+          // Apply text shadow if enabled (shadow on the arrow symbol itself)
+          if (arrowShadowEnabled) {
+            baseStyle.textShadow = `${arrowShadowOffsetX}px ${arrowShadowOffsetY}px ${arrowShadowBlur}px ${arrowShadowColor}`;
           }
-        })()}
-      </>
+
+          // Apply border if enabled
+          if (arrowBorderEnabled) {
+            baseStyle.border = `${arrowBorderWidth}px solid ${isDisabled ? '#888888' : arrowBorderColor}`;
+          }
+
+          return baseStyle;
+        };
+
+        // Always render arrows if auto navigation is enabled and we have auto elements
+        // Visibility is now controlled by animated opacity instead of conditional rendering
+        if (experienceSettingsFromApp?.autoNavigationEnabled && autoElements.length > 0) {
+          return (
+            <>
+              {/* Previous Arrow - Styled */}
+              <animated.button
+                onClick={handleAutoPrevious}
+                style={{
+                  ...generateArrowStyle(isAutoScrolling || currentAutoIndex <= 0),
+                  left: '20px',
+                  transform: prevArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
+                  opacity: arrowOpacity,
+                  transition: 'opacity 0.4s ease-in-out',
+                  pointerEvents: arrowsVisible ? 'auto' : 'none',
+                }}
+                disabled={isAutoScrolling || currentAutoIndex <= 0}
+              >
+                &#8592;
+              </animated.button>
+
+              {/* Next Arrow - Styled */}
+              <animated.button
+                onClick={handleAutoNext}
+                style={{
+                  ...generateArrowStyle(isAutoScrolling || currentAutoIndex >= autoElements.length - 1),
+                  right: '20px',
+                  transform: nextArrowSpring.scale.to((s: number) => `translateY(-50%) scale(${s})`),
+                  opacity: arrowOpacity,
+                  transition: 'opacity 0.4s ease-in-out',
+                  pointerEvents: arrowsVisible ? 'auto' : 'none',
+                }}
+                disabled={isAutoScrolling || currentAutoIndex >= autoElements.length - 1}
+              >
+                &#8594;
+              </animated.button>
+
+
+            </>
+          );
+        } else {
+          if (focusedImage) {
+            console.log('[AUTO_NAV_DEBUG] 🖼️ HIDING AUTO ARROWS - Scrapbook image is focused');
+          } else {
+            console.log('[AUTO_NAV_DEBUG] ❌ NO AUTO ELEMENTS - Checking elementsFromBlueprint');
+            console.table(elementsFromBlueprint.map(el => ({ 
+              id: el.id, 
+              type: el.type, 
+              name: el.name, 
+              autoSequence: el.autoSequence,
+              hasAutoSequence: 'autoSequence' in el
+            })));
+          }
+          
+                          // Only show "No Auto Elements Found" message if there are truly no auto elements
+          // Don't show it when arrows are hidden due to focused scrapbook image
+          if (!focusedImage && autoElements.length === 0) {
+            return (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: '10px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 2000,
+                  backgroundColor: 'rgba(255, 140, 0, 0.9)',
+                  color: 'white',
+                  padding: '15px 25px',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+                  maxWidth: '400px',
+                }}
+              >
+                ⚠️ No Auto Elements Found<br/>
+                <small style={{ fontSize: '12px', fontWeight: 'normal' }}>
+                  Check setup page and click "Save Configuration"
+                </small>
+              </div>
+            );
+          }
+          
+          // If scrapbook image is focused, return null (hide arrows without warning message)
+          return null;
+        } // <-- Add this closing brace to close the else block
+      })()}
     </UserInfoProvider>
   );
 };
 
-export default GuestExperience; 
+const PortalOverlayWithLogging = ({
+  focusedImage,
+  imageReturningToScrapbook,
+  bindFocusedImageDrag,
+  focusedImageContainerSpring,
+  backdropSpring,
+  infoBoxSpring,
+  handleCloseFocusedImage,
+  handlePreviousImage,
+  handleNextImage,
+  showCaptions,
+  isScrapbookEnabled
+}: any) => {
+  console.log('[PORTAL_OVERLAY_RENDER] ===== PORTAL OVERLAY RENDERING =====', {
+    timestamp: Date.now(),
+    focusedImage: focusedImage ? {
+      src: focusedImage.src,
+      currentIndex: focusedImage.currentIndex,
+      displayIndex: focusedImage.displayIndex,
+      hasImageElement: !!focusedImage.imageElement,
+      imageElementConnected: focusedImage.imageElement?.isConnected
+    } : null,
+    imageReturningToScrapbook: imageReturningToScrapbook ? {
+      src: imageReturningToScrapbook.src,
+      currentIndex: imageReturningToScrapbook.currentIndex,
+      displayIndex: imageReturningToScrapbook.displayIndex
+    } : null,
+    isScrapbookEnabled,
+    showCaptions
+  });
+
+  useEffect(() => {
+    console.log('[PORTAL_RENDERED] ===== OVERLAY MOUNTED =====', {
+      timestamp: Date.now(),
+      src: focusedImage?.src || imageReturningToScrapbook?.src,
+      focusedImage: focusedImage ? {
+        src: focusedImage.src,
+        currentIndex: focusedImage.currentIndex,
+        displayIndex: focusedImage.displayIndex,
+        hasImageElement: !!focusedImage.imageElement,
+        imageElementConnected: focusedImage.imageElement?.isConnected
+      } : null,
+      imageReturningToScrapbook: imageReturningToScrapbook ? {
+        src: imageReturningToScrapbook.src,
+        currentIndex: imageReturningToScrapbook.currentIndex,
+        displayIndex: imageReturningToScrapbook.displayIndex
+      } : null
+    });
+    
+    // --- TRACK DOM ELEMENT LIFECYCLE ---
+    const checkElement = () => {
+      const img = document.querySelector('.focused-image') as HTMLElement | null;
+      const container = document.querySelector('[data-portal-container]') as HTMLElement | null;
+      const backdrop = document.querySelector('[data-portal-backdrop]') as HTMLElement | null;
+      
+      if (img) {
+        const computedStyle = window.getComputedStyle(img);
+        console.log('[DOM_CHECK] ===== COMPREHENSIVE DOM CHECK =====', {
+          timestamp: Date.now(),
+          img: {
+            exists: !!img,
+            connected: img.isConnected,
+            tagName: img.tagName,
+            className: img.className,
+            id: img.id,
+            visible: computedStyle.visibility !== 'hidden',
+            opacity: computedStyle.opacity,
+            position: computedStyle.position,
+            display: computedStyle.display,
+            zIndex: computedStyle.zIndex,
+            pointerEvents: computedStyle.pointerEvents,
+            transform: computedStyle.transform,
+            top: computedStyle.top,
+            left: computedStyle.left,
+            width: computedStyle.width,
+            height: computedStyle.height,
+            backfaceVisibility: computedStyle.backfaceVisibility,
+            willChange: computedStyle.willChange,
+            transition: computedStyle.transition,
+            cursor: computedStyle.cursor,
+            boxShadow: computedStyle.boxShadow,
+            border: computedStyle.border,
+            borderRadius: computedStyle.borderRadius
+          },
+          container: {
+            exists: !!container,
+            connected: container?.isConnected,
+            tagName: container?.tagName,
+            className: container?.className,
+            id: container?.id
+          },
+          backdrop: {
+            exists: !!backdrop,
+            connected: backdrop?.isConnected,
+            tagName: backdrop?.tagName,
+            className: backdrop?.className,
+            id: backdrop?.id
+          },
+          boundingRect: img ? {
+            x: img.getBoundingClientRect().x,
+            y: img.getBoundingClientRect().y,
+            width: img.getBoundingClientRect().width,
+            height: img.getBoundingClientRect().height,
+            top: img.getBoundingClientRect().top,
+            left: img.getBoundingClientRect().left,
+            right: img.getBoundingClientRect().right,
+            bottom: img.getBoundingClientRect().bottom
+          } : null
+        });
+      } else {
+        console.log('[DOM_CHECK] ===== NO FOCUSED IMAGE ELEMENT FOUND =====', {
+          timestamp: Date.now(),
+          imgExists: false,
+          containerExists: !!container,
+          backdropExists: !!backdrop
+        });
+      }
+    };
+    
+    // Check immediately
+    checkElement();
+    
+    // Check after a short delay
+    setTimeout(checkElement, 50);
+    
+    // Check after a longer delay
+    setTimeout(checkElement, 200);
+    
+    // --- FORCE KNOWN-GOOD STYLE FOR DEBUG ---
+    setTimeout(() => {
+      const img = document.querySelector('.focused-image') as HTMLElement | null;
+      if (img) {
+        console.log('[FORCED_STYLE_BEFORE] ===== STYLES BEFORE FORCING =====', {
+          timestamp: Date.now(),
+          opacity: img.style.opacity,
+          visibility: img.style.visibility,
+          transform: img.style.transform,
+          position: img.style.position,
+          top: img.style.top,
+          left: img.style.left,
+          zIndex: img.style.zIndex,
+          pointerEvents: img.style.pointerEvents,
+          backfaceVisibility: img.style.backfaceVisibility,
+          willChange: img.style.willChange
+        });
+        
+        img.style.opacity = '1';
+        img.style.visibility = 'visible';
+        img.style.transform = 'translate(-50%, -50%) scale(1)';
+        img.style.position = 'fixed';
+        img.style.top = '50%';
+        img.style.left = '50%';
+        img.style.zIndex = '9999';
+        img.style.pointerEvents = 'auto';
+        // Remove backface-visibility and will-change
+        img.style.removeProperty('backface-visibility');
+        img.style.removeProperty('will-change');
+        
+        console.log('[FORCED_STYLE_APPLIED] ===== STYLES AFTER FORCING =====', {
+          timestamp: Date.now(),
+          opacity: img.style.opacity,
+          visibility: img.style.visibility,
+          transform: img.style.transform,
+          position: img.style.position,
+          top: img.style.top,
+          left: img.style.left,
+          zIndex: img.style.zIndex,
+          pointerEvents: img.style.pointerEvents,
+          backfaceVisibility: img.style.backfaceVisibility,
+          willChange: img.style.willChange,
+          computedStyle: {
+            opacity: getComputedStyle(img).opacity,
+            visibility: getComputedStyle(img).visibility,
+            transform: getComputedStyle(img).transform,
+            position: getComputedStyle(img).position,
+            top: getComputedStyle(img).top,
+            left: getComputedStyle(img).left,
+            zIndex: getComputedStyle(img).zIndex,
+            pointerEvents: getComputedStyle(img).pointerEvents
+          }
+        });
+        
+        checkElement(); // Check again after forcing styles
+      } else {
+        console.warn('[FORCED_STYLE_FAILED] ===== NO FOCUSED-IMAGE ELEMENT FOUND =====', {
+          timestamp: Date.now()
+        });
+      }
+    }, 100);
+    
+    // Cleanup function to track unmounting
+    return () => {
+      console.log('[PORTAL_UNMOUNTING] ===== OVERLAY BEING UNMOUNTED =====', {
+        timestamp: Date.now(),
+        src: focusedImage?.src || imageReturningToScrapbook?.src
+      });
+      checkElement(); // Final check before unmount
+    };
+  }, [focusedImage?.src, imageReturningToScrapbook?.src]);
+
+  useEffect(() => {
+    const el = document.querySelector('.focused-image');
+    if (el) {
+      const rect = (el as HTMLElement).getBoundingClientRect();
+      const computedStyle = window.getComputedStyle(el as HTMLElement);
+      
+      console.log('[FOCUSED_IMAGE_RENDERED] ===== FOCUSED IMAGE RENDERED =====', {
+        timestamp: Date.now(),
+        src: focusedImage?.src,
+        rect: {
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+          top: rect.top,
+          left: rect.left,
+          right: rect.right,
+          bottom: rect.bottom
+        },
+        computedStyles: {
+          position: computedStyle.position,
+          display: computedStyle.display,
+          visibility: computedStyle.visibility,
+          opacity: computedStyle.opacity,
+          zIndex: computedStyle.zIndex,
+          pointerEvents: computedStyle.pointerEvents,
+          transform: computedStyle.transform,
+          top: computedStyle.top,
+          left: computedStyle.left,
+          width: computedStyle.width,
+          height: computedStyle.height
+        },
+        element: {
+          tagName: el.tagName,
+          className: el.className,
+          id: el.id,
+          isConnected: el.isConnected
+        }
+      });
+    } else {
+      console.log('[FOCUSED_IMAGE_RENDERED] ===== NO FOCUSED IMAGE ELEMENT FOUND =====', {
+        timestamp: Date.now(),
+        src: focusedImage?.src
+      });
+    }
+  }, [focusedImage]);
+
+  // Defensive fallback for width/height
+  const width = focusedImage?.naturalWidth || 300;
+  const height = focusedImage?.naturalHeight || 200;
+  console.log('[PORTAL_DIMENSIONS] ===== PORTAL DIMENSIONS =====', {
+    timestamp: Date.now(),
+    width,
+    height,
+    naturalWidth: focusedImage?.naturalWidth,
+    naturalHeight: focusedImage?.naturalHeight,
+    fallbackUsed: !focusedImage?.naturalWidth || !focusedImage?.naturalHeight
+  });
+
+  const imageSrc = focusedImage?.src || imageReturningToScrapbook?.src;
+  const imageAlt = focusedImage?.altText || imageReturningToScrapbook?.altText;
+  const imageKey = imageSrc;
+
+  console.log('[PORTAL_RENDER_PROPS] ===== RENDER PROPS =====', {
+    timestamp: Date.now(),
+    imageSrc,
+    imageAlt,
+    imageKey,
+    isScrapbookEnabled,
+    showCaptions,
+    hasFocusedImage: !!focusedImage,
+    hasImageReturningToScrapbook: !!imageReturningToScrapbook
+  });
+
+  return (
+    <>
+      <animated.div 
+        data-portal-backdrop="true"
+        style={{ 
+          ...backdropSpring, 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          width: '100vw', 
+          height: '100vh', 
+          background: 'rgba(0, 0, 0, 0.7)', 
+          zIndex: 1000, 
+          pointerEvents: (focusedImage || imageReturningToScrapbook) ? 'auto' : 'none' 
+        }} 
+        onClick={handleCloseFocusedImage} 
+      />
+      {isScrapbookEnabled && (
+        <animated.div
+          {...bindFocusedImageDrag()}
+          key={imageKey}
+          data-portal-container="true"
+          style={{
+            ...focusedImageContainerSpring,
+            zIndex: 1001,
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            pointerEvents: 'none',
+          }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ pointerEvents: 'auto', width: '100vw', height: '100vh', position: 'relative' }}>
+            {/* Animated image centered in viewport, not full screen */}
+            <animated.img
+              key={imageKey}
+              className="focused-image"
+              src={imageSrc}
+              alt={imageAlt}
+              style={{
+                position: 'fixed',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: focusedImageContainerSpring.width,
+                height: focusedImageContainerSpring.height,
+                opacity: focusedImageContainerSpring.opacity,
+                objectFit: 'contain',
+                boxShadow: '0px 10px 30px rgba(0,0,0,0.5)',
+                border: '10px solid white',
+                borderRadius: '3px',
+                zIndex: 9999,
+                pointerEvents: 'auto',
+              }}
+            />
+            {focusedImage && (
+              <>
+                <button onClick={handlePreviousImage} style={{ position: 'fixed', top: '50%', left: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8592;</button>
+                <button onClick={handleNextImage} style={{ position: 'fixed', top: '50%', right: '20px', zIndex: 1002, transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', borderRadius: '50%', width: '40px', height: '40px', fontSize: '20px', cursor: 'pointer' }}>&#8594;</button>
+                {showCaptions && (
+                  <animated.div style={{ ...infoBoxSpring, position: 'fixed', bottom: '30px', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: 'rgba(0,0,0,0.7)', color: 'white', padding: '10px 20px', borderRadius: '5px', textAlign: 'center' }}>
+                    <p style={{ margin: 0 }}>{focusedImage.altText}</p>
+                    {focusedImage.description && <p style={{ margin: '5px 0 0', fontSize: '0.8em' }}>{focusedImage.description}</p>}
+                  </animated.div>
+                )}
+              </>
+            )}
+          </div>
+        </animated.div>
+      )}
+    </>
+  );
+};
+
+export default GuestExperience;
