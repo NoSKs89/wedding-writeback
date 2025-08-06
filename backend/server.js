@@ -198,7 +198,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[ROUTE /api/weddings/:customId] Request for ${customId}. Mongoose readyState: ${mongoose.connection.readyState}`);
           
-          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId }));
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId })).collation({ locale: 'en', strength: 2 });          
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           }
@@ -246,7 +246,7 @@ exports.handler = async (event, context) => {
           }
 
           const wedding = await WeddingData.findOneAndUpdate(
-              { customId: weddingPayload.customId }, 
+           { customId: weddingPayload.customId },
               { 
                 ...weddingPayload,
                 // Explicitly set email and accountStatus if they are part of the payload
@@ -255,7 +255,7 @@ exports.handler = async (event, context) => {
                 ...(weddingPayload.accountStatus && { accountStatus: weddingPayload.accountStatus })
               },
               { new: true, upsert: true, runValidators: true }
-          );
+            ).collation({ locale: 'en', strength: 2 });
           return createResponse(wedding ? 201 : 400, wedding || { message: "Failed to create/update wedding" }, requestOrigin);
       }
 
@@ -268,7 +268,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /layout-settings] customId: ${customId}, view: ${view}, selecting: ${fieldToSelect}`);
 
-          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 }).select(`${fieldToSelect} customId`);
           if (!wedding) return createResponse(404, { message: 'Wedding data not found' }, requestOrigin);
           
           return createResponse(200, wedding[fieldToSelect] || {}, requestOrigin);
@@ -296,7 +296,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /layoutSettings/:viewType] Selecting field: ${fieldToSelect}, with fallback to ${legacyField}`);
 
-          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} ${legacyField} customId`);
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 }).select(`${fieldToSelect} ${legacyField} customId`);
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found for layout settings.' }, requestOrigin);
           }
@@ -340,7 +340,7 @@ exports.handler = async (event, context) => {
               { customId }, 
               updateQuery,
               { new: true, runValidators: true, select: `${fieldToUpdate} customId` }
-          );
+          ).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for layout update.' }, requestOrigin);
           
           return createResponse(200, { message: `Layout settings for ${viewType} view (Slot ${slotNumber}) saved.`, [fieldToUpdate]: wedding[fieldToUpdate] }, requestOrigin);
@@ -355,7 +355,7 @@ exports.handler = async (event, context) => {
 
           console.log(`[GET /layoutSettings/preview/:viewType] customId: ${customId}, view: ${viewType}, selecting: ${fieldToSelect}`);
 
-          const wedding = await WeddingData.findOne({ customId }).select(`${fieldToSelect} customId`);
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 }).select(`${fieldToSelect} customId`);
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found for preview layout settings.' }, requestOrigin);
           }
@@ -383,7 +383,7 @@ exports.handler = async (event, context) => {
               { customId }, 
               updateQuery,
               { new: true, runValidators: true, select: `${fieldToUpdate} customId` }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for preview layout update.' }, requestOrigin);
           
@@ -395,7 +395,7 @@ exports.handler = async (event, context) => {
       if (httpMethod === "GET" && getExperienceSettingsMatch) {
           const customId = getExperienceSettingsMatch[1];
           console.log(`[GET /experience-settings] customId: ${customId}`);
-          const wedding = await WeddingData.findOne({ customId }).select('experienceSettings customId');
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 }).select('experienceSettings customId');
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for experience settings' }, requestOrigin);
           // Send back the settings, or an empty object if not found, to align with frontend expectation
           return createResponse(200, { data: wedding.experienceSettings || null }, requestOrigin);
@@ -417,7 +417,7 @@ exports.handler = async (event, context) => {
               { customId }, 
               updateQuery,
               { new: true, runValidators: true, select: 'experienceSettings customId' }
-          );
+          ).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for experience settings update.' }, requestOrigin);
           
           return createResponse(200, { message: 'Experience settings saved.', data: wedding.experienceSettings }, requestOrigin);
@@ -453,7 +453,7 @@ exports.handler = async (event, context) => {
           }
           
           // Secure database query using sanitized wedding ID
-          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId }));
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId })).collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found for this RSVP.' }, requestOrigin);
           }
@@ -545,7 +545,7 @@ exports.handler = async (event, context) => {
                       }
                   } 
               }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           console.log(`[ROUTE /api/rsvp] Update result:`, {
             matchedCount: updateResult.matchedCount,
@@ -628,7 +628,7 @@ exports.handler = async (event, context) => {
 
           console.log(`[DELETE /rsvps] Attempting to delete RSVP ${rsvpIdToDelete} from wedding ${customId}`);
 
-          const wedding = await WeddingData.findOne({ customId: customId });
+          const wedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -649,13 +649,13 @@ exports.handler = async (event, context) => {
                       }
                   }
               }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (updateResult.modifiedCount === 0) {
               return createResponse(500, { message: 'Failed to delete RSVP.' }, requestOrigin);
           }
           
-          const updatedWedding = await WeddingData.findOne({ customId: customId });
+          const updatedWedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
 
           return createResponse(200, { message: 'RSVP deleted successfully.', wedding: updatedWedding }, requestOrigin);
       }
@@ -762,7 +762,7 @@ exports.handler = async (event, context) => {
           if (!imageUrl || !imageType) return createResponse(400, { message: 'imageUrl and imageType are required.' }, requestOrigin);
           if (imageType === 'scrapbook' && !s3Key) return createResponse(400, { message: 's3Key required for scrapbook images.' }, requestOrigin);
 
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for image update.' }, requestOrigin);
 
           if (imageType === 'introCouple') wedding.introCouple = imageUrl;
@@ -794,7 +794,7 @@ exports.handler = async (event, context) => {
       if (httpMethod === "DELETE" && deleteImageMatch) {
           const customId = deleteImageMatch[1];
           const imageId = deleteImageMatch[2];
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for image delete.' }, requestOrigin);
           
           const imageToDelete = wedding.scrapbookImages.id(imageId);
@@ -815,7 +815,7 @@ exports.handler = async (event, context) => {
       const clearScrapbookMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/scrapbook-images$/);
       if (httpMethod === "DELETE" && clearScrapbookMatch) {
           const customId = clearScrapbookMatch[1];
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for scrapbook clear.' }, requestOrigin);
           if (wedding.scrapbookImages && wedding.scrapbookImages.length > 0) {
               for (const img of wedding.scrapbookImages) {
@@ -840,7 +840,7 @@ exports.handler = async (event, context) => {
           const customId = getShareGalleryMatch[1];
           console.log(`[GET /share-gallery] Admin page loading for weddingId: ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               console.log(`[GET /share-gallery] Wedding data NOT FOUND for customId: ${customId}.`);
               return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
@@ -862,7 +862,7 @@ exports.handler = async (event, context) => {
       const generateGuidMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/generate-guid$/);
       if (httpMethod === "POST" && generateGuidMatch) {
           const customId = generateGuidMatch[1];
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
           
           if (wedding.shareGalleryGuid) {
@@ -882,7 +882,7 @@ exports.handler = async (event, context) => {
           const customId = regenerateGuidMatch[1];
           
           // First, find the wedding to get existing images for deletion
-          const weddingForImageDeletion = await WeddingData.findOne({ customId });
+          const weddingForImageDeletion = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!weddingForImageDeletion) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
 
           // If there are existing images, delete them from S3
@@ -912,7 +912,7 @@ exports.handler = async (event, context) => {
                   } 
               },
               { new: true } // Return the updated document
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding data not found during update.' }, requestOrigin);
@@ -926,7 +926,7 @@ exports.handler = async (event, context) => {
       if (httpMethod === "DELETE" && deleteShareGalleryImageMatch) {
           const customId = deleteShareGalleryImageMatch[1];
           const imageId = deleteShareGalleryImageMatch[2];
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
 
           const imageToDelete = wedding.shareGalleryImages.id(imageId);
@@ -952,7 +952,7 @@ exports.handler = async (event, context) => {
         const guid = getPublicShareGalleryMatch[2];
         
         // First, find the wedding by customId to see if the link is just stale
-        const wedding = await WeddingData.findOne({ customId: customId });
+        const wedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
         if (!wedding) return createResponse(404, { message: 'Gallery not found. The wedding ID may be incorrect.' }, requestOrigin);
 
         // Now check if the GUID matches. If not, the link is stale.
@@ -1006,7 +1006,7 @@ exports.handler = async (event, context) => {
           const { password } = body;
           if (!password) return createResponse(400, { message: 'Password is required for verification.' }, requestOrigin);
           
-          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword'); // Ensure password is selected
+          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword').collation({ locale: 'en', strength: 2 }); // Ensure password is selected
           if (!wedding) return createResponse(404, { message: 'Wedding data not found for password verification.' }, requestOrigin);
           if (!wedding.setupPassword) return createResponse(401, { message: 'Setup password not configured for this wedding.' }, requestOrigin);
 
@@ -1032,7 +1032,7 @@ exports.handler = async (event, context) => {
               return createResponse(400, { message: 'New password is too short.' }, requestOrigin);
           }
 
-          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword');
+          const wedding = await WeddingData.findOne({ customId }).select('+setupPassword').collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
           }
@@ -1079,7 +1079,7 @@ exports.handler = async (event, context) => {
               { customId: customId },
               { $set: updateFields },
               { new: true, runValidators: true }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
@@ -1095,7 +1095,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /navbar-settings] Fetching navbar settings for ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId });
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1134,7 +1134,7 @@ exports.handler = async (event, context) => {
               { customId: customId },
               { $set: { navbarSettings: navbarSettings } },
               { new: true, runValidators: true }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
@@ -1150,7 +1150,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /instance-display-name] Fetching instance display name for ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId }).select('instanceDisplayName customId');
+          const wedding = await WeddingData.findOne({ customId }).select('instanceDisplayName customId').collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1186,7 +1186,7 @@ exports.handler = async (event, context) => {
               { customId: customId },
               { $set: { instanceDisplayName: trimmedDisplayName } },
               { new: true, runValidators: true, select: 'instanceDisplayName customId' }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
@@ -1206,7 +1206,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /email-rsvp-alerts] Fetching email RSVP alerts for ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId }).select('emailRsvpAlerts customId');
+          const wedding = await WeddingData.findOne({ customId }).select('emailRsvpAlerts customId').collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1255,7 +1255,7 @@ exports.handler = async (event, context) => {
               { customId: customId },
               { $set: { emailRsvpAlerts: { enabled, emails: cleanedEmails } } },
               { new: true, runValidators: true, select: 'emailRsvpAlerts customId' }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
@@ -1275,7 +1275,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /prompt-form-settings] Fetching prompt form settings for ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId }).select('promptFormSettings customId');
+          const wedding = await WeddingData.findOne({ customId }).select('promptFormSettings customId').collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1327,7 +1327,7 @@ exports.handler = async (event, context) => {
               { customId: customId },
               { $set: { promptFormSettings: promptFormSettings } },
               { new: true, runValidators: true, select: 'promptFormSettings customId' }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
@@ -1361,7 +1361,7 @@ exports.handler = async (event, context) => {
           const { weddingId, firstName, lastName, email, responses, isAnonymous } = validation.sanitized;
           
           // Secure database query using sanitized wedding ID
-          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId }));
+          const wedding = await WeddingData.findOne(sanitizeMongoQuery({ customId: weddingId })).collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found for this prompt response.' }, requestOrigin);
           }
@@ -1407,7 +1407,7 @@ exports.handler = async (event, context) => {
                       promptResponses: newPromptResponse,
                   } 
               }
-          );
+          ).collation({ locale: 'en', strength: 2 });
 
           console.log(`[ROUTE /api/prompt-responses] Update result:`, {
             matchedCount: updateResult.matchedCount,
@@ -1437,7 +1437,7 @@ exports.handler = async (event, context) => {
           
           console.log(`[GET /prompt-responses] Fetching prompt responses for ${customId}`);
           
-          const wedding = await WeddingData.findOne({ customId }).select('promptResponses promptFormSettings customId');
+          const wedding = await WeddingData.findOne({ customId }).select('promptResponses promptFormSettings customId').collation({ locale: 'en', strength: 2 });
           if (!wedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1470,7 +1470,7 @@ exports.handler = async (event, context) => {
               { customId },
               { $set: updateFields },
               { new: true, runValidators: true }
-          );
+          ).collation({ locale: 'en', strength: 2 });
           if (!updatedWedding) {
               return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
           }
@@ -1507,7 +1507,8 @@ exports.handler = async (event, context) => {
       if (weddingIdForMeta) {
         console.log(`[HTML_SERVE] Attempting to fetch wedding data for meta tags: ${weddingIdForMeta}`);
         weddingDataForMeta = await WeddingData.findOne({ customId: weddingIdForMeta })
-          .select('customId eventName brideName groomName instanceDisplayName');
+          .select('customId eventName brideName groomName instanceDisplayName')
+          .collation({ locale: 'en', strength: 2 });
         console.log('[HTML_SERVE] weddingDataForMeta value after findOne:', JSON.stringify(weddingDataForMeta));
       } else {
         console.log('[HTML_SERVE] No weddingIdForMeta to use for fetching data.');
@@ -1557,12 +1558,27 @@ exports.handler = async (event, context) => {
         console.log('[HTML_SERVE] No weddingIdForMeta and weddingDataForMeta is falsy. Using default site tags.'); // New log
       }
 
+      console.log(`[HTML_SERVE] Before replacement - checking placeholders:`, {
+        hasPageTitle: htmlContent.includes('__PAGE_TITLE__'),
+        hasOgTitle: htmlContent.includes('__OG_TITLE__'),
+        hasOgDescription: htmlContent.includes('__OG_DESCRIPTION__'),
+        hasMetaDescription: htmlContent.includes('__META_DESCRIPTION__'),
+        hasOgUrl: htmlContent.includes('__OG_URL__')
+      });
+      
       htmlContent = htmlContent.replace(/__PAGE_TITLE__/g, pageTitle)
                                .replace(/__OG_TITLE__/g, ogTitle)
                                .replace(/__OG_DESCRIPTION__/g, ogDescription)
                                .replace(/__META_DESCRIPTION__/g, metaDescription)
                                .replace(/__OG_URL__/g, ogUrl);
       
+      console.log(`[HTML_SERVE] After replacement - values used:`, {
+        pageTitle,
+        ogTitle,
+        ogDescription,
+        metaDescription,
+        ogUrl
+      });
       console.log(`[HTML_SERVE] Serving HTML for ${routePath} with title: ${ogTitle}`);
       return {
         statusCode: 200,

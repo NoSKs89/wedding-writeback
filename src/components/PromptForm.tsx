@@ -74,6 +74,7 @@ export const promptFormControlsSchema = {
   formThemeName: { value: defaultThemeName, options: formThemes.map(theme => theme.name), label: 'Form Theme' },
   formTextFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Text Font' },
   buttonTextFontFamily: { value: fontFamilyOptions[0], options: fontFamilyOptions, label: 'Button Font' },
+  overrideSetupStyles: { value: false, label: 'Override Setup Styles' },
   formBackgroundOpacity: { value: 1, min: 0, max: 1, step: 0.01, label: 'Background Opacity' },
   formBorderColor: { value: '#cccccc', label: 'Border Color' },
   formBorderWidth: { value: 1, min: 0, max: 10, step: 1, label: 'Border Width (px)' },
@@ -114,6 +115,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     formThemeName,
     formTextFontFamily,
     buttonTextFontFamily,
+    overrideSetupStyles,
     formBackgroundOpacity,
     formBorderColor,
     formBorderWidth,
@@ -325,10 +327,14 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
 
   // Styles using values from controls
   const formContainerStyle: React.CSSProperties = {
-    backgroundColor: promptFormSettings ? 
-      hexToRgba(promptFormSettings.backgroundColor, formBackgroundOpacity) :
-      hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity),
-    color: promptFormSettings?.textColor || selectedTheme.textColor,
+    backgroundColor: overrideSetupStyles ? 
+      hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity) :
+      (promptFormSettings ? 
+        hexToRgba(promptFormSettings.backgroundColor, formBackgroundOpacity) :
+        hexToRgba(selectedTheme.backgroundColor, formBackgroundOpacity)),
+    color: overrideSetupStyles ? 
+      selectedTheme.textColor :
+      (promptFormSettings?.textColor || selectedTheme.textColor),
     border: `${formBorderWidth}px solid ${formBorderColor}`,
     padding: `${formPadding}px`,
     borderRadius: '8px',
@@ -361,7 +367,9 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     borderRadius: '4px',
     border: `1px solid ${selectedTheme.borderColor || '#ccc'}`,
     background: selectedTheme.backgroundColor || '#ffffff', // Use full theme background color like RSVPForm
-    color: promptFormSettings?.textColor || selectedTheme.textColor || '#000000',
+    color: overrideSetupStyles ? 
+      selectedTheme.textColor || '#000000' :
+      (promptFormSettings?.textColor || selectedTheme.textColor || '#000000'),
     fontFamily: formTextFontFamily,
     boxSizing: 'border-box',
   };
@@ -370,8 +378,12 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
     padding: '12px 18px',
     border: 'none',
     borderRadius: '5px',
-    background: promptFormSettings?.buttonColor || selectedTheme.buttonBackgroundColor || '#007bff',
-    color: promptFormSettings?.buttonTextColor || selectedTheme.buttonTextColor || '#ffffff',
+    background: overrideSetupStyles ? 
+      selectedTheme.buttonBackgroundColor || '#007bff' :
+      (promptFormSettings?.buttonColor || selectedTheme.buttonBackgroundColor || '#007bff'),
+    color: overrideSetupStyles ? 
+      selectedTheme.buttonTextColor || '#ffffff' :
+      (promptFormSettings?.buttonTextColor || selectedTheme.buttonTextColor || '#ffffff'),
     fontFamily: buttonTextFontFamily,
     cursor: 'pointer',
     fontWeight: 'bold',
@@ -383,7 +395,9 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
   const h2Style: React.CSSProperties = {
     fontSize: '1.2rem',
     fontWeight: 500,
-    color: promptFormSettings?.textColor || selectedTheme.textColor,
+    color: overrideSetupStyles ? 
+      selectedTheme.textColor :
+      (promptFormSettings?.textColor || selectedTheme.textColor),
     fontFamily: formTextFontFamily,
   };
 
@@ -436,12 +450,12 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
         <div style={{ textAlign: 'center', position: 'relative' }}>
           <button 
             onClick={() => setIsClosed(true)}
-            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: promptFormSettings?.textColor || selectedTheme.textColor }}
+            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: overrideSetupStyles ? selectedTheme.textColor : (promptFormSettings?.textColor || selectedTheme.textColor) }}
           >
             &times;
           </button>
           <h2 style={{...h2Style}}>Thank You{finalResponse?.firstName ? `, ${finalResponse.firstName}` : ''}!</h2>
-          <p style={{color: promptFormSettings?.textColor || selectedTheme.textColor, fontFamily: formTextFontFamily}}>
+          <p style={{color: overrideSetupStyles ? selectedTheme.textColor : (promptFormSettings?.textColor || selectedTheme.textColor), fontFamily: formTextFontFamily}}>
             Your responses have been submitted successfully.
           </p>
         </div>
@@ -451,7 +465,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
         <div style={{ textAlign: 'center', position: 'relative' }}>
            <button 
             onClick={() => setIsClosed(true)}
-            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: promptFormSettings?.textColor || selectedTheme.textColor }}
+            style={{ position: 'absolute', top: '-10px', right: '-10px', background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: overrideSetupStyles ? selectedTheme.textColor : (promptFormSettings?.textColor || selectedTheme.textColor) }}
           >
             &times;
           </button>
@@ -469,7 +483,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
           {promptFormSettings?.formTitle}
         </h2>
         {promptFormSettings?.formDescription && (
-          <p style={{color: promptFormSettings?.textColor || selectedTheme.textColor, textAlign: 'center', marginBottom: '1.5rem', fontFamily: formTextFontFamily}}>
+          <p style={{color: overrideSetupStyles ? selectedTheme.textColor : (promptFormSettings?.textColor || selectedTheme.textColor), textAlign: 'center', marginBottom: '1.5rem', fontFamily: formTextFontFamily}}>
             {promptFormSettings.formDescription}
           </p>
         )}
@@ -512,7 +526,7 @@ const PromptForm = forwardRef<HTMLDivElement, PromptFormProps>(({ weddingData, b
         {/* Prompt questions */}
         {promptFormSettings?.questions.map((question, index) => (
           <div key={question.id} style={{ marginBottom: '1.5rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: promptFormSettings?.textColor || selectedTheme.textColor, fontFamily: formTextFontFamily }}>
+            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 'bold', color: overrideSetupStyles ? selectedTheme.textColor : (promptFormSettings?.textColor || selectedTheme.textColor), fontFamily: formTextFontFamily }}>
               {question.question}
               {question.required && <span style={{ color: 'red', marginLeft: '4px' }}>*</span>}
             </label>
