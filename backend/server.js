@@ -854,6 +854,7 @@ exports.handler = async (event, context) => {
           // Send back the GUID if it exists, otherwise null. Do not create it here.
           return createResponse(200, { 
               galleryGuid: wedding.shareGalleryGuid || null,
+              urlMode: wedding.shareGalleryUrlMode || 'guid', // Include URL mode setting
               images: wedding.shareGalleryImages || [] 
           }, requestOrigin);
       }
@@ -869,11 +870,24 @@ exports.handler = async (event, context) => {
               return createResponse(409, { message: 'A gallery link already exists. Use regenerate to create a new one.' }, requestOrigin);
           }
 
-          const newGuid = uuidv4();
-          wedding.shareGalleryGuid = newGuid;
+          const urlMode = wedding.shareGalleryUrlMode || 'guid';
+          let newGuid = null;
+          
+          if (urlMode === 'guid') {
+              newGuid = uuidv4();
+              wedding.shareGalleryGuid = newGuid;
+          } else {
+              // For easy mode, we don't need a GUID but we'll mark it as generated
+              wedding.shareGalleryGuid = 'easy-mode';
+          }
+          
           await wedding.save();
           
-          return createResponse(201, { newGuid: wedding.shareGalleryGuid }, requestOrigin);
+          return createResponse(201, { 
+              newGuid: newGuid,
+              urlMode: urlMode,
+              galleryGuid: wedding.shareGalleryGuid
+          }, requestOrigin);
       }
 
       // POST /api/weddings/:customId/share-gallery/regenerate-guid (For Setup Page)
@@ -900,17 +914,22 @@ exports.handler = async (event, context) => {
               }
           }
 
-          const newGuid = uuidv4();
+          const urlMode = weddingForImageDeletion.shareGalleryUrlMode || 'guid';
+          let newGuid = null;
+          let updateData = { shareGalleryImages: [] }; // Always clear images array
+          
+          if (urlMode === 'guid') {
+              newGuid = uuidv4();
+              updateData.shareGalleryGuid = newGuid;
+          } else {
+              // For easy mode, set to easy-mode marker
+              updateData.shareGalleryGuid = 'easy-mode';
+          }
           
           // Now, atomically update the document
           const updatedWedding = await WeddingData.findOneAndUpdate(
               { customId: customId },
-              { 
-                  $set: { 
-                      shareGalleryGuid: newGuid,
-                      shareGalleryImages: [] // Also clear the images array
-                  } 
-              },
+              { $set: updateData },
               { new: true } // Return the updated document
           ).collation({ locale: 'en', strength: 2 });
 
@@ -918,7 +937,11 @@ exports.handler = async (event, context) => {
               return createResponse(404, { message: 'Wedding data not found during update.' }, requestOrigin);
           }
           
-          return createResponse(200, { newGuid: updatedWedding.shareGalleryGuid }, requestOrigin);
+          return createResponse(200, { 
+              newGuid: newGuid,
+              urlMode: urlMode,
+              galleryGuid: updatedWedding.shareGalleryGuid
+          }, requestOrigin);
       }
 
       // DELETE /api/weddings/:customId/share-gallery/images/:imageId (For Setup Page)
@@ -943,7 +966,66 @@ exports.handler = async (event, context) => {
           return createResponse(200, { message: 'Share gallery image deleted.', images: wedding.shareGalleryImages }, requestOrigin);
       }
 
+      // PUT /api/weddings/:customId/share-gallery/url-mode (For Setup Page)
+      const updateUrlModeMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/url-mode$/);
+      if (httpMethod === "PUT" && updateUrlModeMatch) {
+          const customId = updateUrlModeMatch[1];
+          const { urlMode } = body;
+          
+          console.log(`[PUT /share-gallery/url-mode] Updating URL mode for ${customId} to: ${urlMode}`);
+          
+          // Validate URL mode
+          if (!urlMode || !['guid', 'easy'].includes(urlMode)) {
+              return createResponse(400, { message: 'urlMode must be either "guid" or "easy".' }, requestOrigin);
+          }
+          
+          const wedding = await WeddingData.findOne({ customId }).collation({ locale: 'en', strength: 2 });
+          if (!wedding) return createResponse(404, { message: 'Wedding data not found.' }, requestOrigin);
+          
+          // Update the URL mode
+          wedding.shareGalleryUrlMode = urlMode;
+          
+          // If switching to easy mode and no GUID exists yet, we don't need to create one
+          // If switching to guid mode and no GUID exists, we'll create one when they regenerate
+          
+          await wedding.save();
+          
+          return createResponse(200, { 
+              message: `Share gallery URL mode updated to ${urlMode}.`,
+              urlMode: wedding.shareGalleryUrlMode,
+              galleryGuid: wedding.shareGalleryGuid
+          }, requestOrigin);
+      }
+
       // --- Public Share Gallery Endpoints ---
+      
+      // GET /api/weddings/:customId/share-gallery (For Guest Page - Easy URL mode without GUID)
+      const getPublicShareGalleryEasyMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery$/);
+      if (httpMethod === "GET" && getPublicShareGalleryEasyMatch) {
+        const customId = getPublicShareGalleryEasyMatch[1];
+        
+        console.log(`[GET /share-gallery] Easy URL mode access for weddingId: ${customId}`);
+        
+        const wedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
+        if (!wedding) return createResponse(404, { message: 'Gallery not found. The wedding ID may be incorrect.' }, requestOrigin);
+
+        // Check if this wedding is configured for easy URL mode
+        const urlMode = wedding.shareGalleryUrlMode || 'guid';
+        if (urlMode !== 'easy') {
+          return createResponse(403, { 
+            message: 'This gallery requires a secure access link. Please use the provided link from the couple.',
+            requiresGuid: true
+          }, requestOrigin);
+        }
+
+        // If we're here, this is easy mode and access is allowed
+        return createResponse(200, {
+          eventName: wedding.eventName,
+          images: wedding.shareGalleryImages || [],
+          weddingId: wedding.customId,
+          urlMode: 'easy'
+        }, requestOrigin);
+      }
       
       // GET /api/weddings/:customId/share-gallery/:guid (For Guest Page to fetch images)
       const getPublicShareGalleryMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/([a-zA-Z0-9-]+)$/);
@@ -971,7 +1053,7 @@ exports.handler = async (event, context) => {
         }, requestOrigin);
       }
       
-      // POST /api/share-gallery/:guid/images (For Guest Page to save image ref)
+      // POST /api/share-gallery/:guid/images (For Guest Page to save image ref - GUID mode)
       const postPublicShareGalleryImageMatch = routePath.match(/^\/api\/share-gallery\/([a-zA-Z0-9-]+)\/images$/);
       if (httpMethod === "POST" && postPublicShareGalleryImageMatch) {
         const guid = postPublicShareGalleryImageMatch[1];
@@ -982,6 +1064,43 @@ exports.handler = async (event, context) => {
 
         const wedding = await WeddingData.findOne({ shareGalleryGuid: guid });
         if (!wedding) return createResponse(404, { message: 'Gallery not found.' }, requestOrigin);
+        
+        if (!wedding.shareGalleryImages) {
+            wedding.shareGalleryImages = [];
+        }
+
+        wedding.shareGalleryImages.push({
+          fileName: imageUrl,
+          s3Key,
+          uploadedBy: uploadedBy || 'Anonymous',
+          uploadedAt: new Date()
+        });
+
+        await wedding.save();
+        const newImage = wedding.shareGalleryImages[wedding.shareGalleryImages.length - 1];
+        return createResponse(201, { message: 'Image uploaded successfully.', image: newImage }, requestOrigin);
+      }
+
+      // POST /api/weddings/:customId/share-gallery/images (For Guest Page to save image ref - Easy mode)
+      const postPublicShareGalleryImageEasyMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/share-gallery\/images$/);
+      if (httpMethod === "POST" && postPublicShareGalleryImageEasyMatch) {
+        const customId = postPublicShareGalleryImageEasyMatch[1];
+        const { imageUrl, s3Key, uploadedBy } = body;
+        if (!imageUrl || !s3Key || !uploadedBy) {
+          return createResponse(400, { message: 'imageUrl, s3Key, and uploadedBy are required.' }, requestOrigin);
+        }
+
+        const wedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
+        if (!wedding) return createResponse(404, { message: 'Gallery not found.' }, requestOrigin);
+        
+        // Check if this wedding is configured for easy URL mode
+        const urlMode = wedding.shareGalleryUrlMode || 'guid';
+        if (urlMode !== 'easy') {
+          return createResponse(403, { 
+            message: 'This gallery requires a secure access link for uploads.',
+            requiresGuid: true
+          }, requestOrigin);
+        }
         
         if (!wedding.shareGalleryImages) {
             wedding.shareGalleryImages = [];
@@ -1453,6 +1572,44 @@ exports.handler = async (event, context) => {
                   questions,
                   totalResponses: responses.length
               }
+          }, requestOrigin);
+      }
+
+      // DELETE /api/weddings/:customId/prompt-responses/:responseId
+      const deletePromptResponseMatch = routePath.match(/^\/api\/weddings\/([a-zA-Z0-9_-]+)\/prompt-responses\/([a-zA-Z0-9_-]+)$/);
+      if (httpMethod === 'DELETE' && deletePromptResponseMatch) {
+          const customId = deletePromptResponseMatch[1];
+          const responseIdToDelete = deletePromptResponseMatch[2];
+
+          console.log(`[DELETE /prompt-responses] Attempting to delete prompt response ${responseIdToDelete} from wedding ${customId}`);
+
+          const wedding = await WeddingData.findOne({ customId: customId }).collation({ locale: 'en', strength: 2 });
+          if (!wedding) {
+              return createResponse(404, { message: 'Wedding not found.' }, requestOrigin);
+          }
+
+          const responseToDelete = wedding.promptResponses?.find(r => r.responseId === responseIdToDelete);
+          if (!responseToDelete) {
+              return createResponse(404, { message: 'Prompt response not found.' }, requestOrigin);
+          }
+
+          const updateResult = await WeddingData.updateOne(
+              { customId: customId },
+              {
+                  $pull: { promptResponses: { responseId: responseIdToDelete } }
+              }
+          ).collation({ locale: 'en', strength: 2 });
+
+          if (updateResult.modifiedCount === 0) {
+              return createResponse(500, { message: 'Failed to delete prompt response.' }, requestOrigin);
+          }
+          
+          console.log(`[DELETE /prompt-responses] Successfully deleted prompt response ${responseIdToDelete} from wedding ${customId}`);
+          
+          return createResponse(200, { 
+              success: true,
+              message: 'Prompt response deleted successfully.',
+              deletedResponseId: responseIdToDelete
           }, requestOrigin);
       }
 

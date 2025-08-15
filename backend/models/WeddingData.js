@@ -59,6 +59,7 @@ const WeddingDataSchema = new mongoose.Schema({
   platedOptions: [MealOptionSchema],
   eventAddress: EventAddressSchema,
   shareGalleryGuid: { type: String, default: null },
+  shareGalleryUrlMode: { type: String, enum: ['guid', 'easy'], default: 'guid' }, // 'guid' for GUID-based URLs, 'easy' for simple URLs
   shareGalleryImages: [ShareGalleryImageSchema],
   // For deeply nested or highly variable structures, Mixed can be used.
   // Consider defining full schemas for these if their structure is stable and needs validation.

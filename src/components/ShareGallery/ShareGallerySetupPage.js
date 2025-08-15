@@ -37,6 +37,7 @@ const ConfirmationModal = ({ onConfirm, onCancel, expectedText }) => {
 const ShareGallerySetupPage = () => {
   const { weddingId } = useParams();
   const [galleryGuid, setGalleryGuid] = useState(null);
+  const [urlMode, setUrlMode] = useState('guid'); // 'guid' or 'easy'
   const [images, setImages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -45,9 +46,14 @@ const ShareGallerySetupPage = () => {
   const apiBaseUrl = getApiBaseUrl();
 
   const shareableLink = useMemo(() => {
-    if (!galleryGuid || !weddingId) return '';
-    return `${window.location.origin}/${weddingId}/share-gallery/${galleryGuid}`;
-  }, [galleryGuid, weddingId]);
+    if (!weddingId) return '';
+    if (urlMode === 'easy') {
+      return `${window.location.origin}/${weddingId}/share-gallery`;
+    } else {
+      if (!galleryGuid || galleryGuid === 'easy-mode') return '';
+      return `${window.location.origin}/${weddingId}/share-gallery/${galleryGuid}`;
+    }
+  }, [galleryGuid, weddingId, urlMode]);
 
   const fetchGalleryData = async () => {
     setIsLoading(true);
@@ -55,6 +61,7 @@ const ShareGallerySetupPage = () => {
     try {
       const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery`);
       setGalleryGuid(response.data.galleryGuid);
+      setUrlMode(response.data.urlMode || 'guid'); // Set URL mode from response
       setImages(response.data.images.map(img => ({
           id: img._id,
           url: img.fileName,
@@ -76,12 +83,35 @@ const ShareGallerySetupPage = () => {
     }
   }, [weddingId]);
 
+  const handleUrlModeChange = async (newMode) => {
+    try {
+      await axios.put(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/url-mode`, {
+        urlMode: newMode
+      });
+      setUrlMode(newMode);
+      
+      // If switching to easy mode and we have a GUID, we might need to regenerate to get the easy-mode marker
+      // If switching to guid mode and we only have easy-mode marker, we'll need to regenerate to get a real GUID
+      if ((newMode === 'easy' && galleryGuid && galleryGuid !== 'easy-mode') ||
+          (newMode === 'guid' && galleryGuid === 'easy-mode')) {
+        // The backend handles this logic, so we just refresh the data
+        await fetchGalleryData();
+      }
+    } catch (err) {
+      console.error("Error updating URL mode:", err);
+      setError('Failed to update URL mode. Please try again.');
+    }
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     setError('');
     try {
       const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/generate-guid`);
-      setGalleryGuid(response.data.newGuid);
+      setGalleryGuid(response.data.galleryGuid || response.data.newGuid);
+      if (response.data.urlMode) {
+        setUrlMode(response.data.urlMode);
+      }
     } catch (err) {
       console.error("Error generating GUID:", err);
       setError('Failed to generate the URL. Please try again.');
@@ -96,7 +126,10 @@ const ShareGallerySetupPage = () => {
     setError('');
     try {
       const response = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/regenerate-guid`);
-      setGalleryGuid(response.data.newGuid);
+      setGalleryGuid(response.data.galleryGuid || response.data.newGuid);
+      if (response.data.urlMode) {
+        setUrlMode(response.data.urlMode);
+      }
       setImages([]); // Clear images from UI as they are deleted on the backend
     } catch (err) {
       console.error("Error regenerating GUID:", err);
@@ -107,11 +140,12 @@ const ShareGallerySetupPage = () => {
   };
 
   const handleButtonClick = () => {
-    if (galleryGuid) {
-      // If GUID exists, show confirmation before regenerating
+    const hasGallery = galleryGuid && galleryGuid !== null;
+    if (hasGallery) {
+      // If gallery exists, show confirmation before regenerating
       setIsConfirmingRegen(true);
     } else {
-      // If no GUID, generate it immediately without confirmation
+      // If no gallery, generate it immediately without confirmation
       handleGenerate();
     }
   };
@@ -152,8 +186,48 @@ const ShareGallerySetupPage = () => {
         <div className={styles.qrSection}>
           <h2>Share Your Gallery</h2>
           <p>Guests can scan this QR code to upload and view photos from your event.</p>
+          
+          {/* URL Mode Toggle */}
+          <div className={styles.urlModeSection}>
+            <h3>Gallery URL Type</h3>
+            <div className={styles.urlModeToggle}>
+              <label 
+                className={`${styles.urlModeOption} ${urlMode === 'guid' ? styles.active : ''}`}
+                title="Generates a secure link with a random ID that's harder for strangers to guess"
+              >
+                <input
+                  type="radio"
+                  name="urlMode"
+                  value="guid"
+                  checked={urlMode === 'guid'}
+                  onChange={() => handleUrlModeChange('guid')}
+                />
+                <span className={styles.optionContent}>
+                  <strong>Use GUID (Safe)</strong>
+                  <small>Secure random link</small>
+                </span>
+              </label>
+              
+              <label 
+                className={`${styles.urlModeOption} ${urlMode === 'easy' ? styles.active : ''}`}
+                title="Creates a simple, predictable link that anyone who knows your wedding ID can access"
+              >
+                <input
+                  type="radio"
+                  name="urlMode"
+                  value="easy"
+                  checked={urlMode === 'easy'}
+                  onChange={() => handleUrlModeChange('easy')}
+                />
+                <span className={styles.optionContent}>
+                  <strong>Easy URL</strong>
+                  <small>Simple, predictable link</small>
+                </span>
+              </label>
+            </div>
+          </div>
           <div className={styles.qrCode}>
-            {galleryGuid ? (
+            {(galleryGuid && galleryGuid !== null && shareableLink) ? (
               <QRCodeCanvas value={shareableLink} size={256} />
             ) : (
               <div className={styles.noQrCode}>
@@ -161,13 +235,13 @@ const ShareGallerySetupPage = () => {
               </div>
             )}
           </div>
-          {galleryGuid && (
+          {(galleryGuid && galleryGuid !== null && shareableLink) && (
             <p className={styles.link}>
               Or share this link: <a href={shareableLink} target="_blank" rel="noopener noreferrer">{shareableLink}</a>
             </p>
           )}
           <button onClick={handleButtonClick} className={styles.regenerateButton} disabled={isGenerating}>
-            {galleryGuid ? 'Regenerate URL' : 'Generate'}
+            {(galleryGuid && galleryGuid !== null) ? 'Regenerate URL' : 'Generate'}
           </button>
         </div>
         

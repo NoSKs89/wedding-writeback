@@ -244,6 +244,7 @@ const MainAppContent = () => {
           <Route path="how-to" element={<HowToPage />} />
         </Route>
         <Route path="/:weddingId/share-gallery/:guid" element={<ShareGalleryGuestPage />} />
+        <Route path="/:weddingId/share-gallery" element={<ShareGalleryGuestPage />} />
       </Routes>
     </div>
   );

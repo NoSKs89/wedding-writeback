@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import styles from './RsvpViewerModal.module.css';
 import HistoryViewerModal from './HistoryViewerModal';
+import { safeDecodeHtmlEntities } from '../../utils/htmlUtils';
 
 // Icon components defined locally for this modal
 const CheckIcon = () => (
@@ -153,7 +154,7 @@ const RsvpViewerModal = ({ rsvps = [], history = [], onClose, onDelete, allowKid
                                             <td>{rsvp.kidsCount || 0}</td>
                                             <td>{rsvp.email || 'N/A'}</td>
                                             <td>{formatMealChoices(rsvp.mealChoices)}</td>
-                                            <td className={styles.messageCell}>{rsvp.message || 'N/A'}</td>
+                                            <td className={styles.messageCell}>{rsvp.message ? safeDecodeHtmlEntities(rsvp.message) : 'N/A'}</td>
                                             <td>{formatTimestamp(rsvp.submittedAt)}</td>
                                             <td>
                                                 <button 

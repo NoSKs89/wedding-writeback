@@ -269,4 +269,83 @@
   color: #dc3545;
   text-align: center;
   font-weight: bold;
+}
+
+/* URL Mode Toggle Styles */
+.urlModeSection {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.urlModeSection h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.urlModeToggle {
+  display: flex;
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.urlModeOption {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.urlModeOption:hover {
+  border-color: #007bff;
+  background-color: #f8f9ff;
+}
+
+.urlModeOption.active {
+  border-color: #007bff;
+  background-color: #e7f3ff;
+}
+
+.urlModeOption input[type="radio"] {
+  margin-right: 0.75rem;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.optionContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.optionContent strong {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.optionContent small {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.urlModeOption.active .optionContent strong {
+  color: #007bff;
+}
+
+@media (min-width: 768px) {
+  .urlModeToggle {
+    flex-direction: row;
+  }
+  
+  .urlModeOption {
+    flex: 1;
+  }
 } 

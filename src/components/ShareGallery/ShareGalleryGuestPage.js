@@ -14,7 +14,7 @@ const UploadIcon = () => (
     </svg>
 );
 
-const uploadFile = async ({ file, weddingId, uploaderName, guid }) => {
+const uploadFile = async ({ file, weddingId, uploaderName, guid, urlMode }) => {
     const apiBaseUrl = getApiBaseUrl();
     try {
         const presignedUrlResponse = await axios.post(`${apiBaseUrl}/s3/presigned-url`, {
@@ -30,11 +30,22 @@ const uploadFile = async ({ file, weddingId, uploaderName, guid }) => {
             headers: { 'Content-Type': file.type }
         });
 
-        const saveImageResponse = await axios.post(`${apiBaseUrl}/share-gallery/${guid}/images`, {
-            imageUrl: publicUrl,
-            s3Key: s3Key,
-            uploadedBy: uploaderName
-        });
+        // Choose the right endpoint based on URL mode
+        let saveImageResponse;
+        if (urlMode === 'easy') {
+            saveImageResponse = await axios.post(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/images`, {
+                imageUrl: publicUrl,
+                s3Key: s3Key,
+                uploadedBy: uploaderName
+            });
+        } else {
+            saveImageResponse = await axios.post(`${apiBaseUrl}/share-gallery/${guid}/images`, {
+                imageUrl: publicUrl,
+                s3Key: s3Key,
+                uploadedBy: uploaderName
+            });
+        }
+        
         return saveImageResponse.data.image;
     } catch (error) {
         console.error(`[ShareGalleryGuestPage] Upload failed for ${file.name}`, error);
@@ -189,6 +200,7 @@ const ShareGalleryGuestPage = () => {
     const fileInputRef = useRef(null);
     const apiBaseUrl = getApiBaseUrl();
     const [eventName, setEventName] = useState('');
+    const [urlMode, setUrlMode] = useState('guid'); // Track URL mode for upload logic
     const [focusedImage, setFocusedImage] = useState(null); // { url, uploader, startRect, startTransform, endRect, index }
     const [portalVisible, setPortalVisible] = useState(false);
 
@@ -199,12 +211,23 @@ const ShareGalleryGuestPage = () => {
         }
 
         const fetchGalleryData = async () => {
-            if (!guid || !weddingId) return;
+            if (!weddingId) return;
             setIsLoading(true);
             setError('');
             let isRedirecting = false;
+            
             try {
-                const response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/${guid}`);
+                let response;
+                // If we have a GUID in the URL, use the GUID endpoint
+                if (guid) {
+                    response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery/${guid}`);
+                    setUrlMode('guid'); // This is definitely GUID mode
+                } else {
+                    // If no GUID, try the easy URL mode endpoint
+                    response = await axios.get(`${apiBaseUrl}/weddings/${weddingId}/share-gallery`);
+                    setUrlMode(response.data.urlMode || 'easy'); // Set from response or default to easy
+                }
+                
                 setEventName(response.data.eventName);
                 setImages(response.data.images.map(img => ({
                     id: img._id,
@@ -220,6 +243,8 @@ const ShareGalleryGuestPage = () => {
                     navigate(`/${weddingId}/share-gallery/${correctGuid}`, { replace: true });
                     // The component will remount and re-fetch with the new, correct GUID.
                     // No need to set error or stop loading indicator.
+                } else if (err.response?.status === 403 && err.response?.data?.requiresGuid) {
+                    setError('This gallery requires a secure access link. Please use the link provided by the couple.');
                 } else {
                     setError(err.response?.data?.message || 'Could not load this gallery. The link may be invalid or expired.');
                 }
@@ -253,7 +278,7 @@ const ShareGalleryGuestPage = () => {
         setUploadMessage({ text: `Uploading ${files.length} photo(s)...`, type: 'info' });
 
         const uploadPromises = files.map(file => 
-            uploadFile({ file, weddingId, uploaderName, guid })
+            uploadFile({ file, weddingId, uploaderName, guid, urlMode })
         );
         
         const results = await Promise.allSettled(uploadPromises);

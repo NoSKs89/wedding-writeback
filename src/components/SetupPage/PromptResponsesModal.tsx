@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { getApiBaseUrl } from '../../config/apiConfig';
+import { safeDecodeHtmlEntities } from '../../utils/htmlUtils';
 
 interface PromptQuestion {
   id: string;
@@ -39,6 +40,7 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'user' | 'prompt'>('user');
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
 
   // Load prompt responses when modal opens
   useEffect(() => {
@@ -65,6 +67,27 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
       setError(err.response?.data?.message || 'Failed to load prompt responses');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const deletePromptResponse = async (responseId: string) => {
+    if (!window.confirm('Are you sure you want to delete this prompt response? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeletingResponseId(responseId);
+    
+    try {
+      const apiBase = getApiBaseUrl();
+      await axios.delete(`${apiBase}/weddings/${weddingId}/prompt-responses/${responseId}`);
+      
+      // Reload the data to reflect the deletion
+      await loadPromptResponses();
+    } catch (err: any) {
+      console.error('Error deleting prompt response:', err);
+      setError(err.response?.data?.message || 'Failed to delete prompt response');
+    } finally {
+      setDeletingResponseId(null);
     }
   };
 
@@ -322,17 +345,21 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
                           }}
                         >
                           <div
-                            onClick={() => toggleExpanded(response.responseId)}
                             style={{
                               padding: '15px',
                               backgroundColor: '#f8f9fa',
-                              cursor: 'pointer',
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center',
                             }}
                           >
-                            <div>
+                            <div
+                              onClick={() => toggleExpanded(response.responseId)}
+                              style={{
+                                cursor: 'pointer',
+                                flex: 1,
+                              }}
+                            >
                               <div style={{ fontWeight: 'bold' }}>
                                 {getUserDisplayName(response)}
                               </div>
@@ -345,8 +372,36 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
                                 Submitted: {formatDate(response.submittedAt)}
                               </div>
                             </div>
-                            <div style={{ fontSize: '1.2rem' }}>
-                              {expandedItems.has(response.responseId) ? '−' : '+'}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deletePromptResponse(response.responseId);
+                                }}
+                                disabled={deletingResponseId === response.responseId}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#dc3545',
+                                  fontSize: '1.2rem',
+                                  cursor: deletingResponseId === response.responseId ? 'not-allowed' : 'pointer',
+                                  padding: '5px',
+                                  opacity: deletingResponseId === response.responseId ? 0.5 : 1,
+                                }}
+                                title="Delete response"
+                              >
+                                {deletingResponseId === response.responseId ? '⌛' : '✕'}
+                              </button>
+                              <div 
+                                onClick={() => toggleExpanded(response.responseId)}
+                                style={{ 
+                                  fontSize: '1.2rem',
+                                  cursor: 'pointer',
+                                  padding: '5px',
+                                }}
+                              >
+                                {expandedItems.has(response.responseId) ? '−' : '+'}
+                              </div>
                             </div>
                           </div>
                           
@@ -366,10 +421,12 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
                                     backgroundColor: '#f8f9fa',
                                     borderRadius: '4px',
                                     border: '1px solid #eee',
+                                    whiteSpace: 'pre-wrap',
                                   }}>
-                                    {response.responses[question.id] || (
+                                    {response.responses[question.id] ? 
+                                      safeDecodeHtmlEntities(response.responses[question.id]) : 
                                       <em style={{ color: '#999' }}>No response</em>
-                                    )}
+                                    }
                                   </div>
                                 </div>
                               ))}
@@ -428,8 +485,8 @@ const PromptResponsesModal: React.FC<PromptResponsesModalProps> = ({ isOpen, onC
                                       borderRadius: '4px',
                                       border: '1px solid #eee',
                                     }}>
-                                      <div style={{ marginBottom: '8px' }}>
-                                        {response.responses[question.id]}
+                                      <div style={{ marginBottom: '8px', whiteSpace: 'pre-wrap' }}>
+                                        {safeDecodeHtmlEntities(response.responses[question.id])}
                                       </div>
                                       <div style={{
                                         fontSize: '0.8rem',
