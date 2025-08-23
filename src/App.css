@@ -1,0 +1,238 @@
+/* App.css or a dedicated CSS file for components */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  /* ... existing code ... */
+}
+
+.wedding-journey-wrapper {
+  /* This is the main scroll container */
+  /* background-color: #f8f4ef; */ /* Example subtle page background */
+  width: 100%;
+  height: 100%;
+  /* background: #000; */ /* Will be covered by parallax layers or replaced by animation */
+}
+
+.scrapbook-layer-sticky-container {
+  /* background-color: #e0d8c8; */ /* Optional: if scrapbook images don't cover fully */
+}
+
+/* RSVP Form specific styles */
+.rsvp-form .form-group {
+  margin-bottom: 15px;
+}
+
+.rsvp-form label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+.rsvp-form input[type="text"],
+.rsvp-form input[type="number"],
+.rsvp-form textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ced4da;
+  border-radius: 5px;
+  box-sizing: border-box;
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.rsvp-form input:focus,
+.rsvp-form textarea:focus {
+  border-color: #80bdff;
+  outline: 0;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.rsvp-form .rsvp-button,
+.rsvp-form .rsvp-submit-button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  color: white;
+  flex-grow: 1; /* For button group */
+  margin: 0 5px; /* For button group */
+}
+
+.rsvp-form .rsvp-button.attending {
+  background-color: #28a745; /* Green */
+}
+.rsvp-form .rsvp-button.attending:hover {
+  background-color: #218838;
+}
+
+.rsvp-form .rsvp-button.not-attending {
+  background-color: #dc3545; /* Red */
+}
+.rsvp-form .rsvp-button.not-attending:hover {
+  background-color: #c82333;
+}
+
+.rsvp-form .rsvp-submit-button {
+  background-color: #007bff; /* Blue */
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+}
+.rsvp-form .rsvp-submit-button:hover {
+  background-color: #0056b3;
+}
+.rsvp-form .rsvp-submit-button:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+}
+
+.rsvp-form .rsvp-change-choice-button {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+  color: #007bff;
+  background-color: transparent;
+  border: 1px solid #007bff;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-top: 5px;
+}
+.rsvp-form .rsvp-change-choice-button:hover {
+  background-color: rgba(0, 123, 255, 0.1);
+}
+
+/* Animation for intro elements fade out */
+.intro-elements-group.fade-out {
+  /* This class could be added based on scroll progress for CSS transitions */
+  /* opacity: 0; */
+  /* transform: translateY(-50vh) rotate(15deg); */
+  /* transition: opacity 0.8s ease-out, transform 0.8s ease-out; */
+}
+
+/* Styles for @react-spring/parallax example */
+.alignCenter {
+  display: 'flex';
+  alignItems: 'center';
+}
+.textLayerContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  color: white;
+  text-shadow: 2px 2px 8px rgba(0,0,0,0.6);
+}
+
+.textLayerContent h1 {
+  font-size: clamp(2.0rem, 7vw, 4.0rem);
+  margin: 0.1em 0;
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+.textLayerContent p {
+  font-size: clamp(1.0rem, 3.5vw, 1.6rem);
+  font-weight: 300;
+  margin-top: 0.5em;
+}
+
+.textLayerContent .ampersand {
+    font-size: clamp(1.2rem, 4vw, 2.0rem);
+    margin: 0.1em 0 0.25em 0;
+    font-weight: 400;
+}
+
+.introCoupleImage {
+  height: 60vh;
+  max-width: 90%;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0px 8px 20px rgba(0,0,0,0.35));
+}
+
+.scrapbookImage {
+  position: 'absolute'; /* style will be merged with generated */
+  width: auto; /* initial, will be overridden by generateScrapbookImageStyle */
+  height: auto; /* initial, will be overridden by generateScrapbookImageStyle */
+  box-shadow: '4px 4px 12px rgba(0,0,0,0.25)';
+  border: '6px solid white';
+}
+
+/* Hide scrollbars for mobile GuestExperience */
+.guest-experience-mobile-container {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  -webkit-overflow-scrolling: touch;
+}
+
+.guest-experience-mobile-container::-webkit-scrollbar {
+  display: none;
+}
+
+.guest-experience-mobile-parallax {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  -webkit-overflow-scrolling: touch;
+}
+
+.guest-experience-mobile-parallax::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide number input spinners completely */
+.no-spinners {
+  -moz-appearance: textfield;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.no-spinners::-webkit-outer-spin-button,
+.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Styles for ExperienceSetupPage */
+.experience-setup-title {
+  /* Add desired styles for the main title, e.g.: */
+  font-size: 2em; /* Example */
+  color: #333; /* Example */
+}
+
+.timeline-length-controls {
+  display: flex; /* Enable flexbox for alignment */
+  align-items: center; /* Vertically align items in this container */
+  margin: 20px 0; /* Replicates previous inline margin */
+}
+
+.timeline-length-label {
+  margin-right: 10px; /* Replicates previous inline margin */
+  /* Add other label styles, e.g.: */
+  font-weight: bold;
+}
+
+.timeline-length-input {
+  width: 100px; /* Replicates previous inline style */
+  padding: 5px; /* Replicates previous inline style */
+  /* Add other input styles, e.g.: */
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.timeline-length-units {
+  margin-left: 10px; /* Replicates previous inline margin */
+  /* Add other styles, e.g.: */
+  color: #555;
+}

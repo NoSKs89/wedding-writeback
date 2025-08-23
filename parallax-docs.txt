@@ -1,0 +1,802 @@
+https://react-scroll-parallax.damnthat.tv/docs/usage/parallax-props
+Parallax Props
+The following hooks and components accept the parallax prop configurations that setup scroll effects in the Parallax Controller.
+
+useParallax()
+<Parallax>
+<ParallaxBanner>
+Example with: useParallax()
+
+useParallax({
+  speed: -10,
+  ...props,
+});
+
+Example with: <Parallax />
+
+<Parallax speed={-10} {...props} />
+
+Example with <ParallaxBanner />
+
+<Parallax
+  layers={[
+    {
+      speed: -10,
+      ...props,
+    },
+  ]}
+/>
+
+Configuration Props
+The following properties can be provided to configure the scroll animation:
+
+Name	Type	Default	Description
+speed	number		A value representing the elements scroll speed. If less than zero scroll will appear slower. If greater than zero scroll will appear faster.
+easing	string or number[]		String representing an easing preset or array of params to supply to a cubic bezier easing function.
+rootMargin	object		Margin to be applied as the bounds around an element. This will affect when an element is determined to be in the viewport. Example: { top: 100, right: 100, bottom: 100, left: 100 }
+disabled	boolean	false	Disables parallax effects on individual elements when true.
+shouldAlwaysCompleteAnimation	boolean	false	Always start and end animations at the given effect values - if the element is positioned inside the view when scroll is at zero or ends in view at final scroll position, the initial and final positions are used to determine progress instead of the scroll view size.
+shouldDisableScalingTranslations	boolean	false	Enable scaling translations - translate effects that cause the element to appear in the view longer must be scaled up so that animation doesn't end early.
+startScroll	number		Scroll top value to begin the animation. When provided along with endScroll relative scroll values will be ignored.
+endScroll	number		Scroll top value to end the animation. When provided along with startScroll relative scroll values will be ignored.
+targetElement	HTMLElement		Provides an element to track and determine the scroll progress. Use when scroll progress should be independent of parallax element's original position. See storybook for example.
+CSS Effect Props
+All props for creating CSS effects are defined by a start and end value represented by an array.
+
+useParallax({
+  translateY: [-100, 100],
+});
+
+How Effects Progress
+The start of an effect begins when the top of the element enters the bottom of the view.
+
+The end of an effect begins when the bottom of the element exits the top of the view.
+
+INFO
+See a demo of how progress is determined.
+
+Available CSS Effects
+These are all the supported CSS effects:
+
+Name	Type	Description
+translateX	string[] or number[]	Start and end translation on x-axis in %, px, vw or vh. If no unit is passed percent is assumed. Percent is based on the elements width.
+translateY	string[] or number[]	Start and end translation on y-axis in %, px, vw or vh. If no unit is passed percent is assumed. Percent is based on the elements height.
+rotate	string[] or number[]	Start and end rotation on z-axis in deg, rad, or turn. If no unit is passed deg is assumed.
+rotateX	string[] or number[]	Start and end rotation on x-axis in deg, rad, or turn. If no unit is passed deg is assumed.
+rotateY	string[] or number[]	Start and end rotation on y-axis in deg, rad, or turn. If no unit is passed deg is assumed.
+rotateZ	string[] or number[]	Start and end rotation on z-axis in deg, rad, or turn. If no unit is passed deg is assumed.
+scale	number[]	Start and end scale on x-axis and y-axis.
+scaleX	number[]	Start and end scale on x-axis.
+scaleY	number[]	Start and end scale on y-axis.
+scaleZ	number[]	Start and end scale on z-axis.
+opacity	number[]	Start and end opacity value.
+Callback Props
+Example using onChange callback
+
+useParallax({
+  onChange: (element) => console.log(element),
+});
+
+All available callbacks:
+
+Name	Type	Description
+onProgressChange	function	Callback for when the progress of an element in the viewport changes.
+onChange	function	Callback for when the progress of an element in the viewport changes and includes the Element as a parameter
+onEnter	function	Callback for when an element enters the viewport.
+onExit	function	Callback for when an element exits the viewport.
+Easing Presets
+Example of setting easing:
+
+useParallax({
+  easing: 'easeInCubic',
+});
+
+The following easing values are preset and can be used as easing
+
+ease
+easeIn
+easeOut
+easeInOut
+easeInQuad
+easeInCubic
+easeInQuart
+easeInQuint
+easeInSine
+easeInExpo
+easeInCirc
+easeOutQuad
+easeOutCubic
+easeOutQuart
+easeOutQuint
+easeOutSine
+easeOutExpo
+easeOutCirc
+easeInOutQuad
+easeInOutCubic
+easeInOutQuart
+easeInOutQuint
+easeInOutSine
+easeInOutExpo
+easeInOutCirc
+easeInBack
+easeOutBack
+easeInOutBack
+
+Easing Individual Effects
+You can provide various easing values to each effect by defining it as the third element in the array
+
+useParallax({
+  translateY: [-100, 100, 'easeInOut'],
+  scale: [0, 1, 'easeOutBack'],
+});
+
+Cubic Bezier Easing Function
+Just like with CSS cubic-bezier(0.2,-0.67,1,-0.62);, you can supply the 4 params to a custom bezier function.
+
+useParallax({
+  translateY: [-100, 100],
+  easing: [0.2, -0.6, 1, -0.6],
+});
+
+////////////////////end
+
+https://react-scroll-parallax.damnthat.tv/docs/usage/hooks/use-parallax
+useParallax
+Main hook for applying parallax effects to a DOM element. Any of the documented effects and configurations can be passed as params to the hook.
+
+import { useParallax } from 'react-scroll-parallax';
+
+Example
+To use the hook assign the ref returned to the element that you would like to apply effects to. Then provide the hook with the prop configuration for the effects you need.
+
+function Component() {
+  const { ref } = useParallax<HTMLDivElement>({ speed: 10 });
+  return <div ref={ref} />;
+}
+
+Returned Values
+The useParallax() hook returns the following:
+
+Name	Description
+ref	ref that must be assigned to a DOM element
+controller	The ParallaxController instance.
+element	The Element created by the ParallaxController.
+
+//////end
+
+https://react-scroll-parallax.damnthat.tv/docs/usage/hooks/use-parallax-controller
+useParallaxController
+This hook provides you access to the ParallaxController via React context. The hook must be called in a component rendered within the <ParallaxProvider>. The most common usage of the controller is to update cache if the page layout has changed.
+
+import { useParallaxController } from 'react-scroll-parallax';
+
+Examples
+The following are some common scenarios that occur where you may need to access and update the controller.
+
+Usage For Images
+Updating the ParallaxController cache once an image loads:
+
+function Image(props) {
+  const parallaxController = useParallaxController();
+
+  // updates cached values after image dimensions have loaded
+  const handleLoad = () => parallaxController.update();
+
+  return <img src={props.src} onLoad={handleLoad} />;
+}
+
+Example Route Change Hook
+Another common use case is the need to update cache after a route changes. This custom hook updates the controller each time the location changes.
+
+function useUpdateControllerOnRouteChange() {
+  const location = useLocation();
+  const parallaxController = useParallaxController();
+
+  useEffect(() => {
+    parallaxController.update();
+  }, [location.pathname]);
+}
+
+Parallax Controller
+See the parallax-controller documentation of all the methods that can be called from the controller
+
+////end
+
+
+
+https://react-scroll-parallax.damnthat.tv/docs/usage/components/parallax-component
+Parallax
+The main component for applying scroll effects based on an elements position within the viewport.
+
+import { Parallax } from 'react-scroll-parallax';
+
+Props
+All props to configure the parallax element, like CSS effects, are documented and managed by the parallax-controller.
+
+See all the parallax props that this component will accept.
+
+Non Parallax Props
+All other non-parallax props will be passed through to the <div>. Example with style and className:
+
+<Parallax style={{ background: 'blue' }} className="test" />
+
+Output HTML
+<div style="background: blue" className="test"></div>
+
+Children
+Children are also accepted and rendered
+
+<Parallax>
+  <h1>Hello</h1>
+</Parallax>
+
+Examples
+Some basic example of how to use the <Parallax> component.
+
+Speed Control
+The speed prop that will make an element's scroll speed appear to speed up or slow down. This is the simplest way to achieve a parallax effect.
+
+const SlowAndFast = () => (
+  <>
+    <Parallax speed={-5}>
+      <div className="slow" />
+    </Parallax>
+    <Parallax speed={5}>
+      <div className="fast" />
+    </Parallax>
+  </>
+);
+
+INFO
+The speed prop simplifies the application of a translateX or translateY effect based on the ParallaxController scroll axis – See <ParallaxProvider /> Props
+
+Translate Controls
+If you need more fine tune control of the scroll position you can apply start and end transforms more directly. In this example the element begins with a translateY(-20%) and ends with translateY(10%)
+
+const TranslateY = () => (
+  <Parallax translateY={[-20, 10]}>
+    <div className="my-thing" />
+  </Parallax>
+);
+
+INFO
+Translate values without units default to % so -20 becomes -20%.
+
+
+/////end
+
+
+https://react-scroll-parallax.damnthat.tv/docs/usage/components/parallax-provider
+ParallaxProvider
+The <ParallaxProvider /> component is meant to wrap a root level component in your application and is necessary to provide access through the React context API to the Parallax Controller.
+
+import { ParallaxProvider } from 'react-scroll-parallax';
+
+Examples
+This component should only be used once in your app, for instance in an <AppContainer /> component that won't be mounted/unmounted during route changes. Like so:
+
+const AppContainer = () => (
+  <ParallaxProvider>
+    <Router>
+      <App />
+    </Router>
+  </ParallaxProvider>
+);
+
+INFO
+You can have multiple providers, however they will all be independent instances of a ParallaxController. It's recommended to only use one when possible.
+
+Props
+The following props configure the <ParallaxProvider> component:
+
+Name	Type	Default	Description
+scrollAxis	string	vertical	Optionally pass the scroll axis for setting horizontal/vertical scrolling. One of vertical or horizontal
+scrollContainer	HTMLElement	<body>	Optionally set the container that has overflow and will contain parallax elements. Defaults to the document scroll body.
+isDisabled	boolean	false	Disables the ParallaxController and all animations.
+More Examples
+Using props you can configure the provider for the following conditions.
+
+Horizontal Scrolling
+If your app's overflow is horizontal, you'll need to change the scrollAxis:
+
+const AppContainer = () => (
+  <ParallaxProvider scrollAxis="horizontal">
+    <Router>
+      <App />
+    </Router>
+  </ParallaxProvider>
+);
+
+Scroll Container
+By default the <ParallaxProvider> uses the document scrolling element. If your app's overflow is a unique element you need to provide the element as the scrollContainer.
+
+Here's how you can do that using React hooks to set a ref to a DOM element. The useEffect will be called once after mounting then update state with the element to be passed to the provider.
+
+ScrollContainer.tsx
+import * as React from 'react';
+import { ParallaxProvider } from 'react-scroll-parallax';
+
+const ScrollContainer = () => {
+  const [scrollEl, setScrollElement] = React.useState<HTMLDivElement>(null);
+  const ref = React.useRef<HTMLDivElement>();
+  React.useEffect(() => {
+    setScrollElement(ref.current);
+  });
+
+  return (
+    <div className="your-scroll-container" ref={ref}>
+      <ParallaxProvider scrollContainer={scrollEl}>
+        {props.children}
+      </ParallaxProvider>
+    </div>
+  );
+};
+
+Disabling All Parallax Elements
+With the isDisabled prop you may disable every parallax element in the provider when a condition is met, instead of individually. This can be helpful to disable parallax in certain situations like on mobile devices, or for users who prefers-reduced-motion. Elements will be re-enabled when isDisabled is true.
+
+const App = () => {
+  const userPrefersReducedMotion = useMediaQuery({
+    query: '(prefers-reduced-motion)',
+  });
+
+  return (
+    <ParallaxProvider isDisabled={userPrefersReducedMotion}>
+      {props.children}
+    </ParallaxProvider>
+  );
+};
+
+///end
+
+
+https://react-scroll-parallax.damnthat.tv/docs/usage/components/parallax-banner-component
+ParallaxBanner
+Component that sets up layers of useParallax elements to achieve a parallaxing banner. Enables the layering of images, or custom markup, with scroll effects in a container that hides overflow.
+
+import { ParallaxBanner, ParallaxBannerLayer } from 'react-scroll-parallax';
+
+Working Demos
+See some example code with demos.
+
+Examples
+There are two ways to setup a banner:
+
+You can use the <ParallaxBanner> layers prop.
+You can define ParallaxBannerLayer as the <ParallaxBanner> children.
+Example with the ParallaxBannerLayer
+Use the ParallaxBannerLayer component to define the speed and image for your banner. In this case, it will create a banner using a single image, that moves slower than the rate of scroll, and the edges of the image will never be visible.
+
+<ParallaxBanner style={{ aspectRatio: '2 / 1' }}>
+  <ParallaxBannerLayer image="https://foo.com/foo.jpg" speed={-20} />
+</ParallaxBanner>
+
+Example with the layers prop
+Use the layers to supply a speed and image to your banner. In this case, it will create a banner using a single image, that moves slower than the rate of scroll, and the edges of the image will never be visible.
+
+<ParallaxBanner
+  layers={[
+    {
+      image: 'https://foo.com/foo.jpg',
+      speed: -20,
+    },
+  ]}
+  style={{ aspectRatio: '2 / 1' }}
+/>
+
+CAUTION
+You must define a style that gives the root <div> a height value otherwise the banner will have no height and be hidden. This can be through a style, through a className, or other method of styling.
+
+Creating Multiple Layers
+Define multiple Banner layer children with independent prop configurations.
+
+<ParallaxBanner style={{ aspectRatio: '2 / 1' }}>
+  <ParallaxBannerLayer image="https://foo.com/foo.jpg" speed={-20} />
+  <ParallaxBannerLayer image="https://foo.com/bar.jpg" speed={-10} />
+</ParallaxBanner>
+
+Supply the layers prop with additional configuration for more images. Each layer can contain unique configurations.
+
+<ParallaxBanner
+  layers={[
+    {
+      image: 'https://foo.com/foo.jpg',
+      speed: -20,
+    },
+    {
+      image: 'https://foo.com/bar.png',
+      speed: -10,
+    },
+  ]}
+  style={{ aspectRatio: '2 / 1' }}
+/>
+
+CAUTION
+Layer order matters. First element in the the array or children will appear on the bottom of the stacking context; last layer of the array or children will appear on top.
+
+Custom Layer Markup
+This example defines a headline in the second layer.
+
+<ParallaxBanner style={{ aspectRatio: '2 / 1' }}>
+  <ParallaxBannerLayer image="https://foo.com/foo.jpg" speed={-20} />
+  <ParallaxBannerLayer>
+    <h1>My Headline</h1>
+  </ParallaxBannerLayer>
+</ParallaxBanner>
+
+You can also pass your own markup or components to the children property when using layers.
+
+<ParallaxBanner
+  layers={[
+    {
+      image: 'https://foo.com/foo.jpg',
+      speed: -20,
+    },
+    {
+      children: <h1>My Headline</h1>,
+      speed: -10,
+    },
+  ]}
+  style={{ aspectRatio: '2 / 1' }}
+/>
+
+Using a Custom Image Element
+You don't need to use the image prop and can instead pass your own img, picture, video or custom image component. Use this if you need to use accessible images, custom image components, or other img attributes like srcSet or loading.
+
+<ParallaxBanner style={{ aspectRatio: '2 / 1' }}>
+  <ParallaxBannerLayer speed={-20}>
+    <img
+      src="https://foo.com/sahara.jpg"
+      alt="Sahara Desert landscape"
+      loading="lazy"
+    />
+  </ParallaxBannerLayer>
+</ParallaxBanner>
+
+Props
+The following are all props that can be passed to the <ParallaxBanner> component:
+
+Name	Type	Description
+disabled	boolean	Disables all parallax layers when enabled.
+layers	array	Optional array of layers -- see layer props below
+...rest	HTMLDivElement	All other properties are spread to the <div>.
+INFO
+All other props are defined on the root div element.
+
+<ParallaxBanner className="custom-class" id="hero-banner" />
+
+Banner Layer Props
+The ParallaxBannerLayer the following configuration as props.
+
+The layers prop takes an array of objects that represent each image (or custom children) of the parallax banner. The following properties describe a layer object:
+
+Name	Type	Default	Description
+children	ReactElement		Custom layer children provided as a React element, for example <Video />
+expanded	boolean	true	Indicate if the layer should be expanded with negative top/bottom margins so the edges will never be visible.
+image	string		Image source that will be applied as a CSS background-image on the layer set to cover.
+...rest	ParallaxElementConfig		All known parallax props will be passed to useParallax. See all the parallax props that this hook will accept. All other properties are spread to the <div> representing the layer.
+Example Using ParallaxBannerLayer
+<ParallaxBanner>
+  <ParallaxBannerLayer
+    expanded={false}
+    speed={-10}
+    scale={[1, 1.2]}
+    opacity={[0.9, 1]}
+  >
+    <img src="foo" />
+  </ParallaxBannerLayer>
+</ParallaxBanner>
+
+Example Using the Layers Prop
+<ParallaxBanner
+  layers={[
+    {
+      children: <img src="foo" />,
+      expanded: false,
+      speed: -10,
+      scale: [1, 1.2],
+      opacity: [0.9, 1],
+    },
+  ]}
+/>
+
+///////end
+
+
+
+https://react-scroll-parallax.damnthat.tv/docs/examples/how-it-works
+How it works
+As the element scrolls past the viewport a css translate effect is applied based on the original element's position relative to the viewport. Using the speed will automatically apply a translateY css style (or translateX if the scroll axis is horizontal).
+
+<Parallax speed={-10} />
+<Parallax speed={10} />
+
+Slower
+
+Faster
+
+INFO
+Note that speed is only an abstraction for setting translateY or translateX based on the scroll axis. Each increment of speed by one will increase the translate effect by 10px.
+
+Example: With a vertical scroll axis, speed: 10 is equivalent to translateY: ['100px', '-100px'] and speed: -10 is equivalent to translateY: ['-100px', '100px'].
+
+Progress is relative to the view
+All effects are applied based on the original element's progress. Progress begins as the elements top edge enters the bottom of the view. It ends as the bottom of the element leaves the top of the view.
+
+<Parallax
+  onProgressChange={(progress) => setProgress(progress)}
+  onEnter={() => setEntered(true)}
+  onExit={() => setEntered(false)}
+/>
+
+Parallax Element
+
+Top entered:
+false
+Progress
+1.000
+Bottom exited:
+true
+Altering Progress
+By design and by default, all elements progress relative to the view. However, there are optional ways to change how progress is calculated:
+
+Manually setting startScroll and endScroll props allows complete control over when the progress starts and ends.
+Use a targetElement which will track the progress of the target and apply it to the current element.
+Setting a rootMargin will add a invisible margin around the element that can be used to change when the element is in view and its progress.
+You can also set shouldAlwaysCompleteAnimation to true and if the element is positioned inside the view when scroll is at zero or ends in view at final scroll position, the initial and final positions are used to determine progress instead of the scroll view size.
+WARNING
+Because progress is relative to the view, and Parallax Controller caches the elements position, unexpected issues will occur if you use parallax on a sticky positioned element. If you need to use parallax on a sticky element, consider using a targetElement that is not sticky, or predefined startScroll and endScroll values.
+
+Beyond Parallax: CSS effects
+Additional CSS effects, like opacity, scale and rotation can be applied based on progress, even with some easing.
+
+<Parallax
+  translateX={['-400px', '0px']}
+  scale={[0.75, 1]}
+  rotate={[-180, 0]}
+  easing="easeInQuad"
+/>
+
+👋🏻 HEYO!
+////end
+
+
+https://react-scroll-parallax.damnthat.tv/docs/examples/scroll-effects
+Scroll Effects
+More than just translate effects are possible. Here's some examples of the various effects possible.
+
+Rotation
+You can spin an element around it's axis using the rotate props.
+
+Around the default axis (z-axis)
+Use the rotate prop to rotate an element around the z-axis. You can pass the start and end values as deg or turns. Numbers default to deg.
+
+const Component = () => {
+  const parallax = useParallax<HTMLDivElement>({
+    rotate: [0, 360],
+  });
+  return (
+    <div ref={parallax.ref} className="spinner">
+      😵‍💫
+      <div className="diamond">💎</div>
+      <div className="clown">🤡</div>
+      <div className="money">💰</div>
+      <div className="hand">👌🏻</div>
+    </div>
+  );
+};
+
+😵‍💫💎🤡💰👌🏻
+Around the y-axis
+Rotations can be applied to any axis, x, y, or z. Here's an example of a rotation around the y-axis for perspective:
+
+const Component = () => {
+  const parallax = useParallax<HTMLDivElement>({
+    rotateY: [0, 360],
+  });
+  return (
+    <div ref={parallax.ref} className="spinner">
+      <div className="thumbsup">👍🏻</div>
+      <div className="clap">👏🏻</div>
+      <div className="handsup">🙌🏻</div>
+      <div className="thumbsdown">👎🏻</div>
+    </div>
+  );
+};
+
+👍🏻
+👏🏻
+🙌🏻
+👎🏻
+Scale
+You can scale an element up or down and along any axis.
+
+const Component = () => {
+  const mage = useParallax<HTMLDivElement>({
+    scale: [0.5, 1, 'easeInQuad'],
+  });
+
+  const frog = useParallax<HTMLDivElement>({
+    scaleX: [1, 0, 'easeInQuad'],
+  });
+
+  const moon = useParallax<HTMLDivElement>({
+    scale: [1.5, 1, 'easeInQuad'],
+  });
+  return (
+    <div className="spinner">
+      <div className="mage" ref={mage.ref}>
+        🧙🏻‍♂️
+      </div>
+      <div className="frog" ref={frog.ref}>
+        🐸
+      </div>
+      <div className="moon" ref={moon.ref}>
+        🌚
+      </div>
+    </div>
+  );
+};
+
+////end
+
+
+https://react-scroll-parallax.damnthat.tv/docs/examples/banners
+Parallax Banners
+The following demonstrates some common usage of the <ParallaxBanner> component.
+
+import { ParallaxBanner } from 'react-scroll-parallax';
+
+Example with a Single Image
+A single parallaxing image within a banner is achieved by adding a single layer object with an image and speed:
+
+const Component = () => {
+  return (
+    <ParallaxBanner
+      layers={[{ image: '/static/banner.jpg', speed: -15 }]}
+      className="aspect-[2/1]"
+    />
+  );
+};
+
+Be sure to set a style by either a className or the style prop that will give the banner container a height. You could also use an aspect ratio like the example above which uses a class that sets the aspect-ratio to 2 / 1.
+
+TIP
+The parallax effect is more natural when the image moves slower than the page, speed < 0.
+
+Example with Multiple Layers
+This example uses two layers, one background and one foreground. The order of the defined layer determines the stacking of the each image: First in the array will appear at the back and be covered by subsequent layers.
+
+The image prop defines the layer image. The speed prop is used to make the layer move at it's own pace.
+
+The foreground speed is defined so that it will move faster than the background:
+
+const Component = () => {
+  return (
+    <ParallaxBanner
+      layers={[
+        { image: '/static/banner-background.jpg', speed: -20 },
+        { image: '/static/banner-foreground.png', speed: -10 },
+      ]}
+      className="aspect-[2/1]"
+    />
+  );
+};
+
+TIP
+For the most natural visual effect with multiple layers make each layer speed depend on the distance of the image: the closer the items in the image the faster they should move; the further away the slower they should move.
+
+Example with a headline
+By defining children you can add any markup for a headline or any other custom elements. In the following example the headline is positioned absolutely over each banner layer.
+
+const Component = () => {
+  return (
+    <ParallaxBanner
+      layers={[
+        { image: '/static/banner-background.jpg', speed: -20 },
+        { image: '/static/banner-foreground.png', speed: -10 },
+      ]}
+      className="aspect-[2/1]"
+    >
+      <div className="absolute inset-0 flex items-center justify-center">
+        <h1 className="text-8xl text-white font-thin">Hello World!</h1>
+      </div>
+    </ParallaxBanner>
+  );
+};
+
+Hello World!
+Embed the headline in the scene
+You can take the effect even further by embedding the headline in the scene. This can be done by defining another layer and assigning the markup to the children of that layer.
+
+const Component = () => {
+  return (
+    <ParallaxBanner
+      layers={[
+        { image: '/static/banner-background.jpg', speed: -20 },
+        {
+          speed: -15,
+          children: (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <h1 className="text-8xl text-white font-thin">Hello World!</h1>
+            </div>
+          ),
+        },
+        { image: '/static/banner-foreground.png', speed: -10 },
+      ]}
+      className="aspect-[2/1]"
+    />
+  );
+};
+
+////end
+
+
+https://react-scroll-parallax.damnthat.tv/docs/examples/advanced-banners
+Advanced Banners
+The <ParallaxBanner> accepts advanced configurations that can allow you to really push the effect. Building off the previous banner demos, this one adds a number of configuration options.
+
+How it's done
+The following is a breakdown of some of the more advanced configuration for the banner seen above.
+
+You are not limited to using only speed to control movement. In this example translateY is defined with custom start and end values. This is helpful when the banner starts at the top of the page.
+Setting shouldAlwaysCompleteAnimation ensures that the animation begins at the initial position in the view, and since this banner is placed at the top of the page this option is enabled.
+Additional scale effects are used to further enhance the scenes depth and are also provided individual easing values.
+Certain layers set expanded to false. This is because they don't move or have no edge that would appear visible so there is no need to expand them.
+Lastly, a gradient overlay is added to dim the scene with an opacity transition.
+INFO
+Here's a CodeSandbox with full page banner like the one above.
+
+const Component = () => {
+  const background: BannerLayer = {
+    image:
+      'https://s3-us-west-2.amazonaws.com/s.cdpn.io/105988/banner-background.jpg',
+    translateY: [0, 50],
+    opacity: [1, 0.3],
+    scale: [1.05, 1, 'easeOutCubic'],
+    shouldAlwaysCompleteAnimation: true,
+  };
+
+  const headline: BannerLayer = {
+    translateY: [0, 30],
+    scale: [1, 1.05, 'easeOutCubic'],
+    shouldAlwaysCompleteAnimation: true,
+    expanded: false,
+    children: (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <h1 className="text-6xl md:text-8xl text-white font-thin">
+          Hello World!
+        </h1>
+      </div>
+    ),
+  };
+
+  const foreground: BannerLayer = {
+    image:
+      'https://s3-us-west-2.amazonaws.com/s.cdpn.io/105988/banner-foreground.png',
+    translateY: [0, 15],
+    scale: [1, 1.1, 'easeOutCubic'],
+    shouldAlwaysCompleteAnimation: true,
+  };
+
+  const gradientOverlay: BannerLayer = {
+    opacity: [0, 0.9],
+    shouldAlwaysCompleteAnimation: true,
+    expanded: false,
+    children: (
+      <div className="absolute inset-0 bg-gradient-to-t from-gray-900 to-blue-900" />
+    ),
+  };
+
+  return (
+    <ParallaxBanner
+      layers={[background, headline, foreground, gradientOverlay]}
+      className="aspect-[2/1] bg-gray-900"
+    />
+  );
+};
+
+INFO
+Each layer of the <ParallaxBanner> is just a useParallax hook targeting a <div>. Which means anything you can use to configure useParallax can be used as a property of a layer. See all effects and configuration accepted.
+
+////end

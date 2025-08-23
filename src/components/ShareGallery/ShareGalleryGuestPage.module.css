@@ -1,0 +1,194 @@
+.pageContainer {
+  position: relative;
+  min-height: 100vh;
+  /* background: transparent; */
+  width: 100vw;
+  height: 100vh;
+  overflow-y: auto; /* Changed from hidden to auto */
+
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.uploadSection {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+  transition: background-color 0.3s ease;
+}
+
+.inputGroup {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    background-color: rgba(45, 45, 45, 0.9);
+    padding: 0.5rem;
+    border-radius: 99px; /* Pill shape */
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.nameInput {
+  background-color: transparent;
+  border: none;
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  width: 150px;
+  transition: width 0.3s ease;
+}
+
+.nameInput:focus {
+  outline: none;
+  width: 180px;
+}
+
+.nameInput::placeholder {
+  color: #aaa;
+}
+
+.uploadButton {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 99px;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+.uploadButton:hover:not(:disabled) {
+  background-color: #0056b3;
+  transform: scale(1.05);
+}
+
+.uploadButton:disabled {
+  background-color: #555;
+  cursor: not-allowed;
+}
+
+.uploadMessage {
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    text-align: center;
+}
+
+.uploadMessage.info {
+    background-color: rgba(80, 80, 80, 0.8);
+    color: white;
+}
+.uploadMessage.success {
+    background-color: rgba(40, 167, 69, 0.9);
+    color: white;
+}
+.uploadMessage.error {
+    background-color: rgba(220, 53, 69, 0.9);
+    color: white;
+}
+
+
+.statusMessage {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-size: 1.5rem;
+  color: #ccc;
+  background-color: #1c1c1c;
+}
+
+.statusMessage.error {
+  color: #ff8a8a;
+}
+
+.gallerySection {
+  flex-grow: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.imageContainer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  aspect-ratio: 1 / 1;
+}
+
+.imageContainer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.imageContainer:hover img {
+  transform: scale(1.05);
+}
+
+.imageOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7), transparent);
+  color: white;
+  padding: 1.5rem 1rem 0.5rem;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.errorText {
+  color: #dc3545;
+  text-align: center;
+  font-weight: bold;
+}
+
+.emptyGalleryMessage {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: calc(100vh - 120px); /* Adjust based on upload section height */
+    text-align: center;
+    color: #ccc;
+    padding: 2rem;
+}
+
+.emptyGalleryMessage h2 {
+    font-size: 2rem;
+    color: white;
+    margin-bottom: 0.5rem;
+}
+
+.emptyGalleryMessage p {
+    font-size: 1.1rem;
+    color: #a0a0a0;
+} 

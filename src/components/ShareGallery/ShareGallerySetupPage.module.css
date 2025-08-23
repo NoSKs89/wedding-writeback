@@ -1,0 +1,351 @@
+.container {
+  padding: 2rem;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.loading, .error {
+  text-align: center;
+  font-size: 1.2rem;
+  padding: 4rem;
+}
+
+.error {
+  color: #d32f2f;
+}
+
+.qrSection {
+  flex: 1;
+  max-width: 400px;
+  background-color: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+.qrSection h2 {
+  margin-top: 0;
+  color: #333;
+}
+
+.qrSection p {
+  color: #666;
+  line-height: 1.5;
+}
+
+.qrCode {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #fff;
+  border-radius: 8px;
+  display: inline-block;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.link {
+  word-break: break-all;
+  font-size: 0.9rem;
+}
+
+.link a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.link a:hover {
+  text-decoration: underline;
+}
+
+.gallerySection {
+  flex: 3;
+}
+
+.gallerySection h3 {
+  border-bottom: 2px solid #eee;
+  padding-bottom: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+}
+
+.imageContainer {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  aspect-ratio: 1 / 1;
+}
+
+.imageContainer img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.imageContainer:hover img {
+  transform: scale(1.05);
+}
+
+.imageOverlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
+  color: white;
+  padding: 1.5rem 1rem 0.5rem 1rem;
+  font-size: 0.85rem;
+  opacity: 0;
+  transform: translateY(100%);
+  transition: opacity 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.imageContainer:hover .imageOverlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.deleteButton {
+  background: rgba(255, 255, 255, 0.8);
+  color: #d32f2f;
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  font-size: 1.5rem;
+  line-height: 28px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  padding: 0;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.imageContainer:hover .deleteButton {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.deleteButton:hover {
+  background: #d32f2f;
+  color: white;
+}
+
+.regenerateButton {
+  margin-top: 1.5rem;
+  padding: 10px 20px;
+  border: 1px solid #dc3545;
+  background-color: transparent;
+  color: #dc3545;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s ease-in-out;
+}
+
+.regenerateButton:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* --- Modal Styles --- */
+
+.modalBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modalContent {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
+  width: 90%;
+  text-align: center;
+}
+
+.modalContent h4 {
+  margin-top: 0;
+  font-size: 1.5rem;
+  color: #333;
+}
+
+.modalContent p {
+  color: #666;
+  line-height: 1.6;
+}
+
+.modalInput {
+  width: 100%;
+  padding: 10px;
+  margin: 1rem 0;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.modalButtonCancel,
+.modalButtonConfirm {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.2s;
+}
+
+.modalButtonCancel {
+  background-color: #eee;
+  color: #333;
+}
+.modalButtonCancel:hover {
+  background-color: #ddd;
+}
+
+.modalButtonConfirm {
+  background-color: #dc3545;
+  color: white;
+}
+
+.modalButtonConfirm:hover {
+  background-color: #c82333;
+}
+
+.modalButtonConfirm:disabled {
+  background-color: #f8d7da;
+  color: #721c24;
+  cursor: not-allowed;
+}
+
+.noQrCode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 256px; /* Match QRCodeCanvas size */
+  width: 256px; /* Match QRCodeCanvas size */
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  color: #6c757d;
+  text-align: center;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.errorText {
+  color: #dc3545;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* URL Mode Toggle Styles */
+.urlModeSection {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.urlModeSection h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.urlModeToggle {
+  display: flex;
+  gap: 1rem;
+  flex-direction: column;
+}
+
+.urlModeOption {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem;
+  border: 2px solid #dee2e6;
+  border-radius: 6px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.urlModeOption:hover {
+  border-color: #007bff;
+  background-color: #f8f9ff;
+}
+
+.urlModeOption.active {
+  border-color: #007bff;
+  background-color: #e7f3ff;
+}
+
+.urlModeOption input[type="radio"] {
+  margin-right: 0.75rem;
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.optionContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.optionContent strong {
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.optionContent small {
+  color: #666;
+  font-size: 0.8rem;
+}
+
+.urlModeOption.active .optionContent strong {
+  color: #007bff;
+}
+
+@media (min-width: 768px) {
+  .urlModeToggle {
+    flex-direction: row;
+  }
+  
+  .urlModeOption {
+    flex: 1;
+  }
+} 

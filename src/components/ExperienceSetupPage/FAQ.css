@@ -1,0 +1,87 @@
+.faq-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    color: #fff;
+    align-items: center;
+    justify-content: flex-start; /* Align content to top */
+    overflow: hidden; /* Hide overflowing content */
+    padding-top: 40px; /* Add padding to account for close button */
+    position: relative; /* For close button positioning */
+  }
+  
+  .faq-content {
+    width: 100%;
+    max-width: 90%; /* Adjust as needed */
+    overflow-y: auto; /* Allow scrolling if content overflows */
+    padding: 0 20px 20px 20px; /* Add padding */
+    text-align: left;
+    flex-grow: 1; /* Allow content to take available space */
+  }
+  
+  .faq-title {
+    text-align: center;
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    margin-top: 0; /* Remove default top margin */
+  }
+  
+  .faq-content ul {
+    list-style: none; /* Remove default bullets */
+    padding: 0;
+    margin: 0;
+  }
+  
+  .faq-item {
+    margin-bottom: 20px;
+  }
+  
+  .faq-item strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 1.1rem;
+  }
+  
+  .faq-item p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    color: #eee; /* Slightly lighter than pure white */
+  }
+  
+  .faq-close-button {
+    align-self: flex-end;
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 24px;
+    cursor: pointer;
+    position: absolute;
+    top: 25px;
+    right: 10px;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5;
+  }
+  
+  .faq-close-button:hover {
+    color: gold;
+  }
+  
+  /* --- Mobile Adjustments (Optional) --- */
+  @media (max-width: 767px) {
+    .faq-title {
+      font-size: 1.5rem;
+    }
+    .faq-item strong {
+      font-size: 1rem;
+    }
+    .faq-item p {
+      font-size: 0.9rem;
+    }
+  } 

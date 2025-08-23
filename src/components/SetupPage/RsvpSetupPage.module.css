@@ -1,0 +1,153 @@
+.container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 20px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    color: #333;
+}
+
+.viewSubmissionsButton {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 25px; /* Space below this button */
+    transition: background-color 0.2s;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.viewSubmissionsButton:hover:not(:disabled) {
+    background-color: #5a6268;
+}
+
+.viewSubmissionsButton:disabled {
+    background-color: #adb5bd;
+    cursor: not-allowed;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding-top: 40px;
+}
+
+.header h1 {
+    margin: 0;
+    font-size: 2.5rem;
+    font-weight: 700;
+}
+
+.saveStatusMessage {
+    text-align: center;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 5px;
+    background-color: #e7f4e7;
+    color: #1d642b;
+}
+
+.saveButton {
+    display: block;
+    width: 100%;
+    padding: 15px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 20px;
+    transition: background-color 0.2s;
+}
+
+.saveButton:hover:not(:disabled) {
+    background-color: #218838;
+}
+
+.saveButton:disabled {
+    background-color: #94d3a2;
+    cursor: not-allowed;
+}
+
+.card {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    padding: 25px;
+    margin-bottom: 20px;
+}
+
+.cardTitle {
+    text-align: center;
+    font-weight: 600;
+    margin-bottom: 20px;
+}
+
+.toggleSwitch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid #ccc;
+    border-radius: 30px;
+    padding: 5px;
+    margin: 0 auto;
+    max-width: 400px;
+}
+
+.toggleButton {
+    flex: 1;
+    padding: 10px 20px;
+    border: none;
+    background-color: transparent;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #555;
+    transition: all 0.3s ease;
+}
+
+.toggleButton.active {
+    background-color: #007bff;
+    color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.settingRow {
+    text-align: center;
+}
+
+.settingLabel {
+    font-size: 1.2rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.settingDescription {
+    font-size: 0.9rem;
+    color: #666;
+    margin-top: 10px;
+    line-height: 1.4;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.platedOptionsCard {
+    padding-bottom: 25px;
+}
+
+.optionRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 15px;
+    margin-bottom: 15px;
+    align-items: center;
+} 
